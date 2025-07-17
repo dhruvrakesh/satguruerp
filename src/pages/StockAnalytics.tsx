@@ -2,6 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BarChart3, PieChart, LineChart, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ABCAnalysisChart } from "@/components/analytics/ABCAnalysisChart";
+import { InventoryTurnoverChart } from "@/components/analytics/InventoryTurnoverChart";
+import { CategoryAnalysisChart } from "@/components/dashboard/CategoryAnalysisChart";
 
 export default function StockAnalytics() {
   return (
@@ -27,39 +30,8 @@ export default function StockAnalytics() {
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Stock Turnover
-                </CardTitle>
-                <CardDescription>
-                  Inventory turnover analysis by category
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Stock turnover chart will be displayed here
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="w-5 h-5" />
-                  Category Distribution
-                </CardTitle>
-                <CardDescription>
-                  Inventory value distribution across categories
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Category distribution pie chart will be displayed here
-                </div>
-              </CardContent>
-            </Card>
+            <InventoryTurnoverChart />
+            <ABCAnalysisChart />
           </div>
         </TabsContent>
 
@@ -83,19 +55,7 @@ export default function StockAnalytics() {
         </TabsContent>
 
         <TabsContent value="categories" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Performance</CardTitle>
-              <CardDescription>
-                Detailed analytics for each inventory category
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Category performance analytics will be displayed here
-              </div>
-            </CardContent>
-          </Card>
+          <CategoryAnalysisChart />
         </TabsContent>
 
         <TabsContent value="valuation" className="space-y-6">
