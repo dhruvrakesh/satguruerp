@@ -1,14 +1,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, PieChart, LineChart, Download, RefreshCw } from "lucide-react";
+import { BarChart3, PieChart, LineChart, Download, RefreshCw, FileText, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ABCAnalysisChart } from "@/components/analytics/ABCAnalysisChart";
 import { InventoryTurnoverChart } from "@/components/analytics/InventoryTurnoverChart";
 import { CategoryAnalysisChart } from "@/components/dashboard/CategoryAnalysisChart";
 import { StockValuationChart } from "@/components/analytics/StockValuationChart";
+import { DeadStockAnalysisChart } from "@/components/analytics/DeadStockAnalysisChart";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
+import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
+import { useStockValuation } from "@/hooks/useStockValuation";
+import { useDeadStockAnalysis } from "@/hooks/useDeadStockAnalysis";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 
@@ -19,6 +23,12 @@ export default function StockAnalytics() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const exportMutation = useStockMovementExport();
+  const pdfMutation = usePDFReportGeneration();
+  const { stockValuation, valuationSummary } = useStockValuation(filters);
+  const { deadStockAnalysis, deadStockSummary } = useDeadStockAnalysis({
+    minDaysNoMovement: 90,
+    category: filters.category
+  });
 
   const handleExport = async () => {
     try {
@@ -35,6 +45,39 @@ export default function StockAnalytics() {
       toast({
         title: "Export failed",
         description: "Failed to generate report. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePDFExport = async () => {
+    try {
+      const reportData = {
+        title: "Stock Analytics Report",
+        dateRange: {
+          from: filters.dateFrom,
+          to: filters.dateTo
+        },
+        summary: {
+          totalItems: valuationSummary.data?.totalItems || 0,
+          totalValue: valuationSummary.data?.totalValue || 0,
+          highValueItems: valuationSummary.data?.highValueItems || 0,
+          deadStockItems: deadStockSummary.data?.totalDeadStockItems || 0,
+          deadStockValue: deadStockSummary.data?.totalDeadStockValue || 0
+        },
+        data: stockValuation.data || [],
+        chartElements: ['#stock-valuation-charts', '#abc-analysis-chart', '#dead-stock-analysis-charts']
+      };
+
+      await pdfMutation.mutateAsync(reportData);
+      toast({
+        title: "PDF Export successful",
+        description: "Stock analytics PDF report has been downloaded",
+      });
+    } catch (error) {
+      toast({
+        title: "PDF Export failed",
+        description: "Failed to generate PDF report. Please try again.",
         variant: "destructive",
       });
     }
@@ -77,7 +120,16 @@ export default function StockAnalytics() {
             className="gap-2"
           >
             <Download className="w-4 h-4" />
-            {exportMutation.isPending ? "Exporting..." : "Export Report"}
+            {exportMutation.isPending ? "Exporting..." : "Export Excel"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handlePDFExport}
+            disabled={pdfMutation.isPending}
+            className="gap-2"
+          >
+            <FileText className="w-4 h-4" />
+            {pdfMutation.isPending ? "Generating..." : "Export PDF"}
           </Button>
         </div>
       </div>
@@ -88,6 +140,7 @@ export default function StockAnalytics() {
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
+          <TabsTrigger value="dead-stock">Dead Stock</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -125,6 +178,18 @@ export default function StockAnalytics() {
             key={refreshKey}
             filters={filters}
             onFiltersChange={setFilters}
+          />
+        </TabsContent>
+
+        <TabsContent value="dead-stock" className="space-y-6">
+          <DeadStockAnalysisChart
+            key={refreshKey}
+            filters={{
+              minDaysNoMovement: 90,
+              category: filters.category,
+              minValue: filters.minValue,
+              maxValue: filters.maxValue
+            }}
           />
         </TabsContent>
       </Tabs>
