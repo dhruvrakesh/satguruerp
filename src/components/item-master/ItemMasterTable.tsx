@@ -11,6 +11,7 @@ import { Plus, Search, Filter, Edit, Trash2, Upload, Download, ArrowUpDown } fro
 import { useItemMaster, useItemMasterMutations, ItemMasterFilters, ItemMasterSort } from "@/hooks/useItemMaster";
 import { ItemMasterForm } from "./ItemMasterForm";
 import { LoadingSpinner } from "../ui/loading-spinner";
+import { ConfirmationDialog } from "../ui/confirmation-dialog";
 
 interface ItemMasterTableProps {
   onBulkUpload?: () => void;
@@ -24,6 +25,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item?: any; multiple?: boolean }>({ open: false });
 
   const { data, isLoading, error } = useItemMaster({ page, filters: { ...filters, search: searchQuery }, sort });
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
@@ -57,9 +59,18 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
 
   const handleDeleteSelected = () => {
     if (selectedItems.length > 0) {
+      setDeleteConfirm({ open: true, multiple: true });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.multiple) {
       deleteMultipleItems.mutate(selectedItems);
       setSelectedItems([]);
+    } else if (deleteConfirm.item) {
+      deleteItem.mutate(deleteConfirm.item.id);
     }
+    setDeleteConfirm({ open: false });
   };
 
   if (isLoading) return <LoadingSpinner />;
@@ -222,7 +233,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => deleteItem.mutate(item.id)}
+                        onClick={() => setDeleteConfirm({ open: true, item })}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -272,6 +283,21 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete Confirmation */}
+      <ConfirmationDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ open })}
+        title={deleteConfirm.multiple ? "Delete Selected Items" : "Delete Item"}
+        description={
+          deleteConfirm.multiple 
+            ? `Are you sure you want to delete ${selectedItems.length} selected items? This action cannot be undone.`
+            : `Are you sure you want to delete "${deleteConfirm.item?.item_name}"? This action cannot be undone.`
+        }
+        confirmText="Delete"
+        onConfirm={confirmDelete}
+        variant="destructive"
+      />
     </div>
   );
 }

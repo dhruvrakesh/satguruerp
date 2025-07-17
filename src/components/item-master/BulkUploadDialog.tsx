@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useBulkUpload } from "@/hooks/useBulkUpload";
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -16,9 +17,8 @@ interface BulkUploadDialogProps {
 
 export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any>(null);
+  const { uploadMutation, isProcessing, progress } = useBulkUpload();
 
   const downloadTemplate = () => {
     const csvContent = `item_name,category_name,qualifier,gsm,size_mm,uom,usage_type,specifications
@@ -53,57 +53,17 @@ Industrial Adhesive,Consumables,Standard,,1000ml,LTR,CONSUMABLE,High strength ad
   const handleUpload = async () => {
     if (!file) return;
 
-    setUploading(true);
-    setProgress(0);
-
     try {
-      // Simulate upload progress
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(interval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      clearInterval(interval);
-      setProgress(100);
-
-      // Mock results
-      setResults({
-        successCount: 45,
-        errorCount: 5,
-        errors: [
-          { rowNumber: 2, reason: "Invalid category name", data: { item_name: "Test Item" } },
-          { rowNumber: 5, reason: "GSM value too high", data: { item_name: "Another Item" } },
-          { rowNumber: 12, reason: "Missing required field: UOM", data: { item_name: "Third Item" } }
-        ]
-      });
-
-      toast({
-        title: "Upload completed",
-        description: "45 items uploaded successfully, 5 errors found"
-      });
+      const result = await uploadMutation.mutateAsync(file);
+      setResults(result);
     } catch (error) {
-      toast({
-        title: "Upload failed",
-        description: "An error occurred during upload",
-        variant: "destructive"
-      });
-    } finally {
-      setUploading(false);
+      // Error is handled by the mutation
     }
   };
 
   const resetUpload = () => {
     setFile(null);
-    setProgress(0);
     setResults(null);
-    setUploading(false);
   };
 
   return (
@@ -147,7 +107,7 @@ Industrial Adhesive,Consumables,Standard,,1000ml,LTR,CONSUMABLE,High strength ad
                   type="file"
                   accept=".csv"
                   onChange={handleFileSelect}
-                  disabled={uploading}
+                  disabled={isProcessing}
                 />
                 {file && (
                   <p className="text-sm text-muted-foreground mt-2">
@@ -157,8 +117,11 @@ Industrial Adhesive,Consumables,Standard,,1000ml,LTR,CONSUMABLE,High strength ad
               </div>
 
               {file && !results && (
-                <Button onClick={handleUpload} disabled={uploading}>
-                  {uploading ? (
+                <Button 
+                  onClick={handleUpload} 
+                  disabled={isProcessing || uploadMutation.isPending}
+                >
+                  {isProcessing || uploadMutation.isPending ? (
                     <>Processing...</>
                   ) : (
                     <>
@@ -169,11 +132,11 @@ Industrial Adhesive,Consumables,Standard,,1000ml,LTR,CONSUMABLE,High strength ad
                 </Button>
               )}
 
-              {uploading && (
+              {(isProcessing || uploadMutation.isPending) && (
                 <div className="space-y-2">
                   <Progress value={progress} />
                   <p className="text-sm text-muted-foreground">
-                    Processing file... {progress}%
+                    Processing file... {Math.round(progress)}%
                   </p>
                 </div>
               )}

@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { itemMasterSchema, ItemMasterFormData } from "@/schemas/itemMasterSchema";
 import { useItemMasterMutations } from "@/hooks/useItemMaster";
 import { useItemCodeGeneration } from "@/hooks/useItemCodeGeneration";
+import { useCategories } from "@/hooks/useCategories";
 import { Wand2, Check, X, Loader2 } from "lucide-react";
 
 interface ItemMasterFormProps {
@@ -22,13 +23,8 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
   const isEditing = !!item;
   const { createItem, updateItem } = useItemMasterMutations();
   const { generatedCode, isValidating, isUnique, updateCode, validateManualCode, isGenerating } = useItemCodeGeneration();
-  
-  const [categories] = useState([
-    { id: '1', category_name: 'Raw Materials' },
-    { id: '2', category_name: 'Finished Goods' },
-    { id: '3', category_name: 'Packaging' },
-    { id: '4', category_name: 'Consumables' }
-  ]);
+  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
+  const categoriesArray = Array.isArray(categories) ? categories : [];
 
   const form = useForm<ItemMasterFormData>({
     resolver: zodResolver(itemMasterSchema),
@@ -52,7 +48,7 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
 
   useEffect(() => {
     if (!isEditing && categoryId) {
-      const selectedCategory = categories.find(c => c.id === categoryId);
+      const selectedCategory = categoriesArray.find(c => c.id === categoryId);
       if (selectedCategory) {
         updateCode({
           categoryName: selectedCategory.category_name,
@@ -121,11 +117,15 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.category_name}
-                            </SelectItem>
-                          ))}
+                          {categoriesLoading ? (
+                            <SelectItem value="" disabled>Loading categories...</SelectItem>
+                          ) : (
+                            categoriesArray.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.category_name}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
