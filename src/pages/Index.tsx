@@ -1,6 +1,7 @@
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RecentOrders } from "@/components/dashboard/RecentOrders";
 import { ProductionOverview } from "@/components/dashboard/ProductionOverview";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Package, 
   Users, 
@@ -13,15 +14,25 @@ import {
 } from "lucide-react";
 
 const Index = () => {
+  const { profile, isAdmin } = useAuth();
+  
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Welcome Section */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-foreground">
-          Welcome to Satguru Engravures ERP
+          {getGreeting()}, {profile?.full_name || 'User'}!
         </h1>
         <p className="text-muted-foreground">
-          Your complete manufacturing management solution for packaging and printing operations.
+          Welcome to Satguru Engravures ERP - Your complete manufacturing management solution for packaging and printing operations.
+          {isAdmin() && ' You have administrator privileges.'}
         </p>
       </div>
 
