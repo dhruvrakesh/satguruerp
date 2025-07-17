@@ -25,7 +25,7 @@ export const useMLForecasting = (filters: ForecastFilters) => {
         return [];
       }
 
-      const { data, error } = await supabase.rpc("ml_demand_prediction", {
+      const { data, error } = await supabase.rpc("ml_demand_prediction" as any, {
         p_item_code: filters.itemCode,
         p_forecast_horizon: filters.forecastHorizon || 3,
         p_confidence_level: filters.confidenceLevel || 0.95,
@@ -61,7 +61,7 @@ export const useAdvancedForecasting = (filters: ForecastFilters) => {
         return [];
       }
 
-      const { data, error } = await supabase.rpc("advanced_demand_forecast", {
+      const { data, error } = await supabase.rpc("advanced_demand_forecast" as any, {
         p_item_code: filters.itemCode,
         p_forecast_months: filters.forecastHorizon || 6,
       });
@@ -92,7 +92,7 @@ export const useConsumptionAnomalies = (itemCode?: string, thresholdFactor: numb
   return useQuery({
     queryKey: ["consumption-anomalies", itemCode, thresholdFactor],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("detect_consumption_anomalies", {
+      const { data, error } = await supabase.rpc("detect_consumption_anomalies" as any, {
         p_item_code: itemCode || null,
         p_threshold_factor: thresholdFactor,
       });

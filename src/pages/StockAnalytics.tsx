@@ -13,6 +13,8 @@ import { MovementClassificationPanel } from "@/components/analytics/MovementClas
 import { DataValidationPanel } from "@/components/analytics/DataValidationPanel";
 import { ConsumptionPatternsPanel } from "@/components/analytics/ConsumptionPatternsPanel";
 import { StockAgingPanel } from "@/components/analytics/StockAgingPanel";
+import { MLForecastingPanel } from "@/components/analytics/MLForecastingPanel";
+import { InventoryOptimizationPanel } from "@/components/analytics/InventoryOptimizationPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
@@ -144,6 +146,8 @@ export default function StockAnalytics() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
+          <TabsTrigger value="ml-forecasting">ML Forecasting</TabsTrigger>
+          <TabsTrigger value="optimization">Optimization</TabsTrigger>
           <TabsTrigger value="validation">Data Validation</TabsTrigger>
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="movement">Movement</TabsTrigger>
@@ -171,6 +175,14 @@ export default function StockAnalytics() {
               });
             }}
           />
+        </TabsContent>
+
+        <TabsContent value="ml-forecasting" className="space-y-6">
+          <MLForecastingPanel />
+        </TabsContent>
+
+        <TabsContent value="optimization" className="space-y-6">
+          <InventoryOptimizationPanel />
         </TabsContent>
 
         <TabsContent value="suppliers" className="space-y-6">

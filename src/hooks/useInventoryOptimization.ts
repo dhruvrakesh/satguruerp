@@ -21,7 +21,7 @@ export const useInventoryOptimization = (filters: OptimizationFilters) => {
   return useQuery({
     queryKey: ["inventory-optimization", filters],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("optimize_inventory_levels", {
+      const { data, error } = await supabase.rpc("optimize_inventory_levels" as any, {
         p_category_id: filters.categoryId || null,
         p_service_level: filters.serviceLevel || 0.95,
       });
@@ -42,7 +42,7 @@ export const useRefreshAnalytics = () => {
 
   return useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("refresh_analytics_materialized_views");
+      const { error } = await supabase.rpc("refresh_analytics_materialized_views" as any);
       
       if (error) {
         console.error("Error refreshing analytics views:", error);

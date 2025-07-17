@@ -6078,6 +6078,19 @@ export type Database = {
         Args: { p_date?: string }
         Returns: string
       }
+      optimize_inventory_levels: {
+        Args: { p_category_id?: string; p_service_level?: number }
+        Returns: {
+          item_code: string
+          item_name: string
+          current_stock: number
+          recommended_reorder_point: number
+          recommended_max_stock: number
+          economic_order_quantity: number
+          total_cost_reduction: number
+          implementation_priority: string
+        }[]
+      }
       process_queued_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
