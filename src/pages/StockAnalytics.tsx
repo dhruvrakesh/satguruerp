@@ -7,6 +7,7 @@ import { InventoryTurnoverChart } from "@/components/analytics/InventoryTurnover
 import { CategoryAnalysisChart } from "@/components/dashboard/CategoryAnalysisChart";
 import { StockValuationChart } from "@/components/analytics/StockValuationChart";
 import { DeadStockAnalysisChart } from "@/components/analytics/DeadStockAnalysisChart";
+import { LowStockAlertsPanel } from "@/components/analytics/LowStockAlertsPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
@@ -137,6 +138,7 @@ export default function StockAnalytics() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
@@ -148,6 +150,17 @@ export default function StockAnalytics() {
             <InventoryTurnoverChart />
             <ABCAnalysisChart />
           </div>
+        </TabsContent>
+
+        <TabsContent value="alerts" className="space-y-6">
+          <LowStockAlertsPanel
+            onReorderClick={(itemCode, suggestedQty) => {
+              toast({
+                title: "Reorder initiated",
+                description: `Create purchase order for ${itemCode} - Qty: ${suggestedQty}`,
+              });
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-6">
