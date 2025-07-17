@@ -11,6 +11,8 @@ import { LowStockAlertsPanel } from "@/components/analytics/LowStockAlertsPanel"
 import { SupplierPerformancePanel } from "@/components/analytics/SupplierPerformancePanel";
 import { MovementClassificationPanel } from "@/components/analytics/MovementClassificationPanel";
 import { DataValidationPanel } from "@/components/analytics/DataValidationPanel";
+import { ConsumptionPatternsPanel } from "@/components/analytics/ConsumptionPatternsPanel";
+import { StockAgingPanel } from "@/components/analytics/StockAgingPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
@@ -145,6 +147,8 @@ export default function StockAnalytics() {
           <TabsTrigger value="validation">Data Validation</TabsTrigger>
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="movement">Movement</TabsTrigger>
+          <TabsTrigger value="consumption">Consumption</TabsTrigger>
+          <TabsTrigger value="aging">Stock Aging</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
@@ -203,6 +207,28 @@ export default function StockAnalytics() {
               toast({
                 title: "Stock optimization",
                 description: `${action} stock for ${itemCode}`,
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="consumption" className="space-y-6">
+          <ConsumptionPatternsPanel
+            onOptimizeStock={(itemCode, action) => {
+              toast({
+                title: "Stock optimization",
+                description: `${action} consumption patterns for ${itemCode}`,
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="aging" className="space-y-6">
+          <StockAgingPanel
+            onTakeAction={(itemCode, action) => {
+              toast({
+                title: "Aging action",
+                description: `${action} initiated for ${itemCode}`,
               });
             }}
           />
