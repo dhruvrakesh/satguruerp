@@ -1,20 +1,21 @@
 import { StatCard } from "@/components/dashboard/StatCard";
-import { RecentOrders } from "@/components/dashboard/RecentOrders";
-import { ProductionOverview } from "@/components/dashboard/ProductionOverview";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStockMetrics } from "@/hooks/useStockMetrics";
+import { StockMovementChart } from "@/components/dashboard/StockMovementChart";
+import { StockDistributionChart } from "@/components/dashboard/StockDistributionChart";
+import { CategoryAnalysisChart } from "@/components/dashboard/CategoryAnalysisChart";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
+import { StockAlertsPanel } from "@/components/dashboard/StockAlertsPanel";
 import { 
   Package, 
-  Users, 
-  TrendingUp, 
-  DollarSign,
-  Factory,
-  Truck,
   AlertTriangle,
-  CheckCircle
+  Archive,
+  Activity
 } from "lucide-react";
 
 const Index = () => {
   const { profile, isAdmin } = useAuth();
+  const { data: metrics, isLoading: metricsLoading } = useStockMetrics();
   
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -36,72 +37,47 @@ const Index = () => {
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Orders"
-          value="148"
-          change={{ value: "+12%", trend: "up" }}
+          title="Total Active Items"
+          value={metricsLoading ? "..." : metrics?.totalItems?.toLocaleString() || "0"}
           icon={Package}
-          description="Active orders in system"
+          description="Items in inventory catalog"
         />
         <StatCard
-          title="Revenue (₹)"
-          value="₹8,45,000"
-          change={{ value: "+8.2%", trend: "up" }}
-          icon={DollarSign}
-          description="This month's revenue"
-        />
-        <StatCard
-          title="Active Customers"
-          value="89"
-          change={{ value: "+5", trend: "up" }}
-          icon={Users}
-          description="Engaged customers"
-        />
-        <StatCard
-          title="Production Units"
-          value="4,250"
-          change={{ value: "+15%", trend: "up" }}
-          icon={Factory}
-          description="Units completed today"
-        />
-      </div>
-
-      {/* Secondary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Pending Deliveries"
-          value="23"
-          icon={Truck}
-          description="Orders ready for dispatch"
-        />
-        <StatCard
-          title="Quality Issues"
-          value="2"
+          title="Low Stock Alerts"
+          value={metricsLoading ? "..." : metrics?.lowStockItems?.toString() || "0"}
           icon={AlertTriangle}
-          description="Items needing attention"
+          description="Items below threshold"
         />
         <StatCard
-          title="Completed Today"
-          value="12"
-          icon={CheckCircle}
-          description="Orders finished today"
+          title="Total Stock Quantity"
+          value={metricsLoading ? "..." : metrics?.totalStockQty?.toLocaleString() || "0"}
+          icon={Archive}
+          description="Units in stock"
         />
         <StatCard
-          title="Efficiency"
-          value="94.5%"
-          change={{ value: "+2.1%", trend: "up" }}
-          icon={TrendingUp}
-          description="Overall production efficiency"
+          title="Recent Transactions"
+          value={metricsLoading ? "..." : ((metrics?.recentGrnCount || 0) + (metrics?.recentIssueCount || 0)).toString() || "0"}
+          icon={Activity}
+          description="GRN + Issues (7 days)"
         />
       </div>
 
-      {/* Main Content Grid */}
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentOrders />
-        <ProductionOverview />
+        <StockMovementChart />
+        <StockDistributionChart />
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CategoryAnalysisChart />
+        <StockAlertsPanel />
+      </div>
+
+      {/* Recent Activity */}
+      <RecentActivityFeed />
     </div>
   );
 };
