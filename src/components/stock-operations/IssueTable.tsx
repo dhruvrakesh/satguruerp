@@ -71,7 +71,7 @@ export function IssueTable({ onEdit }: IssueTableProps) {
       await updateIssue.mutateAsync({ id, updates: editValues });
       setEditingId(null);
       setEditValues({});
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to update issue",
@@ -89,7 +89,7 @@ export function IssueTable({ onEdit }: IssueTableProps) {
     try {
       await deleteIssue.mutateAsync(id);
       setDeleteId(null);
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to delete issue",

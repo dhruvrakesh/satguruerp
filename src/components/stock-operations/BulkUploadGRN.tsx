@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
+import { BulkUploadResult, BulkUploadError, CSVRowData } from "@/types";
 
 interface BulkGRNRow {
   grn_number: string;
@@ -21,15 +22,6 @@ interface BulkGRNRow {
   remarks?: string;
 }
 
-interface BulkGRNResult {
-  successCount: number;
-  errorCount: number;
-  errors: Array<{
-    rowNumber: number;
-    reason: string;
-    data: any;
-  }>;
-}
 
 interface BulkUploadGRNProps {
   open: boolean;
@@ -39,7 +31,7 @@ interface BulkUploadGRNProps {
 export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState<BulkGRNResult | null>(null);
+  const [results, setResults] = useState<BulkUploadResult | null>(null);
   const queryClient = useQueryClient();
 
   const downloadTemplate = () => {
@@ -70,7 +62,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     window.URL.revokeObjectURL(url);
   };
 
-  const processCSV = async (file: File): Promise<BulkGRNResult> => {
+  const processCSV = async (file: File): Promise<BulkUploadResult> => {
     setIsProcessing(true);
     setProgress(0);
 
@@ -83,7 +75,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         throw new Error("CSV file is empty or has no data rows");
       }
 
-      const results: BulkGRNResult = {
+      const results: BulkUploadResult = {
         successCount: 0,
         errorCount: 0,
         errors: []
@@ -122,7 +114,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         setProgress((i / (lines.length - 1)) * 90);
         
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const rowData: any = {};
+        const rowData: CSVRowData = {};
         
         headers.forEach((header, index) => {
           rowData[header] = values[index] || '';
@@ -186,12 +178,12 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
           results.successCount++;
 
-        } catch (error: any) {
+        } catch (error) {
           results.errorCount++;
           results.errors.push({
             rowNumber: i + 1,
-            reason: error.message,
-            data: headers.reduce((obj: any, header, index) => {
+            reason: error instanceof Error ? error.message : 'Unknown error',
+            data: headers.reduce((obj: CSVRowData, header, index) => {
               obj[header] = values[index] || '';
               return obj;
             }, {})
@@ -219,7 +211,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         description: `${results.successCount} GRNs uploaded successfully${results.errorCount > 0 ? `, ${results.errorCount} errors found` : ''}`
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Upload failed",
         description: error.message || "An error occurred during upload",

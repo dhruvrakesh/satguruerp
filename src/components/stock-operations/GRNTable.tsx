@@ -55,7 +55,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
       await updateGRN.mutateAsync({ id, updates: editValues });
       setEditingId(null);
       setEditValues({});
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to update GRN",
@@ -73,7 +73,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
     try {
       await deleteGRN.mutateAsync(id);
       setDeleteId(null);
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to delete GRN",

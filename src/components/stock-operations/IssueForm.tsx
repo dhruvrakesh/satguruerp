@@ -83,7 +83,7 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
       await createIssue.mutateAsync(values as StockIssueFormData);
       form.reset();
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to create issue",

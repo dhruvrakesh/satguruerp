@@ -88,7 +88,7 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
         await createItem.mutateAsync(data);
       }
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to submit form",

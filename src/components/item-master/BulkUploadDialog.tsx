@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useBulkUpload } from "@/hooks/useBulkUpload";
+import { BulkUploadError } from "@/types";
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -170,7 +171,7 @@ Industrial Adhesive,Consumables,Standard,,1000ml,LTR,CONSUMABLE,High strength ad
                   <div className="space-y-2">
                     <h4 className="font-medium text-sm">Errors found:</h4>
                     <div className="max-h-48 overflow-y-auto space-y-2">
-                      {results.errors.map((error: any, index: number) => (
+                      {results.errors.map((error: BulkUploadError, index: number) => (
                         <Alert key={index} variant="destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>

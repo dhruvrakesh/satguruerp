@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { AuthResponse, AuthError } from '@/types';
 
 interface Profile {
   id: string;
@@ -16,8 +18,8 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error?: any }>;
-  signIn: (email: string, password: string) => Promise<{ error?: any }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<AuthResponse>;
+  signIn: (email: string, password: string) => Promise<AuthResponse>;
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
   isApproved: () => boolean;
@@ -38,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -50,7 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       setProfile(data);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      toast({
+        title: "Profile Error",
+        description: "Failed to load user profile. Please try signing in again.",
+        variant: "destructive"
+      });
       setProfile(null);
     }
   };
@@ -133,7 +140,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(null);
       setProfile(null);
     } catch (error) {
-      console.error('Error signing out:', error);
+      toast({
+        title: "Sign Out Error",
+        description: "There was an issue signing out. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
