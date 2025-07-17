@@ -8,6 +8,9 @@ import { CategoryAnalysisChart } from "@/components/dashboard/CategoryAnalysisCh
 import { StockValuationChart } from "@/components/analytics/StockValuationChart";
 import { DeadStockAnalysisChart } from "@/components/analytics/DeadStockAnalysisChart";
 import { LowStockAlertsPanel } from "@/components/analytics/LowStockAlertsPanel";
+import { SupplierPerformancePanel } from "@/components/analytics/SupplierPerformancePanel";
+import { MovementClassificationPanel } from "@/components/analytics/MovementClassificationPanel";
+import { DataValidationPanel } from "@/components/analytics/DataValidationPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
@@ -139,6 +142,9 @@ export default function StockAnalytics() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
+          <TabsTrigger value="validation">Data Validation</TabsTrigger>
+          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+          <TabsTrigger value="movement">Movement</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
@@ -158,6 +164,45 @@ export default function StockAnalytics() {
               toast({
                 title: "Reorder initiated",
                 description: `Create purchase order for ${itemCode} - Qty: ${suggestedQty}`,
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="suppliers" className="space-y-6">
+          <SupplierPerformancePanel
+            onContactSupplier={(supplier) => {
+              toast({
+                title: "Supplier contact",
+                description: `Contacting supplier: ${supplier}`,
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="validation" className="space-y-6">
+          <DataValidationPanel
+            onFixIssue={(issueId, action) => {
+              toast({
+                title: "Issue resolution",
+                description: `${action} initiated for issue: ${issueId}`,
+              });
+            }}
+            onRunValidation={() => {
+              toast({
+                title: "Validation started",
+                description: "Running comprehensive data validation checks...",
+              });
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="movement" className="space-y-6">
+          <MovementClassificationPanel
+            onOptimizeStock={(itemCode, action) => {
+              toast({
+                title: "Stock optimization",
+                description: `${action} stock for ${itemCode}`,
               });
             }}
           />
