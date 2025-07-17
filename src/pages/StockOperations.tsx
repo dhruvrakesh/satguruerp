@@ -1,9 +1,21 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpDown, Plus, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { GRNForm } from "@/components/stock-operations/GRNForm";
+import { GRNTable } from "@/components/stock-operations/GRNTable";
+import { IssueForm } from "@/components/stock-operations/IssueForm";
+import { IssueTable } from "@/components/stock-operations/IssueTable";
+import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
+import { BulkUploadDialog } from "@/components/item-master/BulkUploadDialog";
 
 export default function StockOperations() {
+  const [grnDialogOpen, setGrnDialogOpen] = useState(false);
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -12,14 +24,45 @@ export default function StockOperations() {
           <p className="text-muted-foreground">Manage goods receipt notes (GRN) and stock issues</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <TrendingUp className="w-4 h-4" />
-            New GRN
+          <Dialog open={grnDialogOpen} onOpenChange={setGrnDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                New GRN
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New GRN</DialogTitle>
+              </DialogHeader>
+              <GRNForm onSuccess={() => setGrnDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={issueDialogOpen} onOpenChange={setIssueDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <TrendingDown className="w-4 h-4" />
+                Issue Stock
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create Stock Issue</DialogTitle>
+              </DialogHeader>
+              <IssueForm onSuccess={() => setIssueDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" className="gap-2" onClick={() => setBulkUploadOpen(true)}>
+            <Upload className="w-4 h-4" />
+            Bulk Upload
           </Button>
-          <Button className="gap-2">
-            <TrendingDown className="w-4 h-4" />
-            Issue Stock
-          </Button>
+          
+          <BulkUploadDialog
+            open={bulkUploadOpen}
+            onOpenChange={setBulkUploadOpen}
+          />
         </div>
       </div>
 
@@ -35,16 +78,14 @@ export default function StockOperations() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
-                Recent GRNs
+                Goods Receipt Notes
               </CardTitle>
               <CardDescription>
-                Latest goods receipt notes and incoming stock
+                Manage incoming stock and goods receipt notes
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                GRN management functionality will be implemented here
-              </div>
+              <GRNTable />
             </CardContent>
           </Card>
         </TabsContent>
@@ -57,13 +98,11 @@ export default function StockOperations() {
                 Stock Issues
               </CardTitle>
               <CardDescription>
-                Outgoing stock and material issues
+                Track outgoing stock and material issues
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Stock issue management functionality will be implemented here
-              </div>
+              <IssueTable />
             </CardContent>
           </Card>
         </TabsContent>
@@ -73,16 +112,14 @@ export default function StockOperations() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ArrowUpDown className="w-5 h-5" />
-                All Transactions
+                Transaction History
               </CardTitle>
               <CardDescription>
-                Complete transaction history and audit trail
+                Complete audit trail of all stock movements
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Transaction history will be implemented here
-              </div>
+              <TransactionHistory />
             </CardContent>
           </Card>
         </TabsContent>
