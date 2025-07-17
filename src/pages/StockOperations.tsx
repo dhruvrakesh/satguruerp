@@ -12,6 +12,7 @@ import { IssueTable } from "@/components/stock-operations/IssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
 import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
 import { BulkUploadIssues } from "@/components/stock-operations/BulkUploadIssues";
+import { StockMovementReport } from "@/components/stock-operations/StockMovementReport";
 
 export default function StockOperations() {
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
@@ -144,6 +145,8 @@ export default function StockOperations() {
               <TransactionHistory />
             </CardContent>
           </Card>
+
+          <StockMovementReport />
         </TabsContent>
       </Tabs>
     </div>

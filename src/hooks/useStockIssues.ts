@@ -139,13 +139,44 @@ export function useStockIssueMutations() {
       if (error) throw error;
       return data;
     },
+    onMutate: async (newIssue) => {
+      // Optimistic update - immediately show in UI
+      await queryClient.cancelQueries({ queryKey: ['stock-issues'] });
+      
+      const previousIssues = queryClient.getQueryData(['stock-issues']);
+      
+      // Optimistically update the cache
+      queryClient.setQueryData(['stock-issues'], (old: any) => {
+        if (!old) return old;
+        
+        const optimisticIssue = {
+          id: `temp-${Date.now()}`,
+          ...newIssue,
+          created_at: new Date().toISOString(),
+          satguru_item_master: null
+        };
+        
+        return {
+          ...old,
+          data: [optimisticIssue, ...old.data],
+          count: old.count + 1
+        };
+      });
+      
+      return { previousIssues };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-issues'] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       queryClient.invalidateQueries({ queryKey: ['recent-issues'] });
       toast({ title: "Success", description: "Stock issue created successfully" });
     },
-    onError: (error: any) => {
+    onError: (error: any, newIssue, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousIssues) {
+        queryClient.setQueryData(['stock-issues'], context.previousIssues);
+      }
+      
       toast({ 
         title: "Error", 
         description: error.message || "Failed to create stock issue",

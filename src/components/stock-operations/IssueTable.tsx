@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { MoreHorizontal, Search, Edit, Trash2, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, Search, Edit, Trash2, ChevronUp, ChevronDown, AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useStockIssues, useStockIssueMutations, StockIssueSort, StockIssueFilters } from "@/hooks/useStockIssues";
+import { useStockIssueExport } from "@/hooks/useDataExport";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 const PURPOSE_OPTIONS = [
@@ -36,6 +37,7 @@ export function IssueTable({ onEdit }: IssueTableProps) {
 
   const { data, isLoading } = useStockIssues({ page, pageSize: 50, filters, sort });
   const { updateIssue, deleteIssue } = useStockIssueMutations();
+  const exportIssues = useStockIssueExport();
 
   const handleSort = (column: string) => {
     setSort(prev => ({
@@ -155,6 +157,22 @@ export function IssueTable({ onEdit }: IssueTableProps) {
 
   return (
     <div className="space-y-4">
+      {/* Header with Export */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-muted-foreground">
+          {data?.count || 0} total records
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportIssues.mutate(filters)}
+          disabled={exportIssues.isPending}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          {exportIssues.isPending ? "Exporting..." : "Export to Excel"}
+        </Button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">

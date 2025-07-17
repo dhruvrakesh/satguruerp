@@ -148,13 +148,47 @@ export function useGRNMutations() {
       if (error) throw error;
       return data;
     },
+    onMutate: async (newGRN) => {
+      // Optimistic update - immediately show in UI
+      await queryClient.cancelQueries({ queryKey: ['grn'] });
+      
+      const previousGRN = queryClient.getQueryData(['grn']);
+      
+      // Optimistically update the cache
+      queryClient.setQueryData(['grn'], (old: any) => {
+        if (!old) return old;
+        
+        const optimisticGRN = {
+          id: `temp-${Date.now()}`,
+          ...newGRN,
+          date: newGRN.grn_date || newGRN.date,
+          vendor: newGRN.supplier || newGRN.vendor,
+          amount_inr: newGRN.total_value || newGRN.amount_inr,
+          created_at: new Date().toISOString(),
+          satguru_item_master: null
+        };
+        
+        return {
+          ...old,
+          data: [optimisticGRN, ...old.data],
+          count: old.count + 1
+        };
+      });
+      
+      return { previousGRN };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grn'] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       queryClient.invalidateQueries({ queryKey: ['recent-grn'] });
       toast({ title: "Success", description: "GRN created successfully" });
     },
-    onError: (error: any) => {
+    onError: (error: any, newGRN, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousGRN) {
+        queryClient.setQueryData(['grn'], context.previousGRN);
+      }
+      
       toast({ 
         title: "Error", 
         description: error.message || "Failed to create GRN",

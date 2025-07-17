@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { MoreHorizontal, Search, Filter, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { MoreHorizontal, Search, Filter, Edit, Trash2, ChevronUp, ChevronDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGRN, useGRNMutations, GRNSort, GRNFilters } from "@/hooks/useGRN";
+import { useGRNExport } from "@/hooks/useDataExport";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/hooks/use-toast";
 
@@ -24,6 +25,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
 
   const { data, isLoading } = useGRN({ page, pageSize: 50, filters, sort });
   const { updateGRN, deleteGRN } = useGRNMutations();
+  const exportGRN = useGRNExport();
 
   const handleSort = (column: string) => {
     setSort(prev => ({
@@ -115,6 +117,22 @@ export function GRNTable({ onEdit }: GRNTableProps) {
 
   return (
     <div className="space-y-4">
+      {/* Header with Export */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-muted-foreground">
+          {data?.count || 0} total records
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportGRN.mutate(filters)}
+          disabled={exportGRN.isPending}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          {exportGRN.isPending ? "Exporting..." : "Export to Excel"}
+        </Button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
