@@ -1,15 +1,21 @@
-import { useState } from "react";
 import { 
   LayoutDashboard, 
   Package, 
-  Users, 
   FileText, 
   TrendingUp, 
   Settings,
   Factory,
-  Truck,
-  Calendar,
-  BarChart3
+  BarChart3,
+  Package2,
+  ArrowUpDown,
+  ClipboardList,
+  Workflow,
+  Layers,
+  Palette,
+  Scissors,
+  PackageCheck,
+  FolderTree,
+  Shield
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -26,22 +32,30 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const mainMenuItems = [
+const mainOperationsItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Orders", url: "/orders", icon: FileText },
-  { title: "Production", url: "/production", icon: Factory },
-  { title: "Inventory", url: "/inventory", icon: Package },
-  { title: "Customers", url: "/customers", icon: Users },
-  { title: "Deliveries", url: "/deliveries", icon: Truck },
+  { title: "Item Master", url: "/item-master", icon: Package2 },
+  { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
+  { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
+];
+
+const manufacturingItems = [
+  { title: "Manufacturing Workflow", url: "/manufacturing-workflow", icon: Workflow },
+  { title: "Order Punching", url: "/order-punching", icon: FileText },
+  { title: "Gravure Printing", url: "/gravure-printing", icon: Palette },
+  { title: "Lamination & Coating", url: "/lamination-coating", icon: Layers },
+  { title: "Slitting & Packaging", url: "/slitting-packaging", icon: Scissors },
 ];
 
 const analyticsItems = [
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Analytics", url: "/analytics", icon: TrendingUp },
-  { title: "Calendar", url: "/calendar", icon: Calendar },
+  { title: "Stock Analytics", url: "/stock-analytics", icon: BarChart3 },
+  { title: "Production Reports", url: "/production-reports", icon: TrendingUp },
+  { title: "Workflow Analytics", url: "/workflow-analytics", icon: Factory },
 ];
 
-const systemItems = [
+const managementItems = [
+  { title: "Categories Management", url: "/categories", icon: FolderTree },
+  { title: "User Management", url: "/user-management", icon: Shield },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -76,11 +90,31 @@ export function AppSidebar() {
       <SidebarContent className="px-2">
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            Main Menu
+            Main Operations
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {mainMenuItems.map((item) => (
+              {mainOperationsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Manufacturing
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              {manufacturingItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavClasses}>
@@ -116,11 +150,11 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            System
+            Management
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {systemItems.map((item) => (
+              {managementItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavClasses}>

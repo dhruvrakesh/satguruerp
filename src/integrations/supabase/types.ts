@@ -292,6 +292,13 @@ export type Database = {
             foreignKeyName: "advances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "advances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "payroll_employees"
             referencedColumns: ["id"]
           },
@@ -931,6 +938,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "attendance_employee_id_fkey"
             columns: ["employee_id"]
@@ -1789,6 +1803,13 @@ export type Database = {
             foreignKeyName: "employee_leave_balances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_leave_balances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "payroll_employees"
             referencedColumns: ["id"]
           },
@@ -1823,6 +1844,13 @@ export type Database = {
           variable_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "employee_variable_overrides_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "employee_variable_overrides_employee_id_fkey"
             columns: ["employee_id"]
@@ -2614,6 +2642,13 @@ export type Database = {
           leave_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "leave_balance_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "leave_balance_history_employee_id_fkey"
             columns: ["employee_id"]
@@ -3854,6 +3889,13 @@ export type Database = {
             foreignKeyName: "payroll_calculation_audit_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "payroll_calculation_audit_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "payroll_employees"
             referencedColumns: ["id"]
           },
@@ -3971,6 +4013,7 @@ export type Database = {
           lwf_amount: number
           pf_rate: number
           setting_id: string
+          sunday_overtime_multiplier: number | null
           updated_at: string | null
         }
         Insert: {
@@ -3980,6 +4023,7 @@ export type Database = {
           lwf_amount?: number
           pf_rate: number
           setting_id?: string
+          sunday_overtime_multiplier?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -3989,6 +4033,7 @@ export type Database = {
           lwf_amount?: number
           pf_rate?: number
           setting_id?: string
+          sunday_overtime_multiplier?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -4480,6 +4525,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "salary_batches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_disbursement_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
           },
           {
             foreignKeyName: "salary_disbursement_employee_id_fkey"
@@ -5496,6 +5548,30 @@ export type Database = {
       }
     }
     Views: {
+      payroll_calculation_enhanced: {
+        Row: {
+          base_salary: number | null
+          casual_leave_balance: number | null
+          earned_leave_balance: number | null
+          employee_id: string | null
+          employee_name: string | null
+          hra_amount: number | null
+          other_conv_amount: number | null
+          uan_number: string | null
+          unit_code: string | null
+          unit_id: string | null
+          unit_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_employees_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["unit_id"]
+          },
+        ]
+      }
       satguru_stock_summary: {
         Row: {
           category_name: string | null
@@ -5797,6 +5873,10 @@ export type Database = {
       }
       is_admin: {
         Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_sunday: {
+        Args: { input_date: string }
         Returns: boolean
       }
       map_documents_to_smeta: {
