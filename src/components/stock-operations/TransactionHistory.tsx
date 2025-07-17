@@ -91,12 +91,12 @@ export function TransactionHistory() {
           />
         </div>
         
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
+        <Select value={typeFilter || "__ALL__"} onValueChange={(value) => setTypeFilter(value === "__ALL__" ? "" : value)}>
           <SelectTrigger className="w-auto">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All types</SelectItem>
+            <SelectItem value="__ALL__">All types</SelectItem>
             <SelectItem value="GRN">GRN Only</SelectItem>
             <SelectItem value="ISSUE">Issues Only</SelectItem>
           </SelectContent>

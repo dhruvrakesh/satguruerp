@@ -11,8 +11,19 @@ import { useGRNExport } from "@/hooks/useDataExport";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/hooks/use-toast";
 
+interface GRNRecord {
+  id: string;
+  grn_number: string;
+  date: string;
+  item_code: string;
+  qty_received: number;
+  vendor?: string;
+  amount_inr?: number;
+  remarks?: string;
+}
+
 interface GRNTableProps {
-  onEdit?: (grn: any) => void;
+  onEdit?: (grn: GRNRecord) => void;
 }
 
 export function GRNTable({ onEdit }: GRNTableProps) {
@@ -34,7 +45,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
     }));
   };
 
-  const handleEdit = (id: string, currentValues: any) => {
+  const handleEdit = (id: string, currentValues: GRNRecord) => {
     setEditingId(id);
     setEditValues(currentValues);
   };
@@ -44,8 +55,12 @@ export function GRNTable({ onEdit }: GRNTableProps) {
       await updateGRN.mutateAsync({ id, updates: editValues });
       setEditingId(null);
       setEditValues({});
-    } catch (error) {
-      console.error("Failed to update GRN:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update GRN",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -58,8 +73,12 @@ export function GRNTable({ onEdit }: GRNTableProps) {
     try {
       await deleteGRN.mutateAsync(id);
       setDeleteId(null);
-    } catch (error) {
-      console.error("Failed to delete GRN:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to delete GRN",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -85,7 +104,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
   }: { 
     id: string; 
     field: string; 
-    value: any; 
+    value: string | number; 
     type?: string;
   }) => {
     if (editingId === id) {

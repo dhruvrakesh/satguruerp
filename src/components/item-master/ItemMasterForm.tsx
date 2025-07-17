@@ -8,14 +8,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { toast } from "@/hooks/use-toast";
 import { itemMasterSchema, ItemMasterFormData } from "@/schemas/itemMasterSchema";
 import { useItemMasterMutations } from "@/hooks/useItemMaster";
 import { useItemCodeGeneration } from "@/hooks/useItemCodeGeneration";
 import { useCategories } from "@/hooks/useCategories";
 import { Wand2, Check, X, Loader2 } from "lucide-react";
 
+interface ItemMasterItem {
+  id: string;
+  item_code: string;
+  item_name: string;
+  category_id: string;
+  qualifier?: string;
+  gsm?: number;
+  size_mm?: string;
+  uom: string;
+  usage_type?: string;
+  status: string;
+}
+
 interface ItemMasterFormProps {
-  item?: any;
+  item?: ItemMasterItem;
   onSuccess?: () => void;
 }
 
@@ -35,9 +49,9 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
       qualifier: item?.qualifier || "",
       gsm: item?.gsm || undefined,
       size_mm: item?.size_mm || "",
-      uom: item?.uom || "PCS",
-      usage_type: item?.usage_type || undefined,
-      status: item?.status || "active"
+      uom: (item?.uom as "PCS" | "KG" | "MTR" | "SQM" | "LTR" | "BOX" | "ROLL") || "PCS",
+      usage_type: (item?.usage_type as "RAW_MATERIAL" | "FINISHED_GOOD" | "PACKAGING" | "CONSUMABLE") || undefined,
+      status: (item?.status as "active" | "inactive") || "active"
     }
   });
 
@@ -68,14 +82,18 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
 
   const onSubmit = async (data: ItemMasterFormData) => {
     try {
-      if (isEditing) {
+      if (isEditing && item) {
         await updateItem.mutateAsync({ id: item.id, updates: data });
       } else {
         await createItem.mutateAsync(data);
       }
       onSuccess?.();
-    } catch (error) {
-      console.error('Form submission error:', error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to submit form",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -118,7 +136,7 @@ export function ItemMasterForm({ item, onSuccess }: ItemMasterFormProps) {
                         </FormControl>
                         <SelectContent>
                           {categoriesLoading ? (
-                            <SelectItem value="" disabled>Loading categories...</SelectItem>
+                            <SelectItem value="__LOADING__" disabled>Loading categories...</SelectItem>
                           ) : (
                             categoriesArray.map((category) => (
                               <SelectItem key={category.id} value={category.id}>

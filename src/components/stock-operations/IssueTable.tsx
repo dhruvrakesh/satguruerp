@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStockIssues, useStockIssueMutations, StockIssueSort, StockIssueFilters } from "@/hooks/useStockIssues";
 import { useStockIssueExport } from "@/hooks/useDataExport";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "@/hooks/use-toast";
 
 const PURPOSE_OPTIONS = [
   "Manufacturing",
@@ -23,8 +24,22 @@ const PURPOSE_OPTIONS = [
   "Other"
 ];
 
+interface StockIssue {
+  id: string;
+  date: string;
+  item_code: string;
+  qty_issued: number;
+  purpose?: string;
+  total_issued_qty?: number;
+  remarks?: string;
+  satguru_item_master?: {
+    item_name: string;
+    uom: string;
+  };
+}
+
 interface IssueTableProps {
-  onEdit?: (issue: any) => void;
+  onEdit?: (issue: StockIssue) => void;
 }
 
 export function IssueTable({ onEdit }: IssueTableProps) {
@@ -46,7 +61,7 @@ export function IssueTable({ onEdit }: IssueTableProps) {
     }));
   };
 
-  const handleEdit = (id: string, currentValues: any) => {
+  const handleEdit = (id: string, currentValues: StockIssue) => {
     setEditingId(id);
     setEditValues(currentValues);
   };
@@ -56,8 +71,12 @@ export function IssueTable({ onEdit }: IssueTableProps) {
       await updateIssue.mutateAsync({ id, updates: editValues });
       setEditingId(null);
       setEditValues({});
-    } catch (error) {
-      console.error("Failed to update issue:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update issue",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -70,8 +89,12 @@ export function IssueTable({ onEdit }: IssueTableProps) {
     try {
       await deleteIssue.mutateAsync(id);
       setDeleteId(null);
-    } catch (error) {
-      console.error("Failed to delete issue:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to delete issue",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -104,7 +127,7 @@ export function IssueTable({ onEdit }: IssueTableProps) {
   }: { 
     id: string; 
     field: string; 
-    value: any; 
+    value: string | number; 
     type?: string;
     options?: string[];
   }) => {
@@ -185,14 +208,14 @@ export function IssueTable({ onEdit }: IssueTableProps) {
           />
         </div>
         <Select
-          value={filters.purpose || ""}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, purpose: value || undefined }))}
+          value={filters.purpose || "__ALL__"}
+          onValueChange={(value) => setFilters(prev => ({ ...prev, purpose: value === "__ALL__" ? undefined : value }))}
         >
           <SelectTrigger className="w-auto">
             <SelectValue placeholder="All purposes" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All purposes</SelectItem>
+            <SelectItem value="__ALL__">All purposes</SelectItem>
             {PURPOSE_OPTIONS.map((purpose) => (
               <SelectItem key={purpose} value={purpose}>
                 {purpose}

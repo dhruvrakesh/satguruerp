@@ -22,10 +22,24 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   const [filters, setFilters] = useState<ItemMasterFilters>({});
   const [sort, setSort] = useState<ItemMasterSort>({ column: 'created_at', direction: 'desc' });
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<ItemMasterItem | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item?: any; multiple?: boolean }>({ open: false });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item?: ItemMasterItem; multiple?: boolean }>({ open: false });
+
+interface ItemMasterItem {
+  id: string;
+  item_code: string;
+  item_name: string;
+  category_id: string;
+  status: string;
+  uom: string;
+  gsm?: number;
+  size_mm?: string;
+  satguru_categories?: {
+    category_name: string;
+  };
+}
 
   const { data, isLoading, error } = useItemMaster({ page, filters: { ...filters, search: searchQuery }, sort });
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
@@ -120,23 +134,23 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
               />
             </div>
             
-            <Select value={filters.status || ""} onValueChange={(value) => handleFilterChange('status', value)}>
+            <Select value={filters.status || "__ALL__"} onValueChange={(value) => handleFilterChange('status', value === "__ALL__" ? "" : value)}>
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="__ALL__">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={filters.uom || ""} onValueChange={(value) => handleFilterChange('uom', value)}>
+            <Select value={filters.uom || "__ALL__"} onValueChange={(value) => handleFilterChange('uom', value === "__ALL__" ? "" : value)}>
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="UOM" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All UOM</SelectItem>
+                <SelectItem value="__ALL__">All UOM</SelectItem>
                 <SelectItem value="PCS">PCS</SelectItem>
                 <SelectItem value="KG">KG</SelectItem>
                 <SelectItem value="MTR">MTR</SelectItem>

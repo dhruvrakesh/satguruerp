@@ -80,8 +80,12 @@ export function GRNForm({ onSuccess, initialData }: GRNFormProps) {
       await createGRN.mutateAsync(values as GRNFormData);
       form.reset();
       onSuccess?.();
-    } catch (error) {
-      console.error("Failed to create GRN:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create GRN",
+        variant: "destructive" 
+      });
     }
   };
 

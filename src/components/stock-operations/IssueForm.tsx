@@ -14,6 +14,7 @@ import { useStockIssueMutations, StockIssueFormData } from "@/hooks/useStockIssu
 import { useItemMaster } from "@/hooks/useItemMaster";
 import { useStockValidation, useItemCodeValidation } from "@/hooks/useStockValidation";
 import { StockValidationAlert } from "./StockValidationAlert";
+import { toast } from "@/hooks/use-toast";
 
 const issueSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -82,8 +83,12 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
       await createIssue.mutateAsync(values as StockIssueFormData);
       form.reset();
       onSuccess?.();
-    } catch (error) {
-      console.error("Failed to create issue:", error);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create issue",
+        variant: "destructive" 
+      });
     }
   };
 
