@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -32,6 +33,31 @@ export interface UseStockIssuesOptions {
 
 export function useStockIssues(options: UseStockIssuesOptions = {}) {
   const { page = 1, pageSize = 50, filters = {}, sort } = options;
+  const queryClient = useQueryClient();
+  
+  // Set up real-time subscription for stock issue updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('issue-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'satguru_issue_log'
+        },
+        () => {
+          // Invalidate and refetch issue data when changes occur
+          queryClient.invalidateQueries({ queryKey: ['stock-issues'] });
+          queryClient.invalidateQueries({ queryKey: ['stock'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
   
   return useQuery({
     queryKey: ['stock-issues', page, pageSize, filters, sort],

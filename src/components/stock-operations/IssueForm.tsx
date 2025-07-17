@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useStockIssueMutations, StockIssueFormData } from "@/hooks/useStockIssues";
 import { useItemMaster } from "@/hooks/useItemMaster";
 import { useStockValidation, useItemCodeValidation } from "@/hooks/useStockValidation";
+import { StockValidationAlert } from "./StockValidationAlert";
 
 const issueSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -248,6 +249,13 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
             </FormItem>
           )}
         />
+
+        {watchedItemCode && watchedQtyIssued > 0 && (
+          <StockValidationAlert 
+            itemCode={watchedItemCode}
+            requestedQuantity={watchedQtyIssued}
+          />
+        )}
 
         <div className="flex justify-end gap-2">
           <Button

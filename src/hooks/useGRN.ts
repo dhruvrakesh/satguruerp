@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -39,6 +40,31 @@ export interface UseGRNOptions {
 
 export function useGRN(options: UseGRNOptions = {}) {
   const { page = 1, pageSize = 50, filters = {}, sort } = options;
+  const queryClient = useQueryClient();
+  
+  // Set up real-time subscription for GRN updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('grn-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'satguru_grn_log'
+        },
+        () => {
+          // Invalidate and refetch GRN data when changes occur
+          queryClient.invalidateQueries({ queryKey: ['grn'] });
+          queryClient.invalidateQueries({ queryKey: ['stock'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
   
   return useQuery({
     queryKey: ['grn', page, pageSize, filters, sort],

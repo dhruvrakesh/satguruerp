@@ -4,17 +4,20 @@ import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GRNForm } from "@/components/stock-operations/GRNForm";
 import { GRNTable } from "@/components/stock-operations/GRNTable";
 import { IssueForm } from "@/components/stock-operations/IssueForm";
 import { IssueTable } from "@/components/stock-operations/IssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
-import { BulkUploadDialog } from "@/components/item-master/BulkUploadDialog";
+import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
+import { BulkUploadIssues } from "@/components/stock-operations/BulkUploadIssues";
 
 export default function StockOperations() {
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
-  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [bulkGRNOpen, setBulkGRNOpen] = useState(false);
+  const [bulkIssuesOpen, setBulkIssuesOpen] = useState(false);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -54,14 +57,33 @@ export default function StockOperations() {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="gap-2" onClick={() => setBulkUploadOpen(true)}>
-            <Upload className="w-4 h-4" />
-            Bulk Upload
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Upload className="w-4 h-4" />
+                Bulk Upload
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setBulkGRNOpen(true)}>
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Upload GRNs
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBulkIssuesOpen(true)}>
+                <TrendingDown className="w-4 h-4 mr-2" />
+                Upload Issues
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
-          <BulkUploadDialog
-            open={bulkUploadOpen}
-            onOpenChange={setBulkUploadOpen}
+          <BulkUploadGRN
+            open={bulkGRNOpen}
+            onOpenChange={setBulkGRNOpen}
+          />
+          
+          <BulkUploadIssues
+            open={bulkIssuesOpen}
+            onOpenChange={setBulkIssuesOpen}
           />
         </div>
       </div>
