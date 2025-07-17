@@ -5648,6 +5648,41 @@ export type Database = {
           },
         ]
       }
+      satguru_analytics_consumption_patterns: {
+        Row: {
+          active_months: number | null
+          avg_monthly_consumption: number | null
+          category_name: string | null
+          coefficient_of_variation: number | null
+          consumption_pattern: string | null
+          consumption_stddev: number | null
+          forecast_next_month: number | null
+          item_code: string | null
+          item_name: string | null
+          last_refreshed: string | null
+          safety_stock_recommended: number | null
+          seasonality_score: number | null
+          total_consumption_24m: number | null
+          trend_direction: string | null
+          trend_percentage: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_issue_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "satguru_item_master"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "satguru_issue_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "satguru_stock_summary"
+            referencedColumns: ["item_code"]
+          },
+        ]
+      }
       satguru_stock_summary: {
         Row: {
           category_name: string | null
@@ -5740,6 +5775,18 @@ export type Database = {
         Args: { p_year: number; p_month: number }
         Returns: number
       }
+      advanced_demand_forecast: {
+        Args: { p_item_code: string; p_forecast_months?: number }
+        Returns: {
+          forecast_month: string
+          simple_moving_average: number
+          exponential_smoothing: number
+          linear_trend: number
+          seasonal_adjusted: number
+          confidence_score: number
+          recommended_forecast: number
+        }[]
+      }
       bytea_to_text: {
         Args: { data: string }
         Returns: string
@@ -5816,6 +5863,18 @@ export type Database = {
       delete_process_log: {
         Args: { log_id: string }
         Returns: undefined
+      }
+      detect_consumption_anomalies: {
+        Args: { p_item_code?: string; p_threshold_factor?: number }
+        Returns: {
+          item_code: string
+          item_name: string
+          anomaly_date: string
+          expected_consumption: number
+          actual_consumption: number
+          deviation_factor: number
+          anomaly_type: string
+        }[]
       }
       enhanced_employee_lookup: {
         Args: { p_employee_identifier: string }
@@ -5995,6 +6054,22 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      ml_demand_prediction: {
+        Args: {
+          p_item_code: string
+          p_forecast_horizon?: number
+          p_confidence_level?: number
+        }
+        Returns: {
+          forecast_period: string
+          algorithm: string
+          predicted_demand: number
+          confidence_interval_lower: number
+          confidence_interval_upper: number
+          model_accuracy: number
+          feature_importance: Json
+        }[]
+      }
       next_uiorn: {
         Args: { p_date?: string }
         Returns: string
@@ -6004,6 +6079,10 @@ export type Database = {
         Returns: string
       }
       process_queued_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refresh_analytics_materialized_views: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
