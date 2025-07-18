@@ -1,21 +1,42 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Workflow, Plus, Filter, Search } from "lucide-react";
+import { Workflow, Filter, Search, TrendingUp, Clock, Package, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { OrderCreationDialog } from "@/components/manufacturing/OrderCreationDialog";
+import { WorkflowKanban } from "@/components/manufacturing/WorkflowKanban";
+import { useManufacturingOrders, useWorkflowBottlenecks } from "@/hooks/useManufacturingOrders";
 
 export default function ManufacturingWorkflow() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  
+  const { data: orders = [] } = useManufacturingOrders({
+    search: searchTerm,
+    status: statusFilter,
+  });
+  
+  const { data: bottlenecks = [] } = useWorkflowBottlenecks();
+
+  // Calculate dashboard metrics
+  const activeOrders = orders.filter(order => order.status === "IN_PROGRESS").length;
+  const pendingOrders = orders.filter(order => order.status === "PENDING").length;
+  const completedToday = orders.filter(order => {
+    const today = new Date().toDateString();
+    return order.status === "COMPLETED" && 
+           order.updated_at && new Date(order.updated_at).toDateString() === today;
+  }).length;
+  const urgentOrders = orders.filter(order => order.priority_level === "urgent").length;
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Manufacturing Workflow</h1>
-          <p className="text-muted-foreground">Track and manage production orders and processes</p>
+          <p className="text-muted-foreground">Real-time production tracking and order management</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          New Order
-        </Button>
+        <OrderCreationDialog />
       </div>
 
       <div className="flex items-center gap-4">
@@ -24,6 +45,8 @@ export default function ManufacturingWorkflow() {
           <Input 
             placeholder="Search orders, UIONs..." 
             className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <Button variant="outline" className="gap-2">
@@ -39,7 +62,7 @@ export default function ManufacturingWorkflow() {
             <Workflow className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23</div>
+            <div className="text-2xl font-bold">{activeOrders}</div>
             <p className="text-xs text-muted-foreground">
               Currently in production
             </p>
@@ -49,10 +72,10 @@ export default function ManufacturingWorkflow() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <Badge variant="secondary" className="h-4 text-xs">Queue</Badge>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{pendingOrders}</div>
             <p className="text-xs text-muted-foreground">
               Waiting to start
             </p>
@@ -62,10 +85,10 @@ export default function ManufacturingWorkflow() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
-            <Badge variant="default" className="h-4 text-xs">Done</Badge>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{completedToday}</div>
             <p className="text-xs text-muted-foreground">
               Orders completed
             </p>
@@ -75,10 +98,10 @@ export default function ManufacturingWorkflow() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Urgent Orders</CardTitle>
-            <Badge variant="destructive" className="h-4 text-xs">High</Badge>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{urgentOrders}</div>
             <p className="text-xs text-muted-foreground">
               Require attention
             </p>
@@ -86,45 +109,43 @@ export default function ManufacturingWorkflow() {
         </Card>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
+      {/* Bottlenecks Alert */}
+      {bottlenecks.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
           <CardHeader>
-            <CardTitle>Production Pipeline</CardTitle>
-            <CardDescription>
-              Current orders moving through the manufacturing process
-            </CardDescription>
+            <CardTitle className="text-orange-800 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Workflow Bottlenecks Detected
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { uion: "250117001", stage: "Gravure Printing", status: "In Progress", progress: 65 },
-                { uion: "250117002", stage: "Lamination", status: "Pending", progress: 0 },
-                { uion: "250117003", stage: "Slitting", status: "In Progress", progress: 30 },
-                { uion: "250117004", stage: "Packaging", status: "Completed", progress: 100 },
-              ].map((order) => (
-                <div key={order.uion} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="font-medium">{order.uion}</p>
-                      <p className="text-sm text-muted-foreground">{order.stage}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <Badge 
-                        variant={
-                          order.status === "Completed" ? "default" :
-                          order.status === "In Progress" ? "secondary" : "outline"
-                        }
-                      >
-                        {order.status}
-                      </Badge>
-                      <p className="text-sm text-muted-foreground mt-1">{order.progress}% complete</p>
-                    </div>
+            <div className="grid gap-2">
+              {bottlenecks.slice(0, 3).map((bottleneck, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{bottleneck.stage}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{bottleneck.pending_orders} pending</span>
+                    <Badge variant="outline" className="text-orange-700">
+                      {bottleneck.avg_processing_time}h avg
+                    </Badge>
                   </div>
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Interactive Workflow Dashboard</CardTitle>
+            <CardDescription>
+              Drag and drop orders between stages - Real-time production tracking
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WorkflowKanban />
           </CardContent>
         </Card>
       </div>
