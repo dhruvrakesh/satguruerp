@@ -18,6 +18,10 @@ import StockAnalytics from "./pages/StockAnalytics";
 import ManufacturingWorkflow from "./pages/ManufacturingWorkflow";
 import CategoriesManagement from "./pages/CategoriesManagement";
 import Settings from "./pages/Settings";
+import OrderPunching from "./pages/OrderPunching";
+import GravurePrinting from "./pages/GravurePrinting";
+import LaminationCoating from "./pages/LaminationCoating";
+import SlittingPackaging from "./pages/SlittingPackaging";
 
 const queryClient = new QueryClient();
 
@@ -174,11 +178,80 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            {/* Placeholder routes for remaining pages */}
-            <Route path="/order-punching" element={<ProtectedRoute><div className="p-6">Order Punching - Coming Soon</div></ProtectedRoute>} />
-            <Route path="/gravure-printing" element={<ProtectedRoute><div className="p-6">Gravure Printing - Coming Soon</div></ProtectedRoute>} />
-            <Route path="/lamination-coating" element={<ProtectedRoute><div className="p-6">Lamination & Coating - Coming Soon</div></ProtectedRoute>} />
-            <Route path="/slitting-packaging" element={<ProtectedRoute><div className="p-6">Slitting & Packaging - Coming Soon</div></ProtectedRoute>} />
+            {/* Process-specific pages */}
+            <Route 
+              path="/order-punching" 
+              element={
+                <ProtectedRoute>
+                  <SidebarProvider>
+                    <div className="min-h-screen flex w-full bg-gradient-subtle">
+                      <AppSidebar />
+                      <div className="flex-1 flex flex-col">
+                        <AppHeader />
+                        <main className="flex-1 overflow-auto">
+                          <OrderPunching />
+                        </main>
+                      </div>
+                    </div>
+                  </SidebarProvider>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/gravure-printing" 
+              element={
+                <ProtectedRoute>
+                  <SidebarProvider>
+                    <div className="min-h-screen flex w-full bg-gradient-subtle">
+                      <AppSidebar />
+                      <div className="flex-1 flex flex-col">
+                        <AppHeader />
+                        <main className="flex-1 overflow-auto">
+                          <GravurePrinting />
+                        </main>
+                      </div>
+                    </div>
+                  </SidebarProvider>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/lamination-coating" 
+              element={
+                <ProtectedRoute>
+                  <SidebarProvider>
+                    <div className="min-h-screen flex w-full bg-gradient-subtle">
+                      <AppSidebar />
+                      <div className="flex-1 flex flex-col">
+                        <AppHeader />
+                        <main className="flex-1 overflow-auto">
+                          <LaminationCoating />
+                        </main>
+                      </div>
+                    </div>
+                  </SidebarProvider>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/slitting-packaging" 
+              element={
+                <ProtectedRoute>
+                  <SidebarProvider>
+                    <div className="min-h-screen flex w-full bg-gradient-subtle">
+                      <AppSidebar />
+                      <div className="flex-1 flex flex-col">
+                        <AppHeader />
+                        <main className="flex-1 overflow-auto">
+                          <SlittingPackaging />
+                        </main>
+                      </div>
+                    </div>
+                  </SidebarProvider>
+                </ProtectedRoute>
+              } 
+            />
+            {/* Remaining placeholder routes */}
             <Route path="/production-reports" element={<ProtectedRoute><div className="p-6">Production Reports - Coming Soon</div></ProtectedRoute>} />
             <Route path="/workflow-analytics" element={<ProtectedRoute><div className="p-6">Workflow Analytics - Coming Soon</div></ProtectedRoute>} />
             <Route path="/user-management" element={<ProtectedRoute><div className="p-6">User Management - Coming Soon</div></ProtectedRoute>} />
