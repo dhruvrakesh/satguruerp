@@ -36,6 +36,10 @@ interface ItemMasterItem {
   category_id: string;
   status: string;
   uom: string;
+  qualifier?: string;
+  gsm?: number;
+  size_mm?: string;
+  specifications?: any;
   customer_name?: string;
   dimensions?: string;
   no_of_colours?: string;
@@ -247,8 +251,9 @@ interface ItemMasterItem {
                 </TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>UOM</TableHead>
+                <TableHead>Usage Type</TableHead>
+                <TableHead>GSM</TableHead>
                 <TableHead>Dimensions</TableHead>
-                <TableHead>Colors</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -268,8 +273,13 @@ interface ItemMasterItem {
                   <TableCell>
                     <Badge variant="outline">{item.uom}</Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={item.usage_type === 'FINISHED_GOOD' ? 'default' : 'secondary'}>
+                      {item.usage_type || 'RM'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.gsm || item.size_mm || item.dimensions || '-'}</TableCell>
                   <TableCell>{item.dimensions || '-'}</TableCell>
-                  <TableCell>{item.no_of_colours || '-'}</TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                       {item.status}
