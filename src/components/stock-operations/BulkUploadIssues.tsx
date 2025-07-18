@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError, CSVRowData } from "@/types";
+import { BulkUploadResult, BulkUploadError } from "@/types";
+import { CSVParser } from "@/utils/csvParser";
+import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkIssueRow {
   date: string;
@@ -17,7 +20,6 @@ interface BulkIssueRow {
   purpose?: string;
   remarks?: string;
 }
-
 
 interface BulkUploadIssuesProps {
   open: boolean;
@@ -32,11 +34,11 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
 
   const downloadTemplate = () => {
     const headers = [
-      'date',
-      'item_code', 
-      'qty_issued',
-      'purpose',
-      'remarks'
+      'Date',
+      'Item Code', 
+      'Qty Issued',
+      'Purpose',
+      'Remarks'
     ];
 
     const sampleData = [
@@ -54,18 +56,80 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
     window.URL.revokeObjectURL(url);
   };
 
+  const getValidationRules = (): ValidationRule<BulkIssueRow>[] => [
+    {
+      field: 'date',
+      required: true,
+      type: 'date',
+      customValidator: (value) => BulkUploadValidator.validateDate(value)
+    },
+    {
+      field: 'item_code',
+      required: true,
+      type: 'string'
+    },
+    {
+      field: 'qty_issued',
+      required: true,
+      type: 'number',
+      min: 0.001,
+      max: 999999,
+      customValidator: (value) => BulkUploadValidator.validateQuantity(value.toString())
+    },
+    {
+      field: 'purpose',
+      required: false,
+      type: 'string',
+      defaultValue: 'General'
+    },
+    {
+      field: 'remarks',
+      required: false,
+      type: 'string'
+    }
+  ];
+
   const processCSV = async (file: File): Promise<BulkUploadResult> => {
     setIsProcessing(true);
     setProgress(0);
 
     try {
       const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      if (lines.length <= 1) {
-        throw new Error("CSV file is empty or has no data rows");
-      }
+      console.log('📄 Processing Issues CSV file:', file.name, 'Size:', file.size);
+
+      // Enhanced CSV parsing with flexible header mapping
+      const headerMapping = {
+        'date': 'date',
+        'issue_date': 'date',
+        'issuedate': 'date',
+        'item_code': 'item_code',
+        'itemcode': 'item_code',
+        'item': 'item_code',
+        'qty_issued': 'qty_issued',
+        'qtyissued': 'qty_issued',
+        'quantity_issued': 'qty_issued',
+        'quantity': 'qty_issued',
+        'qty': 'qty_issued',
+        'purpose': 'purpose',
+        'reason': 'purpose',
+        'remarks': 'remarks',
+        'notes': 'remarks',
+        'comment': 'remarks'
+      };
+
+      const parseResult = CSVParser.parseCSV(text, {
+        requiredHeaders: ['date', 'item_code', 'qty_issued'],
+        headerMapping,
+        skipEmptyRows: true,
+        trimValues: true
+      });
+
+      console.log('📊 CSV Parse Result:', {
+        totalRows: parseResult.totalRows,
+        validRows: parseResult.validRows,
+        parseErrors: parseResult.errors.length,
+        headers: parseResult.headers
+      });
 
       const results: BulkUploadResult = {
         successCount: 0,
@@ -73,94 +137,91 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
         errors: []
       };
 
-      // Get all item codes and current stock levels
-      const { data: stockData } = await supabase
-        .from('satguru_stock')
-        .select('item_code, current_qty');
+      // Add parse errors to results
+      parseResult.errors.forEach(error => {
+        results.errorCount++;
+        results.errors.push({
+          rowNumber: error.rowNumber,
+          reason: error.error,
+          data: { raw_data: error.rawData || '' }
+        });
+      });
 
-      const stockMap = new Map(stockData?.map(s => [s.item_code, s.current_qty]) || []);
+      if (parseResult.data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
+      }
 
-      // Get valid item codes from master
-      const { data: items } = await supabase
-        .from('satguru_item_master')
-        .select('item_code');
+      // Get stock data and item validation
+      setProgress(10);
+      
+      const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
 
-      const validItemCodes = new Set(items?.map(i => i.item_code) || []);
+      const [stockData, validItems] = await Promise.all([
+        supabase
+          .from('satguru_stock')
+          .select('item_code, current_qty')
+          .in('item_code', itemCodes),
+        supabase
+          .from('satguru_item_master')
+          .select('item_code')
+          .in('item_code', itemCodes)
+      ]);
 
-      // Track cumulative issues in this batch to validate total availability
+      const stockMap = new Map(stockData.data?.map(s => [s.item_code, s.current_qty]) || []);
+      const validItemSet = new Set(validItems.data?.map(i => i.item_code) || []);
+
+      setProgress(20);
+
+      // Track batch issues for stock validation
       const batchIssues = new Map<string, number>();
+      const validationRules = getValidationRules();
 
       // Process each row
-      for (let i = 1; i < lines.length; i++) {
-        setProgress((i / (lines.length - 1)) * 90);
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const rowNumber = i + 1;
+        const rowData = parseResult.data[i];
         
-        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const rowData: CSVRowData = {};
+        setProgress(20 + (i / parseResult.data.length) * 70);
         
-        headers.forEach((header, index) => {
-          rowData[header] = values[index] || '';
-        });
+        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
 
         try {
-          // Validate required fields
-          if (!rowData.date) {
-            throw new Error("Date is required");
-          }
-          if (!rowData.item_code) {
-            throw new Error("Item code is required");
-          }
-          if (!rowData.qty_issued || isNaN(parseFloat(rowData.qty_issued))) {
-            throw new Error("Valid quantity issued is required");
+          // Validate row data
+          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
+          
+          if (!validation.isValid) {
+            throw new Error(validation.errors.join('; '));
           }
 
-          const qtyIssued = parseFloat(rowData.qty_issued);
-          if (qtyIssued <= 0) {
-            throw new Error("Quantity issued must be greater than zero");
-          }
+          const validatedData = validation.transformedData as BulkIssueRow;
 
-          // Validate item code
-          if (!validItemCodes.has(rowData.item_code)) {
-            throw new Error("Item code does not exist in master data");
-          }
-
-          // Validate date format
-          const date = new Date(rowData.date);
-          if (isNaN(date.getTime())) {
-            throw new Error("Invalid date format (use YYYY-MM-DD)");
+          // Item code validation
+          if (!validItemSet.has(validatedData.item_code)) {
+            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
           }
 
           // Stock availability validation
-          const currentStock = stockMap.get(rowData.item_code) || 0;
-          const previousBatchIssues = batchIssues.get(rowData.item_code) || 0;
-          const totalRequiredQty = previousBatchIssues + qtyIssued;
+          const currentStock = stockMap.get(validatedData.item_code) || 0;
+          const previousBatchIssues = batchIssues.get(validatedData.item_code) || 0;
+          const totalRequiredQty = previousBatchIssues + validatedData.qty_issued;
 
           if (totalRequiredQty > currentStock) {
             throw new Error(`Insufficient stock. Available: ${currentStock}, Required: ${totalRequiredQty} (including previous rows in this batch)`);
           }
 
           // Update batch tracking
-          batchIssues.set(rowData.item_code, totalRequiredQty);
+          batchIssues.set(validatedData.item_code, totalRequiredQty);
 
           // Prepare issue data
           const issueData = {
-            date: rowData.date,
-            item_code: rowData.item_code,
-            qty_issued: qtyIssued,
-            purpose: rowData.purpose || 'General',
-            remarks: rowData.remarks || null
+            date: validatedData.date,
+            item_code: validatedData.item_code,
+            qty_issued: validatedData.qty_issued,
+            purpose: validatedData.purpose || 'General',
+            remarks: validatedData.remarks || null
           };
 
-          // Validate stock before insert (server-side validation)
-          const { error: validationError } = await supabase
-            .rpc('satguru_validate_stock_transaction', {
-              p_item_code: issueData.item_code,
-              p_transaction_type: 'ISSUE',
-              p_quantity: issueData.qty_issued
-            });
-
-          if (validationError) {
-            throw new Error(`Stock validation failed: ${validationError.message}`);
-          }
+          console.log('💾 Inserting issue:', issueData);
 
           // Insert issue
           const { error: insertError } = await supabase
@@ -168,32 +229,30 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
             .insert([issueData]);
 
           if (insertError) {
+            console.error('❌ Insert error:', insertError);
             throw new Error(`Database error: ${insertError.message}`);
           }
 
           // Update local stock tracking for next validations
-          const newStock = currentStock - qtyIssued;
-          stockMap.set(rowData.item_code, newStock);
+          const newStock = currentStock - validatedData.qty_issued;
+          stockMap.set(validatedData.item_code, newStock);
 
+          console.log('✅ Successfully inserted issue for:', validatedData.item_code);
           results.successCount++;
 
         } catch (error) {
+          console.error(`❌ Error processing row ${rowNumber}:`, error);
           results.errorCount++;
           results.errors.push({
-            rowNumber: i + 1,
+            rowNumber: rowNumber + parseResult.errors.length, // Adjust for parse errors
             reason: error instanceof Error ? error.message : 'Unknown error',
-            data: headers.reduce((obj: CSVRowData, header, index) => {
-              obj[header] = values[index] || '';
-              return obj;
-            }, {})
+            data: rowData
           });
-
-          // If there's an error, don't update the batch tracking to maintain accuracy
-          // for subsequent rows
         }
       }
 
       setProgress(100);
+      console.log('🎉 Processing complete:', results);
       return results;
 
     } finally {
@@ -214,6 +273,7 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       });
     },
     onError: (error: Error) => {
+      console.error('💥 Upload failed:', error);
       toast({
         title: "Upload failed",
         description: error.message || "An error occurred during upload",
@@ -235,6 +295,7 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       return;
     }
 
+    console.log('📁 Starting issues file upload:', file.name);
     setResults(null);
     uploadMutation.mutate(file);
   };
@@ -256,7 +317,8 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
               Download Template
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template with sample data and required headers
+              Download the CSV template with sample data and required headers.
+              Headers are case-insensitive and flexible (e.g., "Item Code" or "item_code" both work).
             </p>
           </div>
 

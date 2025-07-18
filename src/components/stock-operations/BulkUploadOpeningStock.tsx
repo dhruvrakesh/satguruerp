@@ -9,7 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError, CSVRowData } from "@/types";
+import { BulkUploadResult, BulkUploadError } from "@/types";
+import { CSVParser } from "@/utils/csvParser";
+import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkOpeningStockRow {
   item_code: string;
@@ -31,10 +33,10 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
 
   const downloadTemplate = () => {
     const headers = [
-      'item_code',
-      'opening_qty',
-      'date',
-      'remarks'
+      'Item Code',
+      'Opening Qty',
+      'Date',
+      'Remarks'
     ];
 
     const sampleData = [
@@ -44,7 +46,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
 
     const csvContent = [headers.join(','), ...sampleData].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(url);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'opening_stock_template.csv';
@@ -52,18 +54,78 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
     window.URL.revokeObjectURL(url);
   };
 
+  const getValidationRules = (): ValidationRule<BulkOpeningStockRow>[] => [
+    {
+      field: 'item_code',
+      required: true,
+      type: 'string'
+    },
+    {
+      field: 'opening_qty',
+      required: true,
+      type: 'number',
+      min: 0,
+      max: 999999,
+      customValidator: (value) => {
+        if (value < 0) {
+          return 'Opening quantity cannot be negative';
+        }
+        return null;
+      }
+    },
+    {
+      field: 'date',
+      required: false,
+      type: 'date',
+      defaultValue: new Date().toISOString().split('T')[0]
+    },
+    {
+      field: 'remarks',
+      required: false,
+      type: 'string',
+      defaultValue: 'Opening stock entry'
+    }
+  ];
+
   const processCSV = async (file: File): Promise<BulkUploadResult> => {
     setIsProcessing(true);
     setProgress(0);
 
     try {
       const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      if (lines.length <= 1) {
-        throw new Error("CSV file is empty or has no data rows");
-      }
+      console.log('📄 Processing Opening Stock CSV file:', file.name, 'Size:', file.size);
+
+      // Enhanced CSV parsing with flexible header mapping
+      const headerMapping = {
+        'item_code': 'item_code',
+        'itemcode': 'item_code',
+        'item': 'item_code',
+        'opening_qty': 'opening_qty',
+        'openingqty': 'opening_qty',
+        'opening_quantity': 'opening_qty',
+        'quantity': 'opening_qty',
+        'qty': 'opening_qty',
+        'date': 'date',
+        'stock_date': 'date',
+        'opening_date': 'date',
+        'remarks': 'remarks',
+        'notes': 'remarks',
+        'comment': 'remarks'
+      };
+
+      const parseResult = CSVParser.parseCSV(text, {
+        requiredHeaders: ['item_code', 'opening_qty'],
+        headerMapping,
+        skipEmptyRows: true,
+        trimValues: true
+      });
+
+      console.log('📊 CSV Parse Result:', {
+        totalRows: parseResult.totalRows,
+        validRows: parseResult.validRows,
+        parseErrors: parseResult.errors.length,
+        headers: parseResult.headers
+      });
 
       const results: BulkUploadResult = {
         successCount: 0,
@@ -71,76 +133,86 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
         errors: []
       };
 
-      // Get valid item codes from master
-      const { data: items } = await supabase
-        .from('satguru_item_master')
-        .select('item_code');
+      // Add parse errors to results
+      parseResult.errors.forEach(error => {
+        results.errorCount++;
+        results.errors.push({
+          rowNumber: error.rowNumber,
+          reason: error.error,
+          data: { raw_data: error.rawData || '' }
+        });
+      });
 
-      const validItemCodes = new Set(items?.map(i => i.item_code) || []);
+      if (parseResult.data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
+      }
+
+      // Get valid item codes
+      setProgress(10);
+      
+      const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
+
+      const { data: validItems } = await supabase
+        .from('satguru_item_master')
+        .select('item_code')
+        .in('item_code', itemCodes);
+
+      const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
+
+      setProgress(20);
+
+      const validationRules = getValidationRules();
 
       // Process each row
-      for (let i = 1; i < lines.length; i++) {
-        setProgress((i / (lines.length - 1)) * 90);
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const rowNumber = i + 1;
+        const rowData = parseResult.data[i];
         
-        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const rowData: CSVRowData = {};
+        setProgress(20 + (i / parseResult.data.length) * 70);
         
-        headers.forEach((header, index) => {
-          rowData[header] = values[index] || '';
-        });
+        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
 
         try {
-          // Validate required fields
-          if (!rowData.item_code) {
-            throw new Error("Item code is required");
-          }
-          if (!rowData.opening_qty || isNaN(parseFloat(rowData.opening_qty))) {
-            throw new Error("Valid opening quantity is required");
-          }
-
-          const openingQty = parseFloat(rowData.opening_qty);
-          if (openingQty < 0) {
-            throw new Error("Opening quantity cannot be negative");
+          // Validate row data
+          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
+          
+          if (!validation.isValid) {
+            throw new Error(validation.errors.join('; '));
           }
 
-          // Validate item code
-          if (!validItemCodes.has(rowData.item_code)) {
-            throw new Error("Item code does not exist in master data");
+          const validatedData = validation.transformedData as BulkOpeningStockRow;
+
+          // Item code validation
+          if (!validItemSet.has(validatedData.item_code)) {
+            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
           }
 
-          // Validate date format (optional)
-          let stockDate = new Date().toISOString().split('T')[0]; // Default to today
-          if (rowData.date) {
-            const date = new Date(rowData.date);
-            if (isNaN(date.getTime())) {
-              throw new Error("Invalid date format (use YYYY-MM-DD)");
-            }
-            stockDate = rowData.date;
-          }
+          const stockDate = validatedData.date || new Date().toISOString().split('T')[0];
 
           // Insert/Update stock record
           const { error: upsertError } = await supabase
             .from('satguru_stock')
             .upsert({
-              item_code: rowData.item_code,
-              current_qty: openingQty,
+              item_code: validatedData.item_code,
+              current_qty: validatedData.opening_qty,
               last_updated: new Date().toISOString()
             }, {
               onConflict: 'item_code'
             });
 
           if (upsertError) {
+            console.error('❌ Stock upsert error:', upsertError);
             throw new Error(`Stock update error: ${upsertError.message}`);
           }
 
           // Create GRN record for audit trail
           const grnData = {
-            grn_number: `OPENING-${Date.now()}-${i}`,
+            grn_number: `OPENING-${Date.now()}-${i + 1}`,
             date: stockDate,
-            item_code: rowData.item_code,
-            qty_received: openingQty,
+            item_code: validatedData.item_code,
+            qty_received: validatedData.opening_qty,
             vendor: 'OPENING_STOCK',
-            remarks: rowData.remarks || 'Opening stock entry',
+            remarks: validatedData.remarks || 'Opening stock entry',
             uom: 'PCS'
           };
 
@@ -149,25 +221,27 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
             .insert([grnData]);
 
           if (grnError) {
-            throw new Error(`GRN creation error: ${grnError.message}`);
+            console.error('❌ GRN error:', grnError);
+            // Don't fail the whole operation for GRN audit trail issues
+            console.warn('GRN audit trail creation failed, but stock was updated');
           }
 
+          console.log('✅ Successfully processed opening stock for:', validatedData.item_code);
           results.successCount++;
 
         } catch (error) {
+          console.error(`❌ Error processing row ${rowNumber}:`, error);
           results.errorCount++;
           results.errors.push({
-            rowNumber: i + 1,
+            rowNumber: rowNumber + parseResult.errors.length,
             reason: error instanceof Error ? error.message : 'Unknown error',
-            data: headers.reduce((obj: CSVRowData, header, index) => {
-              obj[header] = values[index] || '';
-              return obj;
-            }, {})
+            data: rowData
           });
         }
       }
 
       setProgress(100);
+      console.log('🎉 Processing complete:', results);
       return results;
 
     } finally {
@@ -188,6 +262,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
       });
     },
     onError: (error: Error) => {
+      console.error('💥 Upload failed:', error);
       toast({
         title: "Upload failed",
         description: error.message || "An error occurred during upload",
@@ -209,6 +284,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
       return;
     }
 
+    console.log('📁 Starting opening stock file upload:', file.name);
     setResults(null);
     uploadMutation.mutate(file);
   };
@@ -230,7 +306,8 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
               Download Template
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template for opening stock upload
+              Download the CSV template for opening stock upload.
+              Headers are case-insensitive and flexible (e.g., "Item Code" or "item_code" both work).
             </p>
           </div>
 

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError, CSVRowData } from "@/types";
+import { BulkUploadResult, BulkUploadError } from "@/types";
+import { CSVParser } from "@/utils/csvParser";
+import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkGRNRow {
   grn_number: string;
@@ -21,7 +24,6 @@ interface BulkGRNRow {
   amount_inr?: number;
   remarks?: string;
 }
-
 
 interface BulkUploadGRNProps {
   open: boolean;
@@ -36,15 +38,15 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
   const downloadTemplate = () => {
     const headers = [
-      'grn_number',
-      'date',
-      'item_code',
-      'qty_received',
-      'uom',
-      'vendor',
-      'invoice_number',
-      'amount_inr',
-      'remarks'
+      'GRN Number',
+      'Date',
+      'Item Code',
+      'Qty Received',
+      'UOM',
+      'Vendor',
+      'Invoice Number',
+      'Amount INR',
+      'Remarks'
     ];
 
     const sampleData = [
@@ -62,17 +64,119 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     window.URL.revokeObjectURL(url);
   };
 
+  const getValidationRules = (): ValidationRule<BulkGRNRow>[] => [
+    {
+      field: 'grn_number',
+      required: true,
+      type: 'string',
+      pattern: /^[A-Z0-9_-]+$/,
+      customValidator: (value) => {
+        if (value && value.length < 5) {
+          return 'GRN number should be at least 5 characters';
+        }
+        return null;
+      }
+    },
+    {
+      field: 'date',
+      required: true,
+      type: 'date',
+      customValidator: (value) => BulkUploadValidator.validateDate(value)
+    },
+    {
+      field: 'item_code',
+      required: true,
+      type: 'string'
+    },
+    {
+      field: 'qty_received',
+      required: true,
+      type: 'number',
+      min: 0.001,
+      max: 999999
+    },
+    {
+      field: 'uom',
+      required: false,
+      type: 'string',
+      defaultValue: 'PCS'
+    },
+    {
+      field: 'vendor',
+      required: false,
+      type: 'string'
+    },
+    {
+      field: 'invoice_number',
+      required: false,
+      type: 'string'
+    },
+    {
+      field: 'amount_inr',
+      required: false,
+      type: 'number',
+      min: 0
+    },
+    {
+      field: 'remarks',
+      required: false,
+      type: 'string'
+    }
+  ];
+
   const processCSV = async (file: File): Promise<BulkUploadResult> => {
     setIsProcessing(true);
     setProgress(0);
 
     try {
       const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      if (lines.length <= 1) {
-        throw new Error("CSV file is empty or has no data rows");
+      console.log('📄 Processing CSV file:', file.name, 'Size:', file.size);
+
+      // Enhanced CSV parsing with flexible header mapping
+      const headerMapping = {
+        'grn_number': 'grn_number',
+        'grnnumber': 'grn_number',
+        'grn': 'grn_number',
+        'date': 'date',
+        'grn_date': 'date',
+        'item_code': 'item_code',
+        'itemcode': 'item_code',
+        'item': 'item_code',
+        'qty_received': 'qty_received',
+        'qtyreceived': 'qty_received',
+        'quantity': 'qty_received',
+        'qty': 'qty_received',
+        'uom': 'uom',
+        'unit': 'uom',
+        'vendor': 'vendor',
+        'supplier': 'vendor',
+        'invoice_number': 'invoice_number',
+        'invoicenumber': 'invoice_number',
+        'invoice': 'invoice_number',
+        'amount_inr': 'amount_inr',
+        'amountinr': 'amount_inr',
+        'amount': 'amount_inr',
+        'value': 'amount_inr',
+        'remarks': 'remarks',
+        'notes': 'remarks'
+      };
+
+      const parseResult = CSVParser.parseCSV(text, {
+        requiredHeaders: ['grn_number', 'date', 'item_code', 'qty_received'],
+        headerMapping,
+        skipEmptyRows: true,
+        trimValues: true
+      });
+
+      console.log('📊 CSV Parse Result:', {
+        totalRows: parseResult.totalRows,
+        validRows: parseResult.validRows,
+        parseErrors: parseResult.errors.length,
+        headers: parseResult.headers
+      });
+
+      if (parseResult.errors.length > 0) {
+        console.error('❌ CSV Parse Errors:', parseResult.errors);
       }
 
       const results: BulkUploadResult = {
@@ -81,91 +185,87 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         errors: []
       };
 
-      // Check for duplicate GRN numbers in the file
-      const grnNumbers = new Set<string>();
-      const duplicatesInFile = new Set<string>();
+      // Add parse errors to results
+      parseResult.errors.forEach(error => {
+        results.errorCount++;
+        results.errors.push({
+          rowNumber: error.rowNumber,
+          reason: error.error,
+          data: { raw_data: error.rawData || '' }
+        });
+      });
 
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const grnNumber = values[headers.indexOf('grn_number')];
-        if (grnNumbers.has(grnNumber)) {
-          duplicatesInFile.add(grnNumber);
-        }
-        grnNumbers.add(grnNumber);
+      if (parseResult.data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
       }
 
-      // Check for existing GRN numbers in database
-      const { data: existingGRNs } = await supabase
-        .from('satguru_grn_log')
-        .select('grn_number')
-        .in('grn_number', Array.from(grnNumbers));
+      // Get existing GRN numbers and item codes for validation
+      setProgress(10);
+      
+      const grnNumbers = parseResult.data.map(row => row.grn_number).filter(Boolean);
+      const itemCodes = parseResult.data.map(row => row.item_code).filter(Boolean);
 
-      const existingGRNSet = new Set(existingGRNs?.map(g => g.grn_number) || []);
+      const [existingGRNs, validItems] = await Promise.all([
+        supabase
+          .from('satguru_grn_log')
+          .select('grn_number')
+          .in('grn_number', grnNumbers),
+        supabase
+          .from('satguru_item_master')
+          .select('item_code')
+          .in('item_code', itemCodes)
+      ]);
 
-      // Get all item codes for validation
-      const { data: items } = await supabase
-        .from('satguru_item_master')
-        .select('item_code');
+      const existingGRNSet = new Set(existingGRNs.data?.map(g => g.grn_number) || []);
+      const validItemSet = new Set(validItems.data?.map(i => i.item_code) || []);
 
-      const validItemCodes = new Set(items?.map(i => i.item_code) || []);
+      setProgress(20);
 
-      // Process each row
-      for (let i = 1; i < lines.length; i++) {
-        setProgress((i / (lines.length - 1)) * 90);
+      // Validation rules
+      const validationRules = getValidationRules();
+
+      // Process each row with enhanced validation
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const rowNumber = i + 1;
+        const rowData = parseResult.data[i];
         
-        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-        const rowData: CSVRowData = {};
+        setProgress(20 + (i / parseResult.data.length) * 70);
         
-        headers.forEach((header, index) => {
-          rowData[header] = values[index] || '';
-        });
+        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
 
         try {
-          // Validate required fields
-          if (!rowData.grn_number) {
-            throw new Error("GRN number is required");
-          }
-          if (!rowData.date) {
-            throw new Error("Date is required");
-          }
-          if (!rowData.item_code) {
-            throw new Error("Item code is required");
-          }
-          if (!rowData.qty_received || isNaN(parseFloat(rowData.qty_received))) {
-            throw new Error("Valid quantity received is required");
+          // Validate row data
+          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
+          
+          if (!validation.isValid) {
+            throw new Error(validation.errors.join('; '));
           }
 
-          // Check for duplicates
-          if (duplicatesInFile.has(rowData.grn_number)) {
-            throw new Error("Duplicate GRN number found in file");
-          }
-          if (existingGRNSet.has(rowData.grn_number)) {
-            throw new Error("GRN number already exists in database");
+          const validatedData = validation.transformedData as BulkGRNRow;
+
+          // Business logic validations
+          if (existingGRNSet.has(validatedData.grn_number)) {
+            throw new Error(`GRN number ${validatedData.grn_number} already exists`);
           }
 
-          // Validate item code
-          if (!validItemCodes.has(rowData.item_code)) {
-            throw new Error("Item code does not exist in master data");
+          if (!validItemSet.has(validatedData.item_code)) {
+            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
           }
 
-          // Validate date format
-          const date = new Date(rowData.date);
-          if (isNaN(date.getTime())) {
-            throw new Error("Invalid date format (use YYYY-MM-DD)");
-          }
-
-          // Prepare GRN data
+          // Prepare GRN data for insertion
           const grnData = {
-            grn_number: rowData.grn_number,
-            date: rowData.date,
-            item_code: rowData.item_code,
-            qty_received: parseFloat(rowData.qty_received),
-            vendor: rowData.vendor || null,
-            invoice_number: rowData.invoice_number || null,
-            amount_inr: rowData.amount_inr ? parseFloat(rowData.amount_inr) : null,
-            remarks: rowData.remarks || null,
-            uom: rowData.uom || 'PCS'
+            grn_number: validatedData.grn_number,
+            date: validatedData.date,
+            item_code: validatedData.item_code,
+            qty_received: validatedData.qty_received,
+            vendor: validatedData.vendor || null,
+            invoice_number: validatedData.invoice_number || null,
+            amount_inr: validatedData.amount_inr || null,
+            remarks: validatedData.remarks || null,
+            uom: validatedData.uom || 'PCS'
           };
+
+          console.log('💾 Inserting GRN:', grnData);
 
           // Insert GRN
           const { error: insertError } = await supabase
@@ -173,25 +273,29 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             .insert([grnData]);
 
           if (insertError) {
+            console.error('❌ Insert error:', insertError);
             throw new Error(`Database error: ${insertError.message}`);
           }
 
+          console.log('✅ Successfully inserted GRN:', validatedData.grn_number);
           results.successCount++;
+          
+          // Add to existing set to prevent duplicates within batch
+          existingGRNSet.add(validatedData.grn_number);
 
         } catch (error) {
+          console.error(`❌ Error processing row ${rowNumber}:`, error);
           results.errorCount++;
           results.errors.push({
-            rowNumber: i + 1,
+            rowNumber: rowNumber + parseResult.errors.length, // Adjust for parse errors
             reason: error instanceof Error ? error.message : 'Unknown error',
-            data: headers.reduce((obj: CSVRowData, header, index) => {
-              obj[header] = values[index] || '';
-              return obj;
-            }, {})
+            data: rowData
           });
         }
       }
 
       setProgress(100);
+      console.log('🎉 Processing complete:', results);
       return results;
 
     } finally {
@@ -212,6 +316,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       });
     },
     onError: (error: Error) => {
+      console.error('💥 Upload failed:', error);
       toast({
         title: "Upload failed",
         description: error.message || "An error occurred during upload",
@@ -233,6 +338,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       return;
     }
 
+    console.log('📁 Starting file upload:', file.name);
     setResults(null);
     uploadMutation.mutate(file);
   };
@@ -254,7 +360,8 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
               Download Template
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template with sample data and required headers
+              Download the CSV template with sample data and required headers. 
+              Headers are case-insensitive and flexible (e.g., "GRN Number" or "grn_number" both work).
             </p>
           </div>
 
