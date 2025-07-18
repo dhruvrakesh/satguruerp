@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useManufacturingDashboard, useOrderProgress, useWorkflowBottlenecks } from "@/hooks/useManufacturingOrders";
+import { useManufacturingDashboard, useOrderProgress, useWorkflowBottlenecks, useManufacturingAnalytics } from "@/hooks/useManufacturingOrders";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -63,16 +63,17 @@ export function AnalyticsDashboard() {
   const { data: orders = [] } = useManufacturingDashboard();
   const { data: orderProgress = [] } = useOrderProgress();
   const { data: bottlenecks = [] } = useWorkflowBottlenecks();
+  const { data: analytics } = useManufacturingAnalytics();
 
-  // Calculate metrics
+  // Use analytics data when available, fallback to calculated values
   const totalOrders = orders.length;
-  const activeOrders = orders.filter((order: any) => 
+  const activeOrders = analytics?.active_orders || orders.filter((order: any) => 
     order.status === "PENDING" || order.status === "IN_PROGRESS"
   ).length;
-  const completedOrders = orders.filter((order: any) => 
+  const completedOrders = analytics?.completed_orders || orders.filter((order: any) => 
     order.status === "COMPLETED"
   ).length;
-  const urgentOrders = orders.filter((order: any) => 
+  const urgentOrders = analytics?.high_priority_orders || orders.filter((order: any) => 
     order.priority_level === "URGENT" || order.priority_level === "HIGH"
   ).length;
 
@@ -84,11 +85,11 @@ export function AnalyticsDashboard() {
     ? orderProgress.reduce((sum: number, order: any) => sum + order.progress_percentage, 0) / orderProgress.length
     : 0;
 
-  // Get stage distribution
+  // Get stage distribution using analytics data when available
   const stageDistribution = {
-    pending: orders.filter((o: any) => o.status === "PENDING").length,
-    inProgress: orders.filter((o: any) => o.status === "IN_PROGRESS").length,
-    completed: orders.filter((o: any) => o.status === "COMPLETED").length,
+    pending: analytics?.pending_orders || orders.filter((o: any) => o.status === "PENDING").length,
+    inProgress: analytics?.active_orders || orders.filter((o: any) => o.status === "IN_PROGRESS").length,
+    completed: analytics?.completed_orders || orders.filter((o: any) => o.status === "COMPLETED").length,
   };
 
   return (

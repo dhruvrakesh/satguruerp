@@ -43,6 +43,7 @@ export const useOrderProgress = () => {
       if (error) throw error;
       return data as OrderProgress[];
     },
+    refetchInterval: 10000, // Real-time updates every 10 seconds
   });
 };
 
@@ -54,6 +55,7 @@ export const useWorkflowBottlenecks = () => {
       if (error) throw error;
       return data as WorkflowBottleneck[];
     },
+    refetchInterval: 10000, // Real-time updates every 10 seconds
   });
 };
 
@@ -72,11 +74,15 @@ export const useCreateOrder = () => {
       order_date: string;
       status?: string;
     }) => {
+      // Generate proper UIORN using database function
+      const { data: uiornData, error: uiornError } = await supabase.rpc('next_uiorn');
+      if (uiornError) throw uiornError;
+      
       const { data, error } = await supabase
         .from("order_punching")
         .insert([{
           ...orderData,
-          uiorn: `ORDER-${Date.now()}`, // Temporary UIORN generation
+          uiorn: uiornData,
           status: (orderData.status as any) || "PENDING"
         }])
         .select()
@@ -128,6 +134,23 @@ export const useManufacturingDashboard = () => {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
+    refetchInterval: 10000, // Real-time updates every 10 seconds
+  });
+};
+
+// New hook for manufacturing analytics
+export const useManufacturingAnalytics = () => {
+  return useQuery({
+    queryKey: ["manufacturing-analytics"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manufacturing_analytics")
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 10000, // Real-time updates every 10 seconds
   });
 };

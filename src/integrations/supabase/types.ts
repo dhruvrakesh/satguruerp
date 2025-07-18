@@ -6041,12 +6041,13 @@ export type Database = {
       manufacturing_analytics: {
         Row: {
           active_orders: number | null
-          avg_quantity: number | null
+          avg_order_quantity: number | null
           completed_orders: number | null
-          date: string | null
+          high_priority_orders: number | null
+          on_hold_orders: number | null
+          overdue_orders: number | null
           pending_orders: number | null
-          total_orders: number | null
-          urgent_orders: number | null
+          unique_customers: number | null
         }
         Relationships: []
       }
@@ -6236,7 +6237,7 @@ export type Database = {
         Returns: string
       }
       calculate_order_progress: {
-        Args: { p_uiorn: string }
+        Args: Record<PropertyKey, never> | { p_uiorn: string }
         Returns: {
           uiorn: string
           progress_percentage: number
@@ -6408,8 +6409,8 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           stage: string
-          pending_orders: number
           avg_processing_time: number
+          pending_orders: number
           bottleneck_score: number
         }[]
       }
@@ -6558,6 +6559,10 @@ export type Database = {
         Returns: undefined
       }
       refresh_analytics_materialized_views: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refresh_manufacturing_analytics: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
