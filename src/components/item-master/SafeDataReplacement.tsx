@@ -4,7 +4,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,9 +14,15 @@ import { useBulkUpload } from "@/hooks/useBulkUpload";
 
 interface ReplacementStats {
   currentItems: number;
-  bomReferences: number;
-  specReferences: number;
   stockReferences: number;
+  bomReferences: number;
+  grnLogReferences: number;
+  issueLogReferences: number;
+  satguruStockReferences: number;
+  satguruGrnLogReferences: number;
+  satguruIssueLogReferences: number;
+  specReferences: number;
+  totalDependencies: number;
 }
 
 export function SafeDataReplacement() {
@@ -29,23 +35,54 @@ export function SafeDataReplacement() {
   const queryClient = useQueryClient();
   const { uploadMutation, isProcessing, progress } = useBulkUpload();
 
-  // Get current system stats
+  // Get comprehensive system stats including ALL dependent tables
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['replacement-stats'],
+    queryKey: ['replacement-stats-comprehensive'],
     queryFn: async (): Promise<ReplacementStats> => {
-      const [itemsResult, bomResult, specsResult, stockResult] = await Promise.all([
+      console.log('🔍 Checking all foreign key dependencies...');
+      
+      const [
+        itemsResult, 
+        stockResult, 
+        bomResult, 
+        grnLogResult, 
+        issueLogResult,
+        satguruStockResult,
+        satguruGrnLogResult,
+        satguruIssueLogResult,
+        specsResult
+      ] = await Promise.all([
         supabase.from('item_master').select('id', { count: 'exact', head: true }),
+        supabase.from('stock').select('id', { count: 'exact', head: true }),
         supabase.from('bill_of_materials').select('id', { count: 'exact', head: true }),
-        supabase.from('customer_specifications').select('id', { count: 'exact', head: true }),
-        supabase.from('satguru_stock').select('id', { count: 'exact', head: true })
+        supabase.from('grn_log').select('id', { count: 'exact', head: true }),
+        supabase.from('issue_log').select('id', { count: 'exact', head: true }),
+        supabase.from('satguru_stock').select('id', { count: 'exact', head: true }),
+        supabase.from('satguru_grn_log').select('id', { count: 'exact', head: true }),
+        supabase.from('satguru_issue_log').select('id', { count: 'exact', head: true }),
+        supabase.from('customer_specifications').select('id', { count: 'exact', head: true })
       ]);
 
-      return {
+      const stats = {
         currentItems: itemsResult.count || 0,
+        stockReferences: stockResult.count || 0,
         bomReferences: bomResult.count || 0,
+        grnLogReferences: grnLogResult.count || 0,
+        issueLogReferences: issueLogResult.count || 0,
+        satguruStockReferences: satguruStockResult.count || 0,
+        satguruGrnLogReferences: satguruGrnLogResult.count || 0,
+        satguruIssueLogReferences: satguruIssueLogResult.count || 0,
         specReferences: specsResult.count || 0,
-        stockReferences: stockResult.count || 0
+        totalDependencies: 0
       };
+
+      stats.totalDependencies = stats.stockReferences + stats.bomReferences + 
+        stats.grnLogReferences + stats.issueLogReferences + 
+        stats.satguruStockReferences + stats.satguruGrnLogReferences + 
+        stats.satguruIssueLogReferences;
+
+      console.log('📊 Comprehensive dependency stats:', stats);
+      return stats;
     }
   });
 
@@ -69,6 +106,7 @@ export function SafeDataReplacement() {
   // Create backup of current data
   const createBackup = useMutation({
     mutationFn: async () => {
+      console.log('💾 Creating comprehensive backup...');
       const { data, error } = await supabase
         .from('item_master')
         .select('*')
@@ -117,43 +155,47 @@ export function SafeDataReplacement() {
     }
   });
 
-  // Clear dependent data (BOM and stock records)
-  const clearDependentData = useMutation({
+  // Comprehensive clearing of ALL dependent data
+  const clearAllDependentData = useMutation({
     mutationFn: async () => {
-      console.log('🧹 Clearing dependent data...');
+      console.log('🧹 Starting comprehensive dependent data cleanup...');
       
-      // Clear BOM references first
-      const { error: bomError } = await supabase
-        .from('bill_of_materials')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-      
-      if (bomError) {
-        console.error('BOM deletion error:', bomError);
-        throw new Error(`Failed to clear BOM data: ${bomError.message}`);
+      const clearingSteps = [
+        { table: 'issue_log', description: 'Issue Log Records' },
+        { table: 'grn_log', description: 'GRN Log Records' },
+        { table: 'satguru_issue_log', description: 'Satguru Issue Log Records' },
+        { table: 'satguru_grn_log', description: 'Satguru GRN Log Records' },
+        { table: 'bill_of_materials', description: 'Bill of Materials' },
+        { table: 'stock', description: 'Stock Records' },
+        { table: 'satguru_stock', description: 'Satguru Stock Records' }
+      ];
+
+      for (const step of clearingSteps) {
+        console.log(`🗑️ Clearing ${step.description}...`);
+        
+        const { error } = await supabase
+          .from(step.table)
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        if (error) {
+          console.error(`❌ ${step.description} deletion error:`, error);
+          throw new Error(`Failed to clear ${step.description}: ${error.message}`);
+        }
+        
+        console.log(`✅ ${step.description} cleared successfully`);
       }
 
-      // Clear stock records
-      const { error: stockError } = await supabase
-        .from('satguru_stock')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-      
-      if (stockError) {
-        console.error('Stock deletion error:', stockError);
-        throw new Error(`Failed to clear stock data: ${stockError.message}`);
-      }
-
-      console.log('✅ Dependent data cleared successfully');
+      console.log('✅ All dependent data cleared successfully');
     },
     onSuccess: () => {
       toast({
-        title: "Dependencies Cleared",
-        description: "BOM and stock data have been cleared to allow item master replacement",
+        title: "All Dependencies Cleared",
+        description: "All foreign key dependent data has been cleared to allow item master replacement",
       });
     },
     onError: (error: any) => {
-      console.error('Clear dependent data error:', error);
+      console.error('💥 Clear dependent data error:', error);
       toast({
         title: "Failed to Clear Dependencies", 
         description: error.message,
@@ -162,7 +204,7 @@ export function SafeDataReplacement() {
     }
   });
 
-  // Clear all existing item master data
+  // Clear existing item master data
   const clearExistingData = useMutation({
     mutationFn: async () => {
       console.log('🗑️ Clearing item master data...');
@@ -173,7 +215,7 @@ export function SafeDataReplacement() {
         .neq('id', '00000000-0000-0000-0000-000000000000');
       
       if (error) {
-        console.error('Item master deletion error:', error);
+        console.error('❌ Item master deletion error:', error);
         throw new Error(`Failed to clear item master data: ${error.message}`);
       }
 
@@ -187,7 +229,7 @@ export function SafeDataReplacement() {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
     },
     onError: (error: any) => {
-      console.error('Clear data error:', error);
+      console.error('💥 Clear data error:', error);
       toast({
         title: "Clear Failed",
         description: error.message,
@@ -223,7 +265,7 @@ export function SafeDataReplacement() {
     
     setDependencyStats(stats);
     
-    if (stats.bomReferences > 0 || stats.stockReferences > 0) {
+    if (stats.totalDependencies > 0) {
       setShowDependencyDialog(true);
     } else {
       // No dependencies, proceed directly
@@ -268,10 +310,10 @@ export function SafeDataReplacement() {
     if (!selectedFile) return;
 
     try {
-      console.log('🚀 Starting item master replacement with dependency cleanup...');
+      console.log('🚀 Starting comprehensive item master replacement...');
       
-      // First clear dependent data
-      await clearDependentData.mutateAsync();
+      // First clear ALL dependent data
+      await clearAllDependentData.mutateAsync();
       
       // Then clear existing item master data
       await clearExistingData.mutateAsync();
@@ -286,13 +328,13 @@ export function SafeDataReplacement() {
         setShowDependencyDialog(false);
         toast({
           title: "Replacement Complete",
-          description: `Successfully replaced ${stats?.currentItems || 0} items with ${result.successCount} new items. BOM and stock data cleared.`,
+          description: `Successfully replaced ${stats?.currentItems || 0} items with ${result.successCount} new items. All dependent data cleared.`,
         });
       } else {
         throw new Error(`No items were successfully uploaded. ${result.errorCount} errors occurred.`);
       }
     } catch (error: any) {
-      console.error('💥 Replacement with cleanup failed:', error);
+      console.error('💥 Comprehensive replacement failed:', error);
       toast({
         title: "Replacement Failed",
         description: error.message || "Failed to replace item master data. Your backup is safe.",
@@ -331,57 +373,76 @@ export function SafeDataReplacement() {
 
   return (
     <>
-      {/* Dependency Warning Dialog */}
+      {/* Comprehensive Dependency Warning Dialog */}
       <Dialog open={showDependencyDialog} onOpenChange={setShowDependencyDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-orange-500" />
-              Dependencies Found - Choose Action
+              Complete Foreign Key Dependencies Found
             </DialogTitle>
           </DialogHeader>
 
           <Alert className="border-orange-200 bg-orange-50">
             <AlertTriangle className="h-4 w-4 text-orange-600" />
             <AlertDescription>
-              <div className="space-y-3">
-                <p className="font-medium text-orange-800">Your item master has dependent data that will prevent replacement:</p>
+              <div className="space-y-4">
+                <p className="font-medium text-orange-800">
+                  Your item master has {dependencyStats?.totalDependencies} dependent records across multiple tables:
+                </p>
                 
                 {dependencyStats && (
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                      <p><strong>BOM References:</strong> {dependencyStats.bomReferences}</p>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Core Dependencies:</h4>
                       <p><strong>Stock Records:</strong> {dependencyStats.stockReferences}</p>
-                    </div>
-                    <div className="space-y-1">
+                      <p><strong>BOM Records:</strong> {dependencyStats.bomReferences}</p>
+                      <p><strong>Satguru Stock:</strong> {dependencyStats.satguruStockReferences}</p>
                       <p><strong>Specifications:</strong> {dependencyStats.specReferences}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Transaction Logs:</h4>
+                      <p><strong>GRN Log:</strong> {dependencyStats.grnLogReferences}</p>
+                      <p><strong>Issue Log:</strong> {dependencyStats.issueLogReferences}</p>
+                      <p><strong>Satguru GRN Log:</strong> {dependencyStats.satguruGrnLogReferences}</p>
+                      <p><strong>Satguru Issue Log:</strong> {dependencyStats.satguruIssueLogReferences}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="mt-4 p-3 bg-white rounded border">
-                  <h4 className="font-medium mb-2">Choose how to proceed:</h4>
+                <div className="mt-4 p-4 bg-white rounded border">
+                  <h4 className="font-medium mb-3 text-red-800">⚠️ CRITICAL: Data Loss Warning</h4>
                   <div className="space-y-2 text-sm">
-                    <p><strong>Option 1:</strong> Clear all dependent data and proceed (Recommended)</p>
-                    <p className="text-xs text-gray-600">• BOM and stock data will be deleted</p>
-                    <p className="text-xs text-gray-600">• You can repopulate BOM data later</p>
-                    <p className="text-xs text-gray-600">• Your backup includes current item master data</p>
+                    <p><strong>This action will permanently delete:</strong></p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>All stock records and balances</li>
+                      <li>All BOM (Bill of Materials) data</li>
+                      <li>All transaction logs (GRN/Issue history)</li>
+                      <li>All current item master records</li>
+                    </ul>
+                    <p className="text-red-700 font-medium mt-3">
+                      ✅ Your current item master backup has been created and downloaded
+                    </p>
+                    <p className="text-green-700 text-xs">
+                      💡 You mentioned you'll populate BOM data later - this gives you a clean slate
+                    </p>
                   </div>
                 </div>
               </div>
             </AlertDescription>
           </Alert>
 
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end pt-4">
             <Button variant="outline" onClick={() => setShowDependencyDialog(false)}>
-              Cancel
+              Cancel Replacement
             </Button>
             <Button 
               variant="destructive" 
               onClick={handleReplacementWithCleanup}
               disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700"
             >
-              {isProcessing ? 'Processing...' : 'Clear Dependencies & Replace'}
+              {isProcessing ? 'Processing...' : 'Clear All Data & Replace'}
             </Button>
           </div>
         </DialogContent>
@@ -407,11 +468,11 @@ export function SafeDataReplacement() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="space-y-1">
                       <p><strong>Current Items:</strong> {stats.currentItems}</p>
-                      <p><strong>BOM References:</strong> {stats.bomReferences}</p>
+                      <p><strong>Total Dependencies:</strong> {stats.totalDependencies}</p>
                     </div>
                     <div className="space-y-1">
-                      <p><strong>Specifications:</strong> {stats.specReferences}</p>
                       <p><strong>Stock Records:</strong> {stats.stockReferences}</p>
+                      <p><strong>Transaction Logs:</strong> {stats.grnLogReferences + stats.issueLogReferences}</p>
                     </div>
                   </div>
                 )}
@@ -420,9 +481,9 @@ export function SafeDataReplacement() {
                   <h4 className="font-medium mb-2">Safety Checks:</h4>
                   <ul className="text-xs space-y-1">
                     <li>✅ Automatic backup will be created</li>
-                    <li>✅ Dependencies will be handled automatically</li>
+                    <li>✅ All dependencies will be handled automatically</li>
                     <li>✅ BOM data can be repopulated later</li>
-                    <li>✅ Process can be rolled back if needed</li>
+                    <li>✅ Process can be monitored in real-time</li>
                   </ul>
                 </div>
               </div>
@@ -451,28 +512,30 @@ export function SafeDataReplacement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="w-5 h-5" />
-            Safe Data Replacement
+            Safe Data Replacement - Comprehensive
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* System Stats */}
+          {/* Comprehensive System Stats */}
           {stats && (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">{stats.currentItems}</div>
                 <div className="text-sm text-blue-800">Current Items</div>
               </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{stats.bomReferences}</div>
-                <div className="text-sm text-green-800">BOM References</div>
-              </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{stats.specReferences}</div>
-                <div className="text-sm text-purple-800">Specifications</div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{stats.totalDependencies}</div>
+                <div className="text-sm text-red-800">Total Dependencies</div>
               </div>
               <div className="text-center p-3 bg-orange-50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600">{stats.stockReferences}</div>
                 <div className="text-sm text-orange-800">Stock Records</div>
+              </div>
+              <div className="text-center p-3 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">
+                  {stats.grnLogReferences + stats.issueLogReferences + stats.satguruGrnLogReferences + stats.satguruIssueLogReferences}
+                </div>
+                <div className="text-sm text-purple-800">Transaction Logs</div>
               </div>
             </div>
           )}
@@ -484,7 +547,7 @@ export function SafeDataReplacement() {
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Ready to safely replace item master data. A backup will be created automatically before any changes.
+                    Ready to safely replace item master data with comprehensive dependency handling. A backup will be created automatically before any changes.
                   </AlertDescription>
                 </Alert>
 
@@ -576,7 +639,7 @@ export function SafeDataReplacement() {
                   <div className="space-y-2">
                     <p className="font-medium text-green-800">Data replacement completed successfully!</p>
                     <p className="text-green-700">Item master has been updated with new data.</p>
-                    <p className="text-sm text-green-600">You can now repopulate BOM data as needed.</p>
+                    <p className="text-sm text-green-600">All dependent data has been cleared. You can now repopulate BOM and other data as needed.</p>
                   </div>
                 </AlertDescription>
               </Alert>
