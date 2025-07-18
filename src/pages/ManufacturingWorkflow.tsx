@@ -1,16 +1,21 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Workflow, Filter, Search, TrendingUp, Clock, Package, AlertTriangle } from "lucide-react";
+import { Workflow, Filter, Search, TrendingUp, Clock, Package, AlertTriangle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { OrderCreationDialog } from "@/components/manufacturing/OrderCreationDialog";
-import { WorkflowKanban } from "@/components/manufacturing/WorkflowKanban";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EnhancedOrderCreationDialog } from "@/components/manufacturing/EnhancedOrderCreationDialog";
+import { InteractiveWorkflowKanban } from "@/components/manufacturing/InteractiveWorkflowKanban";
+import { ProcessHistoryViewer } from "@/components/manufacturing/ProcessHistoryViewer";
+import { OrderDetailModal } from "@/components/manufacturing/OrderDetailModal";
 import { useManufacturingOrders, useWorkflowBottlenecks } from "@/hooks/useManufacturingOrders";
 
 export default function ManufacturingWorkflow() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
   
   const { data: orders = [] } = useManufacturingOrders({
     search: searchTerm,
@@ -36,7 +41,20 @@ export default function ManufacturingWorkflow() {
           <h1 className="text-3xl font-bold text-foreground">Manufacturing Workflow</h1>
           <p className="text-muted-foreground">Real-time production tracking and order management</p>
         </div>
-        <OrderCreationDialog />
+        <div className="flex gap-2">
+          <EnhancedOrderCreationDialog />
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSelectedOrder(orders[0]); // Demo: select first order
+              setIsOrderDetailOpen(true);
+            }}
+            disabled={orders.length === 0}
+          >
+            <History className="h-4 w-4 mr-2" />
+            View History
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -136,19 +154,39 @@ export default function ManufacturingWorkflow() {
         </Card>
       )}
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Interactive Workflow Dashboard</CardTitle>
-            <CardDescription>
-              Drag and drop orders between stages - Real-time production tracking
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WorkflowKanban />
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="kanban" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="kanban">Interactive Workflow</TabsTrigger>
+          <TabsTrigger value="history">Process History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="kanban">
+          <Card>
+            <CardHeader>
+              <CardTitle>Interactive Workflow Dashboard</CardTitle>
+              <CardDescription>
+                Drag and drop orders between stages - Real-time production tracking with {orders.length} active orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InteractiveWorkflowKanban />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <ProcessHistoryViewer />
+        </TabsContent>
+      </Tabs>
+
+      <OrderDetailModal
+        order={selectedOrder}
+        isOpen={isOrderDetailOpen}
+        onClose={() => {
+          setIsOrderDetailOpen(false);
+          setSelectedOrder(null);
+        }}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ManufacturingOrder, OrderProgress, WorkflowBottleneck } from "@/types/manufacturing";
 
@@ -123,7 +124,9 @@ export const useUpdateOrderStatus = () => {
 };
 
 export const useManufacturingDashboard = () => {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ["manufacturing-dashboard"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -136,6 +139,33 @@ export const useManufacturingDashboard = () => {
     },
     refetchInterval: 10000, // Real-time updates every 10 seconds
   });
+
+  // Set up real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('manufacturing-orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_punching'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["manufacturing-dashboard"] });
+          queryClient.invalidateQueries({ queryKey: ["manufacturing-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["order-progress"] });
+          queryClient.invalidateQueries({ queryKey: ["workflow-bottlenecks"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
 };
 
 // New hook for manufacturing analytics

@@ -6051,6 +6051,42 @@ export type Database = {
         }
         Relationships: []
       }
+      order_process_history: {
+        Row: {
+          captured_at: string | null
+          captured_by: string | null
+          current_order_status:
+            | Database["public"]["Enums"]["process_status"]
+            | null
+          customer_name: string | null
+          id: string | null
+          metric: string | null
+          order_created_at: string | null
+          order_quantity: number | null
+          priority_level: string | null
+          product_description: string | null
+          stage: Database["public"]["Enums"]["process_stage"] | null
+          txt_value: string | null
+          uiorn: string | null
+          value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_logs_se_captured_by_fkey"
+            columns: ["captured_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_logs_se_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "orders_dashboard_se"
+            referencedColumns: ["uiorn"]
+          },
+        ]
+      }
       panchkula_payroll_calculation: {
         Row: {
           base_salary: number | null
@@ -6387,6 +6423,29 @@ export type Database = {
           id: string
           job_id: string | null
           viscosity_cps: number
+        }[]
+      }
+      get_order_process_history: {
+        Args: { p_uiorn: string }
+        Returns: {
+          id: string
+          stage: string
+          metric: string
+          value: number
+          txt_value: string
+          captured_at: string
+          captured_by: string
+          customer_name: string
+          product_description: string
+        }[]
+      }
+      get_process_statistics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          stage: string
+          total_entries: number
+          latest_activity: string
+          unique_orders: number
         }[]
       }
       get_user_jobs_safe: {
