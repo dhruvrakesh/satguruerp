@@ -1,277 +1,170 @@
+
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
+import { ItemMasterFilters } from "./ItemMasterFilters";
+import { ItemMasterForm } from "./ItemMasterForm";
+import { useItemMasterExport } from "@/hooks/useItemMasterExport";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Upload, ArrowUpDown, Loader2 } from "lucide-react";
-import { useItemMaster, useItemMasterMutations, ItemMasterFilters, ItemMasterSort } from "@/hooks/useItemMaster";
-import { ItemMasterForm } from "./ItemMasterForm";
-import { ItemMasterFilters as FiltersComponent } from "./ItemMasterFilters";
-import { ArtworkImportDialog } from "./ArtworkImportDialog";
-import { LoadingSpinner } from "../ui/loading-spinner";
-import { ConfirmationDialog } from "../ui/confirmation-dialog";
+import { Trash2, Edit, Plus, Upload, Download, ExternalLink } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 interface ItemMasterTableProps {
-  onBulkUpload?: () => void;
-}
-
-interface ItemMasterItem {
-  id: string;
-  item_code: string;
-  item_name: string;
-  category_id: string;
-  status: string;
-  uom: string;
-  qualifier?: string;
-  gsm?: number;
-  size_mm?: string;
-  specifications?: any;
-  customer_name?: string;
-  dimensions?: string;
-  no_of_colours?: string;
-  usage_type?: string;
-  categories?: {
-    category_name: string;
-  };
+  onBulkUpload: () => void;
 }
 
 export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
+  const { toast } = useToast();
+  const { exportItemMasterToCSV } = useItemMasterExport();
+  
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<ItemMasterFilters>({});
-  const [sort, setSort] = useState<ItemMasterSort>({ column: 'created_at', direction: 'desc' });
+  const [pageSize] = useState(50);
+  const [filters, setFilters] = useState({});
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [editingItem, setEditingItem] = useState<ItemMasterItem | null>(null);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item?: ItemMasterItem; multiple?: boolean }>({ open: false });
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
-  const pageSize = 50;
-  
-  const { data, isLoading, error } = useItemMaster({ 
-    page, 
-    filters, 
-    sort 
+  const { data: itemMasterData, isLoading, error } = useItemMaster({
+    page,
+    pageSize,
+    filters
   });
-  
+
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
 
-  const totalPages = data?.totalPages || 0;
-
-  const handleFiltersChange = (newFilters: ItemMasterFilters) => {
-    console.log('Filters changed:', newFilters);
-    setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
-  };
-
-  const handleSort = (column: string) => {
-    setSort(prev => ({
-      column,
-      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
-
-  const handleSelectItem = (itemId: string, checked: boolean) => {
-    setSelectedItems(prev => 
-      checked 
-        ? [...prev, itemId]
-        : prev.filter(id => id !== itemId)
-    );
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    setSelectedItems(checked ? data?.data?.map(item => item.id) || [] : []);
-  };
-
-  const handleDeleteSelected = () => {
-    if (selectedItems.length > 0) {
-      setDeleteConfirm({ open: true, multiple: true });
-    }
+  const handleDelete = (id: string) => {
+    setItemToDelete(id);
+    setShowDeleteConfirm(true);
   };
 
   const confirmDelete = () => {
-    if (deleteConfirm.multiple) {
+    if (itemToDelete) {
+      deleteItem.mutate(itemToDelete);
+      setItemToDelete(null);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedItems.length > 0) {
       deleteMultipleItems.mutate(selectedItems);
       setSelectedItems([]);
-    } else if (deleteConfirm.item) {
-      deleteItem.mutate(deleteConfirm.item.id);
     }
-    setDeleteConfirm({ open: false });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(itemMasterData?.data.map(item => item.id) || []);
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (itemId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedItems(prev => [...prev, itemId]);
+    } else {
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    }
+  };
+
+  const handleExport = () => {
+    exportItemMasterToCSV(filters);
   };
 
   if (error) {
-    console.error('Error loading items:', error);
-    return (
-      <div className="p-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              <p>Error loading items: {error.message}</p>
-              <Button 
-                onClick={() => window.location.reload()} 
-                className="mt-2"
-                variant="outline"
-              >
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    toast({
+      title: "Error",
+      description: "Failed to load item master data",
+      variant: "destructive",
+    });
   }
 
-  const getFilterSummary = () => {
-    const parts = [];
-    if (filters.search) parts.push(`search: "${filters.search}"`);
-    if (filters.category_id) parts.push('category filtered');
-    if (filters.status) parts.push(`status: ${filters.status}`);
-    if (filters.uom) parts.push(`UOM: ${filters.uom}`);
-    if (filters.usage_type) parts.push(`type: ${filters.usage_type}`);
-    
-    return parts.length > 0 ? ` (${parts.join(', ')})` : '';
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Header with Actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Item Master</h2>
-          <div className="flex items-center gap-4">
-            <p className="text-muted-foreground">Manage your inventory catalog</p>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="text-xs">
-                {data?.data?.length || 0} items displayed
-              </Badge>
-              <Badge variant="default" className="text-xs">
-                {data?.count || 0} total items{getFilterSummary()}
-              </Badge>
-              {isLoading && (
-                <Badge variant="secondary" className="text-xs">
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Loading...
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <ArtworkImportDialog />
-          <Button variant="outline" onClick={onBulkUpload}>
-            <Upload className="w-4 h-4 mr-2" />
-            Bulk Upload
-          </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl">
-              <DialogHeader>
-                <DialogTitle>Add New Item</DialogTitle>
-              </DialogHeader>
-              <ItemMasterForm onSuccess={() => setIsAddDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <FiltersComponent 
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        isLoading={isLoading}
-      />
-
-      {/* Items Table */}
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>
-              Items ({data?.count || 0})
-              {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) && (
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  - Filtered Results
-                </span>
-              )}
-            </CardTitle>
-            <div className="flex items-center gap-4">
+          <CardTitle className="flex items-center justify-between">
+            Item Master Management
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.open('/specification-master', '_blank')}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Specification Master
+              </Button>
+              <Button variant="outline" onClick={handleExport}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button variant="outline" onClick={onBulkUpload}>
+                <Upload className="h-4 w-4 mr-2" />
+                Bulk Upload
+              </Button>
               {selectedItems.length > 0 && (
-                <Button variant="destructive" onClick={handleDeleteSelected} size="sm">
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete {selectedItems.length}
+                <Button variant="destructive" onClick={handleBulkDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedItems.length})
                 </Button>
               )}
-              <div className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Add New Item</DialogTitle>
+                  </DialogHeader>
+                  <ItemMasterForm />
+                </DialogContent>
+              </Dialog>
             </div>
-          </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner />
-              <span className="ml-2">Loading items...</span>
-            </div>
-          ) : data?.data?.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">
-                {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) 
-                  ? "No items match your current filters." 
-                  : "No items found."
-                }
-              </p>
-              {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => setFilters({})}
-                >
-                  Clear Filters
-                </Button>
-              )}
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
+          <ItemMasterFilters onFiltersChange={setFilters} />
+          
+          <div className="rounded-md border mt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedItems.length === itemMasterData?.data.length && itemMasterData?.data.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>Item Code</TableHead>
+                  <TableHead>Item Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Usage Type</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
                   <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedItems.length === data?.data?.length && data?.data?.length > 0}
-                        onCheckedChange={handleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer" 
-                      onClick={() => handleSort('item_code')}
-                    >
-                      Item Code
-                      <ArrowUpDown className="w-4 h-4 ml-1 inline" />
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer" 
-                      onClick={() => handleSort('item_name')}
-                    >
-                      Item Name
-                      <ArrowUpDown className="w-4 h-4 ml-1 inline" />
-                    </TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>UOM</TableHead>
-                    <TableHead>Usage Type</TableHead>
-                    <TableHead>GSM</TableHead>
-                    <TableHead>Dimensions</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableCell colSpan={8} className="text-center py-4">
+                      Loading...
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.data?.map((item) => (
+                ) : itemMasterData?.data.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-4">
+                      No items found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  itemMasterData?.data.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
                         <Checkbox
@@ -279,23 +172,13 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                           onCheckedChange={(checked) => handleSelectItem(item.id, checked as boolean)}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{item.item_code}</TableCell>
-                      <TableCell className="font-medium">{item.item_name}</TableCell>
+                      <TableCell className="font-medium">{item.item_code}</TableCell>
+                      <TableCell>{item.item_name}</TableCell>
+                      <TableCell>{item.categories?.category_name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {item.categories?.category_name || 'No Category'}
-                        </Badge>
+                        <Badge variant="outline">{item.usage_type}</Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.uom}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={item.usage_type === 'FINISHED_GOOD' ? 'default' : 'secondary'}>
-                          {item.usage_type || 'RM'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{item.gsm || item.size_mm || '-'}</TableCell>
-                      <TableCell>{item.dimensions || '-'}</TableCell>
+                      <TableCell>{item.customer_name || '-'}</TableCell>
                       <TableCell>
                         <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                           {item.status}
@@ -303,82 +186,74 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingItem(item)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                              <DialogHeader>
+                                <DialogTitle>Edit Item</DialogTitle>
+                              </DialogHeader>
+                              <ItemMasterForm item={editingItem} />
+                            </DialogContent>
+                          </Dialog>
                           <Button
+                            variant="ghost"
                             size="sm"
-                            variant="outline"
-                            onClick={() => setEditingItem(item)}
+                            onClick={() => handleDelete(item.id)}
                           >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setDeleteConfirm({ open: true, item })}
-                          >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing {Math.min((page - 1) * pageSize + 1, data?.count || 0)} to {Math.min(page * pageSize, data?.count || 0)} of {data?.count || 0} items
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                    disabled={page === 1 || isLoading}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={page === totalPages || isLoading}
-                  >
-                    Next
-                  </Button>
-                </div>
+          {/* Pagination */}
+          {itemMasterData && itemMasterData.totalPages > 1 && (
+            <div className="flex items-center justify-between space-x-2 py-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, itemMasterData.count)} of {itemMasterData.count} items
               </div>
-            </>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page <= 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= itemMasterData.totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
-      {editingItem && (
-        <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>Edit Item: {editingItem.item_name}</DialogTitle>
-            </DialogHeader>
-            <ItemMasterForm 
-              item={editingItem} 
-              onSuccess={() => setEditingItem(null)} 
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Delete Confirmation */}
       <ConfirmationDialog
-        open={deleteConfirm.open}
-        onOpenChange={(open) => setDeleteConfirm({ open })}
-        title={deleteConfirm.multiple ? "Delete Selected Items" : "Delete Item"}
-        description={
-          deleteConfirm.multiple 
-            ? `Are you sure you want to delete ${selectedItems.length} selected items? This action cannot be undone.`
-            : `Are you sure you want to delete "${deleteConfirm.item?.item_name}"? This action cannot be undone.`
-        }
-        confirmText="Delete"
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Item"
+        description="Are you sure you want to delete this item? This action cannot be undone."
         onConfirm={confirmDelete}
-        variant="destructive"
       />
     </div>
   );

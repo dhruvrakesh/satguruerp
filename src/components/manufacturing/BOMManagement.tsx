@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Plus, Search, Calculator, Upload, Download, Target } from "lucide-react";
+import { Trash2, Edit, Plus, Search, Calculator, Upload, Download, Target, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BOMBulkUploadDialog } from "./BOMBulkUploadDialog";
@@ -62,39 +62,32 @@ export const BOMManagement: React.FC = () => {
   const [bomExplosionData, setBomExplosionData] = useState<any[]>([]);
   const [explosionQuantity, setExplosionQuantity] = useState('1000');
 
-  // Fetch BOM data
+  // Simplified BOM data query with explicit typing
   const { data: bomData, isLoading } = useQuery({
     queryKey: ['bom-data', searchQuery, selectedFGItem, selectedCustomer],
-    queryFn: async () => {
+    queryFn: async (): Promise<any[]> => {
       let query = supabase
         .from('bill_of_materials')
-        .select(`
-          *,
-          bom_groups (
-            group_name,
-            group_code
-          )
-        `)
+        .select('*, bom_groups(group_name, group_code)')
         .order('fg_item_code');
 
       if (selectedFGItem) {
         query = query.eq('fg_item_code', selectedFGItem);
       }
-
       if (selectedCustomer) {
         query = query.eq('customer_code', selectedCustomer);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     }
   });
 
-  // Fetch finished goods
+  // Simplified finished goods query
   const { data: finishedGoods } = useQuery({
     queryKey: ['finished-goods'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
@@ -105,10 +98,10 @@ export const BOMManagement: React.FC = () => {
     }
   });
 
-  // Fetch raw materials
+  // Simplified raw materials query
   const { data: rawMaterials } = useQuery({
     queryKey: ['raw-materials'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
@@ -119,7 +112,7 @@ export const BOMManagement: React.FC = () => {
     }
   });
 
-  // Fetch BOM groups
+  // Simplified BOM groups query
   const { data: bomGroups } = useQuery({
     queryKey: ['bom-groups'],
     queryFn: async () => {
@@ -217,7 +210,6 @@ export const BOMManagement: React.FC = () => {
     }
 
     try {
-      // Simplified BOM explosion - get BOM items and calculate requirements
       const { data: bomItems, error } = await supabase
         .from('bill_of_materials')
         .select('*')
@@ -230,9 +222,9 @@ export const BOMManagement: React.FC = () => {
         rm_item_code: item.rm_item_code,
         required_quantity: item.quantity_required * parseFloat(explosionQuantity),
         unit_of_measure: item.unit_of_measure,
-        gsm_contribution: (item as any).gsm_contribution || 0,
-        percentage_contribution: (item as any).percentage_contribution || 0,
-        total_cost: item.quantity_required * parseFloat(explosionQuantity) * 10 // Placeholder cost
+        gsm_contribution: item.gsm_contribution || 0,
+        percentage_contribution: item.percentage_contribution || 0,
+        total_cost: item.quantity_required * parseFloat(explosionQuantity) * 10
       })) || [];
 
       setBomExplosionData(explosionData);
@@ -263,6 +255,10 @@ export const BOMManagement: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             Bill of Materials Management
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.open('/specification-master', '_blank')}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Specification Master
+              </Button>
               <BOMBulkUploadDialog
                 trigger={
                   <Button variant="outline">
@@ -440,19 +436,19 @@ export const BOMManagement: React.FC = () => {
                   <TableCell>{bomItem.rm_item_code}</TableCell>
                   <TableCell>{bomItem.quantity_required}</TableCell>
                   <TableCell>{bomItem.unit_of_measure}</TableCell>
-                  <TableCell>{(bomItem as any).gsm_contribution || '-'}</TableCell>
-                  <TableCell>{(bomItem as any).percentage_contribution || '-'}%</TableCell>
+                  <TableCell>{bomItem.gsm_contribution || '-'}</TableCell>
+                  <TableCell>{bomItem.percentage_contribution || '-'}%</TableCell>
                   <TableCell>
-                    {(bomItem as any).customer_code ? (
-                      <Badge variant="outline">{(bomItem as any).customer_code}</Badge>
+                    {bomItem.customer_code ? (
+                      <Badge variant="outline">{bomItem.customer_code}</Badge>
                     ) : (
                       <span className="text-muted-foreground">Generic</span>
                     )}
                   </TableCell>
-                  <TableCell>v{(bomItem as any).bom_version || 1}</TableCell>
+                  <TableCell>v{bomItem.bom_version || 1}</TableCell>
                   <TableCell>
-                    <Badge variant={(bomItem as any).is_active !== false ? "default" : "secondary"}>
-                      {(bomItem as any).is_active !== false ? "Active" : "Inactive"}
+                    <Badge variant={bomItem.is_active !== false ? "default" : "secondary"}>
+                      {bomItem.is_active !== false ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell>

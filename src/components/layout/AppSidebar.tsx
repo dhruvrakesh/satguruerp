@@ -17,7 +17,8 @@ import {
   PackageCheck,
   FolderTree,
   Shield,
-  Image
+  Image,
+  FileSpreadsheet
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -37,6 +38,7 @@ import {
 const mainOperationsItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Item Master", url: "/item-master", icon: Package2 },
+  { title: "Specification Master", url: "/specification-master", icon: FileSpreadsheet },
   { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
   { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
 ];
