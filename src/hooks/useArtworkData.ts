@@ -6,7 +6,7 @@ export function useArtworkByUiorn(uiorn: string) {
   return useQuery({
     queryKey: ["artwork-by-uiorn", uiorn],
     queryFn: async () => {
-      console.log("Fetching artwork data for UIORN:", uiorn);
+      console.log("🔍 Fetching artwork data for UIORN:", uiorn);
       
       // First, get order data from order_punching
       const { data: orderData, error: orderError } = await supabase
@@ -16,15 +16,17 @@ export function useArtworkByUiorn(uiorn: string) {
         .single();
 
       if (orderError && orderError.code !== 'PGRST116') {
-        console.error("Error fetching order data:", orderError);
+        console.error("❌ Error fetching order data:", orderError);
       }
 
-      console.log("Order data:", orderData);
+      console.log("📋 Order data:", orderData);
 
       let artworkData = null;
       let customerName = orderData?.customer_name || null;
 
       if (orderData?.product_description) {
+        console.log("🎨 Searching for artwork with product_description:", orderData.product_description);
+        
         // Try exact item_code match first
         const { data: exactMatch } = await supabase
           .from("master_data_artworks_se")
@@ -35,8 +37,14 @@ export function useArtworkByUiorn(uiorn: string) {
         if (exactMatch) {
           artworkData = exactMatch;
           customerName = exactMatch.customer_name || customerName;
-          console.log("Found exact item_code match:", exactMatch);
+          console.log("✅ Found exact item_code match:", {
+            item_code: exactMatch.item_code,
+            customer_name: exactMatch.customer_name,
+            item_name: exactMatch.item_name
+          });
         } else {
+          console.log("🔍 No exact item_code match, trying item_name similarity...");
+          
           // Try item_name similarity match
           const { data: similarItems } = await supabase
             .from("master_data_artworks_se")
@@ -48,8 +56,15 @@ export function useArtworkByUiorn(uiorn: string) {
             // Pick the best match (first one for now, could implement better scoring)
             artworkData = similarItems[0];
             customerName = artworkData.customer_name || customerName;
-            console.log("Found similar item_name match:", artworkData);
+            console.log("✅ Found similar item_name match:", {
+              item_code: artworkData.item_code,
+              customer_name: artworkData.customer_name,
+              item_name: artworkData.item_name,
+              similarity_matches: similarItems.length
+            });
           } else {
+            console.log("🔍 No item_name similarity, trying reverse match...");
+            
             // Try reverse match - product description contains item_name
             const { data: reverseMatches } = await supabase
               .from("master_data_artworks_se")
@@ -65,7 +80,11 @@ export function useArtworkByUiorn(uiorn: string) {
               if (bestMatch) {
                 artworkData = bestMatch;
                 customerName = bestMatch.customer_name || customerName;
-                console.log("Found reverse match:", bestMatch);
+                console.log("✅ Found reverse match:", {
+                  item_code: bestMatch.item_code,
+                  customer_name: bestMatch.customer_name,
+                  item_name: bestMatch.item_name
+                });
               }
             }
           }
@@ -74,6 +93,7 @@ export function useArtworkByUiorn(uiorn: string) {
 
       // If still no artwork found, try fallback staging table
       if (!artworkData && orderData?.product_description) {
+        console.log("🔍 Trying fallback staging table...");
         const { data: stagingData } = await supabase
           .from("_artworks_revised_staging")
           .select("*")
@@ -84,7 +104,11 @@ export function useArtworkByUiorn(uiorn: string) {
         if (stagingData) {
           artworkData = stagingData;
           customerName = stagingData.customer_name || customerName;
-          console.log("Found staging data match:", stagingData);
+          console.log("✅ Found staging data match:", {
+            item_code: stagingData.item_code,
+            customer_name: stagingData.customer_name,
+            item_name: stagingData.item_name
+          });
         }
       }
 
@@ -96,11 +120,19 @@ export function useArtworkByUiorn(uiorn: string) {
         item_code: artworkData?.item_code || orderData?.product_description
       };
 
-      console.log("Final result:", result);
+      console.log("🎯 Final result:", {
+        uiorn,
+        customer_name: result.customer_name,
+        no_of_colours: result.no_of_colours,
+        item_code: result.item_code,
+        has_artwork: !!artworkData,
+        has_order: !!orderData
+      });
+      
       return result;
     },
     enabled: !!uiorn,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (replaced cacheTime)
   });
 }

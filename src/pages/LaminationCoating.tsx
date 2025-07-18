@@ -9,6 +9,7 @@ import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
+import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
@@ -42,24 +43,10 @@ export default function LaminationCoating() {
   const { data: laminationAlerts = [] } = useProcessQualityAlerts("LAMINATION");
   const { data: coatingAlerts = [] } = useProcessQualityAlerts("ADHESIVE_COATING");
 
-  // Fetch artwork data for selected order
-  const { data: artworkData = null } = useQuery({
-    queryKey: ["artwork-for-order", selectedOrder?.product_description],
-    queryFn: async () => {
-      if (!selectedOrder?.product_description) return null;
-      
-      const { data, error } = await supabase
-        .from("_artworks_revised_staging")
-        .select("item_code, customer_name, item_name, dimensions, no_of_colours, file_hyperlink, ups, circum")
-        .or(`item_name.ilike.%${selectedOrder.product_description}%,customer_name.ilike.%${selectedOrder.customer_name}%`)
-        .limit(1)
-        .single();
-      
-      if (error) return null;
-      return data;
-    },
-    enabled: !!selectedOrder
-  });
+  // Use the enhanced artwork hook for selected order
+  const { data: artworkData, isLoading: isLoadingArtwork } = useArtworkByUiorn(
+    selectedOrder?.uiorn || ""
+  );
 
   useEffect(() => {
     // Fetch lamination and coating process logs
@@ -256,7 +243,11 @@ export default function LaminationCoating() {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{order.customer_name}</h4>
+                          <h4 className="font-medium">
+                            {/* Show resolved customer name from artwork data if available */}
+                            {selectedOrder?.uiorn === order.uiorn && artworkData?.customer_name ? 
+                              artworkData.customer_name : order.customer_name}
+                          </h4>
                           <p className="text-sm text-muted-foreground">
                             {order.product_description}
                           </p>
@@ -267,6 +258,9 @@ export default function LaminationCoating() {
                             >
                               {order.priority_level}
                             </Badge>
+                            {selectedOrder?.uiorn === order.uiorn && isLoadingArtwork && (
+                              <Badge variant="secondary">Loading artwork...</Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -304,7 +298,7 @@ export default function LaminationCoating() {
                     <ArtworkProcessDisplay
                       uiorn={selectedOrder.uiorn}
                       itemCode={selectedOrder.product_description}
-                      artworkData={artworkData}
+                      artworkData={artworkData?.artwork}
                       processType="lamination"
                     />
                   ) : (
@@ -325,26 +319,26 @@ export default function LaminationCoating() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {artworkData ? (
+                  {artworkData?.artwork ? (
                     <div className="space-y-4">
                       <div className="p-4 bg-green-50 rounded-lg">
                         <h4 className="font-medium text-green-800 mb-2">Auto-Configured Parameters</h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           <div>
+                            <span className="font-medium">Customer:</span>
+                            <div className="text-green-700">{artworkData.customer_name || "N/A"}</div>
+                          </div>
+                          <div>
                             <span className="font-medium">Substrate Width:</span>
-                            <div className="text-green-700">{artworkData.dimensions}</div>
+                            <div className="text-green-700">{artworkData.artwork.dimensions || "N/A"}</div>
                           </div>
                           <div>
                             <span className="font-medium">Color Layers:</span>
                             <div className="text-green-700">{artworkData.no_of_colours}</div>
                           </div>
                           <div>
-                            <span className="font-medium">Roll Setup:</span>
-                            <div className="text-green-700">{artworkData.circum}mm circum</div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Units/Sheet:</span>
-                            <div className="text-green-700">{artworkData.ups}</div>
+                            <span className="font-medium">Item Code:</span>
+                            <div className="text-green-700">{artworkData.item_code}</div>
                           </div>
                         </div>
                       </div>
@@ -352,6 +346,10 @@ export default function LaminationCoating() {
                       <Button className="w-full">
                         Apply Artwork Parameters to Process
                       </Button>
+                    </div>
+                  ) : isLoadingArtwork ? (
+                    <div className="text-center p-4 text-muted-foreground">
+                      Loading artwork parameters...
                     </div>
                   ) : (
                     <div className="text-center p-4 text-muted-foreground">
@@ -364,6 +362,7 @@ export default function LaminationCoating() {
           </div>
         </TabsContent>
 
+        
         <TabsContent value="monitoring">
           <Card>
             <CardHeader>
