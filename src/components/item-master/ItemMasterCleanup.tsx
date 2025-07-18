@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,6 +77,132 @@ export function ItemMasterCleanup() {
     }
   };
 
+  const mergeStockRecords = async (keepItemCode: string, removeItemCode: string) => {
+    // Check if both items have stock records
+    const { data: keepStock } = await supabase
+      .from('stock')
+      .select('*')
+      .eq('item_code', keepItemCode)
+      .single();
+
+    const { data: removeStock } = await supabase
+      .from('stock')
+      .select('*')
+      .eq('item_code', removeItemCode)
+      .single();
+
+    if (removeStock) {
+      if (keepStock) {
+        // Merge quantities
+        await supabase
+          .from('stock')
+          .update({ 
+            current_qty: keepStock.current_qty + removeStock.current_qty,
+            last_updated: new Date().toISOString()
+          })
+          .eq('item_code', keepItemCode);
+        
+        // Delete the duplicate stock record
+        await supabase
+          .from('stock')
+          .delete()
+          .eq('item_code', removeItemCode);
+      } else {
+        // Just update the item_code
+        await supabase
+          .from('stock')
+          .update({ item_code: keepItemCode })
+          .eq('item_code', removeItemCode);
+      }
+    }
+  };
+
+  const mergeSatguruStock = async (keepItemCode: string, removeItemCode: string) => {
+    // Check if both items have satguru_stock records
+    const { data: keepStock } = await supabase
+      .from('satguru_stock')
+      .select('*')
+      .eq('item_code', keepItemCode)
+      .single();
+
+    const { data: removeStock } = await supabase
+      .from('satguru_stock')
+      .select('*')
+      .eq('item_code', removeItemCode)
+      .single();
+
+    if (removeStock) {
+      if (keepStock) {
+        // Merge quantities
+        await supabase
+          .from('satguru_stock')
+          .update({ 
+            current_qty: keepStock.current_qty + removeStock.current_qty,
+            last_updated: new Date().toISOString()
+          })
+          .eq('item_code', keepItemCode);
+        
+        // Delete the duplicate stock record
+        await supabase
+          .from('satguru_stock')
+          .delete()
+          .eq('item_code', removeItemCode);
+      } else {
+        // Just update the item_code
+        await supabase
+          .from('satguru_stock')
+          .update({ item_code: keepItemCode })
+          .eq('item_code', removeItemCode);
+      }
+    }
+  };
+
+  const mergeDailyStockSummary = async (keepItemCode: string, removeItemCode: string) => {
+    // Get all daily stock summary records for the item to remove
+    const { data: removeRecords } = await supabase
+      .from('daily_stock_summary')
+      .select('*')
+      .eq('item_code', removeItemCode);
+
+    if (removeRecords && removeRecords.length > 0) {
+      for (const record of removeRecords) {
+        // Check if keep item already has a record for this date
+        const { data: existingRecord } = await supabase
+          .from('daily_stock_summary')
+          .select('*')
+          .eq('item_code', keepItemCode)
+          .eq('summary_date', record.summary_date)
+          .single();
+
+        if (existingRecord) {
+          // Merge the quantities
+          await supabase
+            .from('daily_stock_summary')
+            .update({
+              opening_qty: existingRecord.opening_qty + record.opening_qty,
+              received_qty: existingRecord.received_qty + record.received_qty,
+              issued_qty: existingRecord.issued_qty + record.issued_qty,
+              closing_qty: existingRecord.closing_qty + record.closing_qty
+            })
+            .eq('item_code', keepItemCode)
+            .eq('summary_date', record.summary_date);
+        } else {
+          // Just update the item_code
+          await supabase
+            .from('daily_stock_summary')
+            .update({ item_code: keepItemCode })
+            .eq('id', record.id);
+        }
+      }
+
+      // Delete any remaining duplicate records
+      await supabase
+        .from('daily_stock_summary')
+        .delete()
+        .eq('item_code', removeItemCode);
+    }
+  };
+
   const cleanupDuplicates = async () => {
     if (duplicates.length === 0) return;
 
@@ -102,64 +227,30 @@ export function ItemMasterCleanup() {
             const keepItem = items[0];
             const itemsToRemove = items.slice(1);
             
-            // For each item to remove, transfer all references to the kept item
+            // For each item to remove, merge all references to the kept item
             for (const item of itemsToRemove) {
               try {
                 console.log(`Processing item ${item.item_code} -> ${keepItem.item_code}`);
                 
-                // Update all referencing tables
-                const updatePromises = [];
+                // Merge stock records (handles unique constraints)
+                await mergeStockRecords(keepItem.item_code, item.item_code);
                 
-                // Update stock table
-                updatePromises.push(
-                  supabase
-                    .from('stock')
-                    .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code)
-                );
+                // Merge satguru stock records (handles unique constraints)
+                await mergeSatguruStock(keepItem.item_code, item.item_code);
                 
-                // Update grn_log table
-                updatePromises.push(
-                  supabase
-                    .from('grn_log')
-                    .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code)
-                );
+                // Merge daily stock summary records (handles unique constraints)
+                await mergeDailyStockSummary(keepItem.item_code, item.item_code);
                 
-                // Update issue_log table
-                updatePromises.push(
-                  supabase
-                    .from('issue_log')
-                    .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code)
-                );
+                // Update log tables (no unique constraints on item_code)
+                await supabase
+                  .from('grn_log')
+                  .update({ item_code: keepItem.item_code })
+                  .eq('item_code', item.item_code);
                 
-                // Update daily_stock_summary table
-                updatePromises.push(
-                  supabase
-                    .from('daily_stock_summary')
-                    .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code)
-                );
-                
-                // Update satguru_stock table if it exists
-                updatePromises.push(
-                  supabase
-                    .from('satguru_stock')
-                    .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code)
-                );
-
-                // Execute all updates
-                const results = await Promise.allSettled(updatePromises);
-                
-                // Log any update failures but continue
-                results.forEach((result, index) => {
-                  if (result.status === 'rejected') {
-                    const tableNames = ['stock', 'grn_log', 'issue_log', 'daily_stock_summary', 'satguru_stock'];
-                    console.warn(`Failed to update ${tableNames[index]} for ${item.item_code}:`, result.reason);
-                  }
-                });
+                await supabase
+                  .from('issue_log')
+                  .update({ item_code: keepItem.item_code })
+                  .eq('item_code', item.item_code);
 
                 // Now try to delete the duplicate item
                 const { error: deleteError } = await supabase
@@ -243,7 +334,7 @@ export function ItemMasterCleanup() {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Found {duplicates.length} items with duplicate names. 
-              Cleanup will keep the most recently updated record for each item name and transfer all related data.
+              Cleanup will keep the most recently updated record for each item name and merge all related data safely.
             </AlertDescription>
           </Alert>
         )}
