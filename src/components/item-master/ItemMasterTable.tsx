@@ -36,9 +36,11 @@ interface ItemMasterItem {
   category_id: string;
   status: string;
   uom: string;
-  gsm?: number;
-  size_mm?: string;
-  satguru_categories?: {
+  customer_name?: string;
+  dimensions?: string;
+  no_of_colours?: string;
+  usage_type?: string;
+  categories?: {
     category_name: string;
   };
 }
@@ -245,8 +247,8 @@ interface ItemMasterItem {
                 </TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>UOM</TableHead>
-                <TableHead>GSM</TableHead>
-                <TableHead>Size</TableHead>
+                <TableHead>Dimensions</TableHead>
+                <TableHead>Colors</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -262,12 +264,12 @@ interface ItemMasterItem {
                   </TableCell>
                   <TableCell className="font-mono text-sm">{item.item_code}</TableCell>
                   <TableCell className="font-medium">{item.item_name}</TableCell>
-                  <TableCell>{item.satguru_categories?.category_name}</TableCell>
+                  <TableCell>{item.categories?.category_name}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{item.uom}</Badge>
                   </TableCell>
-                  <TableCell>{item.gsm || '-'}</TableCell>
-                  <TableCell>{item.size_mm || '-'}</TableCell>
+                  <TableCell>{item.dimensions || '-'}</TableCell>
+                  <TableCell>{item.no_of_colours || '-'}</TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                       {item.status}

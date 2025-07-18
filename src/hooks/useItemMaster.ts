@@ -30,10 +30,10 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
     queryKey: ['itemMaster', page, pageSize, filters, sort],
     queryFn: async () => {
       let query = supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .select(`
           *,
-          satguru_categories (
+          categories (
             id,
             category_name
           )
@@ -91,7 +91,7 @@ export function useItemMasterMutations() {
   const createItem = useMutation({
     mutationFn: async (item: ItemMasterFormData) => {
       const { data, error } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .insert([item as any])
         .select()
         .single();
@@ -115,7 +115,7 @@ export function useItemMasterMutations() {
   const updateItem = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Record<string, any> }) => {
       const { data, error } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .update(updates)
         .eq('id', id)
         .select()
@@ -140,7 +140,7 @@ export function useItemMasterMutations() {
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .delete()
         .eq('id', id);
       
@@ -162,7 +162,7 @@ export function useItemMasterMutations() {
   const deleteMultipleItems = useMutation({
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .delete()
         .in('id', ids);
       
