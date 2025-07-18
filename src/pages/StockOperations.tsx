@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload } from "lucide-react";
@@ -12,6 +13,7 @@ import { IssueTable } from "@/components/stock-operations/IssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
 import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
 import { BulkUploadIssues } from "@/components/stock-operations/BulkUploadIssues";
+import { BulkUploadOpeningStock } from "@/components/stock-operations/BulkUploadOpeningStock";
 import { StockMovementReport } from "@/components/stock-operations/StockMovementReport";
 
 export default function StockOperations() {
@@ -19,13 +21,14 @@ export default function StockOperations() {
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [bulkGRNOpen, setBulkGRNOpen] = useState(false);
   const [bulkIssuesOpen, setBulkIssuesOpen] = useState(false);
+  const [bulkOpeningStockOpen, setBulkOpeningStockOpen] = useState(false);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Stock Operations</h1>
-          <p className="text-muted-foreground">Manage goods receipt notes (GRN) and stock issues</p>
+          <p className="text-muted-foreground">Manage goods receipt notes (GRN), stock issues, and opening stock</p>
         </div>
         <div className="flex gap-2">
           <Dialog open={grnDialogOpen} onOpenChange={setGrnDialogOpen}>
@@ -66,6 +69,10 @@ export default function StockOperations() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setBulkOpeningStockOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Opening Stock
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setBulkGRNOpen(true)}>
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Upload GRNs
@@ -76,6 +83,11 @@ export default function StockOperations() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          
+          <BulkUploadOpeningStock
+            open={bulkOpeningStockOpen}
+            onOpenChange={setBulkOpeningStockOpen}
+          />
           
           <BulkUploadGRN
             open={bulkGRNOpen}

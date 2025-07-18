@@ -1,297 +1,185 @@
 
-import React, { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useCategories } from "@/hooks/useCategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Search, Filter, X, Loader2 } from "lucide-react";
-import { useCategoriesWithStats, CategoryWithStats } from "@/hooks/useCategories";
-import { useDebounce } from "@/hooks/useDebounce";
-import { ItemMasterFilters as FilterType } from "@/hooks/useItemMaster";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Search, Filter, X } from "lucide-react";
 
 interface ItemMasterFiltersProps {
-  filters: FilterType;
-  onFiltersChange: (filters: FilterType) => void;
-  isLoading?: boolean;
+  filters: any;
+  onFiltersChange: (filters: any) => void;
 }
 
-export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemMasterFiltersProps) {
-  const [searchInput, setSearchInput] = useState(filters.search || "");
-  const debouncedSearch = useDebounce(searchInput, 500);
-  const { data: categoriesWithStats, isLoading: categoriesLoading, error: categoriesError } = useCategoriesWithStats();
+export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFiltersProps) {
+  const [localFilters, setLocalFilters] = useState({
+    search: '',
+    category_id: '',
+    status: '',
+    uom: '',
+    usage_type: ''
+  });
 
-  // Update filters when debounced search changes
+  const { data: categories } = useCategories();
+
   useEffect(() => {
-    if (debouncedSearch !== filters.search) {
-      console.log('Applying debounced search:', debouncedSearch);
-      onFiltersChange({ ...filters, search: debouncedSearch });
-    }
-  }, [debouncedSearch, filters, onFiltersChange]);
+    const debounceTimer = setTimeout(() => {
+      console.log('Applying debounced search:', localFilters.search);
+      onFiltersChange(localFilters);
+    }, 300);
 
-  const handleFilterChange = (key: keyof FilterType, value: string) => {
-    console.log(`Filter change: ${key} = ${value}`);
-    const newValue = value === "__ALL__" ? undefined : value;
-    onFiltersChange({ ...filters, [key]: newValue });
+    return () => clearTimeout(debounceTimer);
+  }, [localFilters, onFiltersChange]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setLocalFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
   const clearFilters = () => {
-    console.log('Clearing all filters');
-    setSearchInput("");
-    onFiltersChange({});
-  };
-
-  const clearSpecificFilter = (key: keyof FilterType) => {
-    if (key === 'search') {
-      setSearchInput("");
-    }
-    onFiltersChange({ ...filters, [key]: undefined });
-  };
-
-  const activeFiltersCount = Object.values(filters).filter(value => value && value !== "").length;
-
-  // Get selected category for display - with proper type checking
-  const selectedCategory = (categoriesWithStats || []).find((c: CategoryWithStats) => c.id === filters.category_id);
-
-  // Process categories - ensure unique categories with proper counts
-  const getProcessedCategories = (): CategoryWithStats[] => {
-    if (!categoriesWithStats || !Array.isArray(categoriesWithStats)) {
-      console.log('No categories data available or not an array');
-      return [];
-    }
-    
-    console.log('Raw categories data:', categoriesWithStats.map((c: CategoryWithStats) => ({
-      id: c.id,
-      name: c.category_name,
-      total: c.total_items
-    })));
-    
-    // Filter categories to only show those with items and ensure uniqueness
-    const uniqueCategories = new Map<string, CategoryWithStats>();
-    
-    categoriesWithStats.forEach((category: CategoryWithStats) => {
-      const key = category.category_name.toLowerCase().trim();
-      if (category.total_items > 0) {
-        // If we already have this category name, sum the totals
-        if (uniqueCategories.has(key)) {
-          const existing = uniqueCategories.get(key)!;
-          existing.total_items += category.total_items;
-          existing.active_items += category.active_items;
-          existing.fg_items += category.fg_items;
-          existing.rm_items += category.rm_items;
-          existing.packaging_items += category.packaging_items;
-          existing.consumable_items += category.consumable_items;
-        } else {
-          uniqueCategories.set(key, { ...category });
-        }
-      }
+    setLocalFilters({
+      search: '',
+      category_id: '',
+      status: '',
+      uom: '',
+      usage_type: ''
     });
-    
-    const processedCategories = Array.from(uniqueCategories.values())
-      .sort((a, b) => a.category_name.localeCompare(b.category_name));
-    
-    console.log('Processed unique categories with items:', processedCategories.map((c: CategoryWithStats) => ({
-      id: c.id,
-      name: c.category_name,
-      total: c.total_items
-    })));
-    
-    return processedCategories;
   };
 
-  const processedCategories = getProcessedCategories();
+  const statusOptions = [
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' }
+  ];
 
-  if (categoriesError) {
-    console.error('Categories loading error:', categoriesError);
-  }
+  const uomOptions = [
+    { value: 'KG', label: 'KG' },
+    { value: 'PCS', label: 'PCS' },
+    { value: 'METER', label: 'METER' },
+    { value: 'LITER', label: 'LITER' }
+  ];
+
+  const usageTypeOptions = [
+    { value: 'RAW_MATERIAL', label: 'Raw Material' },
+    { value: 'FINISHED_GOODS', label: 'Finished Goods' },
+    { value: 'CONSUMABLES', label: 'Consumables' },
+    { value: 'SPARES', label: 'Spares' }
+  ];
 
   return (
     <Card>
-      <CardContent className="p-4">
-        <div className="flex gap-4 items-center flex-wrap">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search items by code or name..."
-              value={searchInput}
-              onChange={(e) => {
-                console.log('Search input changed:', e.target.value);
-                setSearchInput(e.target.value);
-              }}
-              className="pl-10"
-              disabled={isLoading}
-            />
-            {isLoading && searchInput && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <Loader2 className="animate-spin h-4 w-4 text-primary" />
-              </div>
-            )}
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Filter className="w-4 h-4" />
+          Filters
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="search">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="search"
+                placeholder="Search by item code or name..."
+                value={localFilters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                className="pl-8"
+              />
+            </div>
           </div>
 
-          {/* Category Filter */}
-          <Select 
-            value={filters.category_id || "__ALL__"} 
-            onValueChange={(value) => {
-              console.log('Category filter changed:', value, 'Available categories:', processedCategories.length);
-              handleFilterChange('category_id', value);
-            }}
-            disabled={categoriesLoading}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "All Categories"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__ALL__">All Categories</SelectItem>
-              {processedCategories.map((category: CategoryWithStats) => (
-                <SelectItem key={category.id} value={category.id}>
-                  {category.category_name} ({category.total_items} items)
-                </SelectItem>
-              ))}
-              {categoriesLoading && (
-                <SelectItem value="__LOADING__" disabled>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading categories...
-                  </div>
-                </SelectItem>
-              )}
-              {!categoriesLoading && processedCategories.length === 0 && (
-                <SelectItem value="__EMPTY__" disabled>
-                  No categories with items found
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          
-          {/* Status Filter */}
-          <Select 
-            value={filters.status || "__ALL__"} 
-            onValueChange={(value) => handleFilterChange('status', value)}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__ALL__">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={localFilters.category_id || undefined}
+              onValueChange={(value) => handleFilterChange('category_id', value || '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories?.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.category_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* UOM Filter */}
-          <Select 
-            value={filters.uom || "__ALL__"} 
-            onValueChange={(value) => handleFilterChange('uom', value)}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="UOM" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__ALL__">All UOM</SelectItem>
-              <SelectItem value="PCS">PCS</SelectItem>
-              <SelectItem value="KG">KG</SelectItem>
-              <SelectItem value="MTR">MTR</SelectItem>
-              <SelectItem value="SQM">SQM</SelectItem>
-              <SelectItem value="LTR">LTR</SelectItem>
-              <SelectItem value="BOX">BOX</SelectItem>
-              <SelectItem value="ROLL">ROLL</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={localFilters.status || undefined}
+              onValueChange={(value) => handleFilterChange('status', value || '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Usage Type Filter */}
-          <Select 
-            value={filters.usage_type || "__ALL__"} 
-            onValueChange={(value) => handleFilterChange('usage_type', value)}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Item Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__ALL__">All Items</SelectItem>
-              <SelectItem value="FINISHED_GOOD">🎨 Finished Goods (FG)</SelectItem>
-              <SelectItem value="RAW_MATERIAL">📦 Raw Materials (RM)</SelectItem>
-              <SelectItem value="CONSUMABLE">⚙️ Consumables</SelectItem>
-              <SelectItem value="PACKAGING">📦 Packaging</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Unit of Measure</Label>
+            <Select
+              value={localFilters.uom || undefined}
+              onValueChange={(value) => handleFilterChange('uom', value || '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select UOM" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All UOM</SelectItem>
+                {uomOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Clear Filters */}
-          {activeFiltersCount > 0 && (
-            <Button variant="outline" onClick={clearFilters} size="sm">
-              <X className="w-4 h-4 mr-2" />
-              Clear ({activeFiltersCount})
+          <div className="space-y-2">
+            <Label>Usage Type</Label>
+            <Select
+              value={localFilters.usage_type || undefined}
+              onValueChange={(value) => handleFilterChange('usage_type', value || '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select usage type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {usageTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-end">
+            <Button variant="outline" onClick={clearFilters} className="gap-2">
+              <X className="w-4 h-4" />
+              Clear Filters
             </Button>
-          )}
+          </div>
         </div>
-
-        {/* Active Filters Display */}
-        {activeFiltersCount > 0 && (
-          <div className="flex gap-2 mt-3 flex-wrap">
-            {filters.search && (
-              <Badge variant="secondary" className="gap-1">
-                Search: "{filters.search}"
-                <X 
-                  className="w-3 h-3 cursor-pointer hover:text-destructive" 
-                  onClick={() => clearSpecificFilter('search')}
-                />
-              </Badge>
-            )}
-            {filters.category_id && selectedCategory && (
-              <Badge variant="secondary" className="gap-1">
-                Category: {selectedCategory.category_name}
-                <X 
-                  className="w-3 h-3 cursor-pointer hover:text-destructive" 
-                  onClick={() => clearSpecificFilter('category_id')}
-                />
-              </Badge>
-            )}
-            {filters.status && (
-              <Badge variant="secondary" className="gap-1">
-                Status: {filters.status}
-                <X 
-                  className="w-3 h-3 cursor-pointer hover:text-destructive" 
-                  onClick={() => clearSpecificFilter('status')}
-                />
-              </Badge>
-            )}
-            {filters.uom && (
-              <Badge variant="secondary" className="gap-1">
-                UOM: {filters.uom}
-                <X 
-                  className="w-3 h-3 cursor-pointer hover:text-destructive" 
-                  onClick={() => clearSpecificFilter('uom')}
-                />
-              </Badge>
-            )}
-            {filters.usage_type && (
-              <Badge variant="secondary" className="gap-1">
-                Type: {filters.usage_type.replace('_', ' ')}
-                <X 
-                  className="w-3 h-3 cursor-pointer hover:text-destructive" 
-                  onClick={() => clearSpecificFilter('usage_type')}
-                />
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Categories Error Message */}
-        {categoriesError && (
-          <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
-            <p className="text-sm text-destructive">
-              Unable to load categories. Please refresh the page. Error: {categoriesError.message}
-            </p>
-          </div>
-        )}
-
-        {/* Debug Information */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-2 p-2 bg-muted/50 rounded-md text-xs">
-            <p>Debug: Categories loaded: {processedCategories.length}, Loading: {categoriesLoading ? 'Yes' : 'No'}</p>
-            <p>Active filters: {activeFiltersCount}, Selected category: {selectedCategory?.category_name || 'None'}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
