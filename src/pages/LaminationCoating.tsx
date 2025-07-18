@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings } from "lucide-react";
+import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
+import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
+import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
@@ -13,10 +15,29 @@ export default function LaminationCoating() {
   const [laminationLogs, setLaminationLogs] = useState([]);
   const [coatingLogs, setCoatingLogs] = useState([]);
   const [activeProcesses, setActiveProcesses] = useState([]);
+  const [laminationParams, setLaminationParams] = useState({
+    speed: '',
+    temperature: '',
+    pressure: '',
+    adhesive: '',
+    solventRatio: ''
+  });
+  const [coatingParams, setCoatingParams] = useState({
+    speed: '',
+    temperature: '',
+    coatWeight: '',
+    material: '',
+    viscosity: ''
+  });
   
   const { data: orders = [] } = useManufacturingOrders({
     status: "IN_PROGRESS"
   });
+  
+  const { data: laminationParameters = [] } = useProcessParameters("LAMINATION");
+  const { data: coatingParameters = [] } = useProcessParameters("ADHESIVE_COATING");
+  const { data: laminationAlerts = [] } = useProcessQualityAlerts("LAMINATION");
+  const { data: coatingAlerts = [] } = useProcessQualityAlerts("ADHESIVE_COATING");
 
   useEffect(() => {
     // Fetch lamination and coating process logs
@@ -86,6 +107,28 @@ export default function LaminationCoating() {
     return process === 'LAMINATION' ? 'text-blue-600 bg-blue-50' : 'text-purple-600 bg-purple-50';
   };
 
+  const applyRecommendations = (parameters: any[], type: 'lamination' | 'coating') => {
+    const paramMap = new Map(parameters.map(p => [p.metric, p.recommended_value]));
+    
+    if (type === 'lamination') {
+      setLaminationParams({
+        speed: paramMap.get('line_speed_mpm')?.toFixed(0) || '',
+        temperature: '145', // Default fallback
+        pressure: '25',
+        adhesive: paramMap.get('adhesive_gsm')?.toFixed(1) || '',
+        solventRatio: '60:40'
+      });
+    } else {
+      setCoatingParams({
+        speed: paramMap.get('line_speed_mpm')?.toFixed(0) || '',
+        temperature: paramMap.get('drying_temp_c')?.toFixed(0) || '',
+        coatWeight: paramMap.get('coating_weight_gsm')?.toFixed(1) || '',
+        material: 'Acrylic',
+        viscosity: '45'
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -129,9 +172,9 @@ export default function LaminationCoating() {
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">180</div>
+            <div className="text-2xl font-bold">{laminationLogs.length}</div>
             <p className="text-xs text-muted-foreground">
-              Historical records
+              AI-analyzed records
             </p>
           </CardContent>
         </Card>
@@ -142,30 +185,31 @@ export default function LaminationCoating() {
             <Beaker className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">40</div>
+            <div className="text-2xl font-bold">{coatingLogs.length}</div>
             <p className="text-xs text-muted-foreground">
-              Historical records
+              AI-analyzed records
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quality Issues</CardTitle>
+            <CardTitle className="text-sm font-medium">Quality Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">{laminationAlerts.length + coatingAlerts.length}</div>
             <p className="text-xs text-muted-foreground">
-              Needs attention
+              AI-detected issues
             </p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="active" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="active">Active Processes</TabsTrigger>
+          <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
           <TabsTrigger value="parameters">Process Parameters</TabsTrigger>
           <TabsTrigger value="quality">Quality Control</TabsTrigger>
           <TabsTrigger value="history">Process History</TabsTrigger>
@@ -240,6 +284,19 @@ export default function LaminationCoating() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="intelligence">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ProcessIntelligencePanel 
+              stage="LAMINATION"
+              onApplyRecommendations={(params) => applyRecommendations(params, 'lamination')}
+            />
+            <ProcessIntelligencePanel 
+              stage="ADHESIVE_COATING"
+              onApplyRecommendations={(params) => applyRecommendations(params, 'coating')}
+            />
+          </div>
+        </TabsContent>
+
         <TabsContent value="parameters">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
@@ -251,23 +308,46 @@ export default function LaminationCoating() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium">Lamination Speed (m/min)</label>
-                    <Input type="number" placeholder="85" />
+                    <Input 
+                      type="number" 
+                      value={laminationParams.speed}
+                      onChange={(e) => setLaminationParams(prev => ({ ...prev, speed: e.target.value }))}
+                      placeholder="85" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Temperature (°C)</label>
-                    <Input type="number" placeholder="145" />
+                    <Input 
+                      type="number" 
+                      value={laminationParams.temperature}
+                      onChange={(e) => setLaminationParams(prev => ({ ...prev, temperature: e.target.value }))}
+                      placeholder="145" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Pressure (N/cm)</label>
-                    <Input type="number" placeholder="25" />
+                    <Input 
+                      type="number" 
+                      value={laminationParams.pressure}
+                      onChange={(e) => setLaminationParams(prev => ({ ...prev, pressure: e.target.value }))}
+                      placeholder="25" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Adhesive Type</label>
-                    <Input placeholder="Polyurethane" />
+                    <Input 
+                      value={laminationParams.adhesive}
+                      onChange={(e) => setLaminationParams(prev => ({ ...prev, adhesive: e.target.value }))}
+                      placeholder="Polyurethane" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Solvent Mix Ratio</label>
-                    <Input placeholder="60:40" />
+                    <Input 
+                      value={laminationParams.solventRatio}
+                      onChange={(e) => setLaminationParams(prev => ({ ...prev, solventRatio: e.target.value }))}
+                      placeholder="60:40" 
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -282,23 +362,47 @@ export default function LaminationCoating() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium">Coating Speed (m/min)</label>
-                    <Input type="number" placeholder="120" />
+                    <Input 
+                      type="number" 
+                      value={coatingParams.speed}
+                      onChange={(e) => setCoatingParams(prev => ({ ...prev, speed: e.target.value }))}
+                      placeholder="120" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Drying Temperature (°C)</label>
-                    <Input type="number" placeholder="165" />
+                    <Input 
+                      type="number" 
+                      value={coatingParams.temperature}
+                      onChange={(e) => setCoatingParams(prev => ({ ...prev, temperature: e.target.value }))}
+                      placeholder="165" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Coat Weight (gsm)</label>
-                    <Input type="number" placeholder="3.5" />
+                    <Input 
+                      type="number" 
+                      value={coatingParams.coatWeight}
+                      onChange={(e) => setCoatingParams(prev => ({ ...prev, coatWeight: e.target.value }))}
+                      placeholder="3.5" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Coating Material</label>
-                    <Input placeholder="Acrylic" />
+                    <Input 
+                      value={coatingParams.material}
+                      onChange={(e) => setCoatingParams(prev => ({ ...prev, material: e.target.value }))}
+                      placeholder="Acrylic" 
+                    />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Viscosity (cPs)</label>
-                    <Input type="number" placeholder="45" />
+                    <Input 
+                      type="number" 
+                      value={coatingParams.viscosity}
+                      onChange={(e) => setCoatingParams(prev => ({ ...prev, viscosity: e.target.value }))}
+                      placeholder="45" 
+                    />
                   </div>
                 </div>
               </CardContent>
