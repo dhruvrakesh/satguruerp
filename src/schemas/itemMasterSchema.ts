@@ -19,7 +19,7 @@ export const itemMasterUpdateSchema = itemMasterSchema.partial().omit({ item_cod
 
 export type ItemMasterFormData = z.infer<typeof itemMasterSchema>;
 
-// Enhanced CSV schema with transformation support
+// Enhanced CSV schema with comprehensive transformation support
 export const csvItemSchema = z.object({
   item_name: z.string().min(1, "Item name is required"),
   category_name: z.string().min(1, "Category name is required"),
@@ -33,10 +33,17 @@ export const csvItemSchema = z.object({
     }),
     z.number()
   ]).optional(),
-  size_mm: z.string().optional(),
+  size_mm: z.union([
+    z.string(),
+    z.number().transform((val) => val.toString())
+  ]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val.toString().trim();
+  }),
   uom: z.string().transform((val) => {
-    // Transform common UOM variations to standard format
+    // Comprehensive UOM mapping with common variations
     const uomMap: Record<string, string> = {
+      // Standard mappings
       'kg': 'KG',
       'pcs': 'PCS', 
       'mtr': 'MTR',
@@ -44,12 +51,69 @@ export const csvItemSchema = z.object({
       'ltr': 'LTR',
       'box': 'BOX',
       'roll': 'ROLL',
+      
+      // Plural forms
+      'boxes': 'BOX',
+      'rolls': 'ROLL',
+      'pieces': 'PCS',
+      'meters': 'MTR',
+      'metres': 'MTR',
+      'litres': 'LTR',
+      'liters': 'LTR',
+      
+      // Common variations
       'meter': 'MTR',
+      'metre': 'MTR',
       'piece': 'PCS',
       'litre': 'LTR',
-      'square meter': 'SQM'
+      'liter': 'LTR',
+      'square meter': 'SQM',
+      'square metre': 'SQM',
+      'sqmeter': 'SQM',
+      'sqmetre': 'SQM',
+      
+      // Industry specific
+      'nos': 'PCS',
+      'no': 'PCS',
+      'number': 'PCS',
+      'numbers': 'PCS',
+      'unit': 'PCS',
+      'units': 'PCS',
+      'each': 'PCS',
+      'ea': 'PCS',
+      
+      // Weight variations
+      'kilogram': 'KG',
+      'kilograms': 'KG',
+      'kilo': 'KG',
+      'kilos': 'KG',
+      
+      // Length variations
+      'm': 'MTR',
+      'mt': 'MTR',
+      'mts': 'MTR',
+      
+      // Volume variations
+      'l': 'LTR',
+      'lt': 'LTR',
+      'lts': 'LTR'
     };
-    return uomMap[val.toLowerCase().trim()] || val.toUpperCase().trim();
+    
+    const normalizedVal = val.toLowerCase().trim();
+    const mappedValue = uomMap[normalizedVal];
+    
+    if (mappedValue) {
+      return mappedValue;
+    }
+    
+    // If no mapping found, try uppercase
+    const upperVal = val.toUpperCase().trim();
+    if (['PCS', 'KG', 'MTR', 'SQM', 'LTR', 'BOX', 'ROLL'].includes(upperVal)) {
+      return upperVal;
+    }
+    
+    // If still no match, provide helpful error
+    throw new Error(`Invalid UOM: "${val}". Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL or their variations like boxes, nos, kg, etc.`);
   }).pipe(z.enum(["PCS", "KG", "MTR", "SQM", "LTR", "BOX", "ROLL"])),
   usage_type: z.string().optional().transform((val) => {
     if (!val) return 'RAW_MATERIAL';
@@ -83,7 +147,7 @@ export const csvItemSchema = z.object({
 
 export type CsvItemData = z.infer<typeof csvItemSchema>;
 
-// Validation helpers
+// Enhanced validation helpers with better error reporting
 export const validateBulkUploadData = (data: any[]): { valid: any[], invalid: Array<{row: number, errors: string[]}> } => {
   const valid: any[] = [];
   const invalid: Array<{row: number, errors: string[]}> = [];
@@ -93,7 +157,20 @@ export const validateBulkUploadData = (data: any[]): { valid: any[], invalid: Ar
       const validatedRow = csvItemSchema.parse(row);
       valid.push(validatedRow);
     } catch (error: any) {
-      const errors = error.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`) || ['Validation failed'];
+      const errors = error.errors?.map((e: any) => {
+        const field = e.path.join('.');
+        let message = e.message;
+        
+        // Provide more helpful error messages for common issues
+        if (field === 'uom' && message.includes('Invalid enum value')) {
+          message = `Invalid UOM: "${row.uom}". Supported values: PCS, KG, MTR, SQM, LTR, BOX, ROLL (or variations like boxes, nos, kg, etc.)`;
+        } else if (field === 'size_mm' && message.includes('Expected string')) {
+          message = `Size MM should be text format. Found: ${row.size_mm}`;
+        }
+        
+        return `${field}: ${message}`;
+      }) || ['Validation failed'];
+      
       invalid.push({ row: index + 1, errors });
     }
   });

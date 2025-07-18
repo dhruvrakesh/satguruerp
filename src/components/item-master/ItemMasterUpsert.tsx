@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertCircle, Info, Upload } from "lucide-react";
+import { CheckCircle, AlertCircle, Info, Upload, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateBulkUploadData, type CsvItemData } from "@/schemas/itemMasterSchema";
@@ -55,8 +54,8 @@ export function ItemMasterUpsert() {
       
       if (invalid.length > 0) {
         toast({
-          title: "Validation Errors",
-          description: `${invalid.length} rows have validation errors. Please check the preview.`,
+          title: "Validation Issues Found",
+          description: `${invalid.length} rows have validation errors. Enhanced validation now supports: BOXES→BOX, NOS→PCS, numeric size_mm values, and more UOM variations.`,
           variant: "destructive"
         });
       }
@@ -123,6 +122,13 @@ export function ItemMasterUpsert() {
       };
       
       setSummary(summary);
+      
+      if (invalid.length === 0) {
+        toast({
+          title: "Validation Successful",
+          description: `All ${analyzed.length} rows validated successfully. Ready to process ${processableRecords.length} records.`
+        });
+      }
       
     } catch (error: any) {
       toast({
@@ -238,12 +244,29 @@ export function ItemMasterUpsert() {
         </CardHeader>
         <CardContent className="space-y-4">
           {!parsedData.length ? (
-            <FileUpload
-              onFilesSelected={handleFileSelect}
-              accept=".csv,.xlsx"
-              disabled={isProcessing}
-              className="min-h-[200px]"
-            />
+            <div className="space-y-4">
+              <Alert>
+                <FileText className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-semibold">Enhanced Validation Support:</p>
+                    <ul className="text-sm space-y-1 ml-4">
+                      <li>• UOM Variations: BOXES→BOX, NOS→PCS, KG, MTR, SQM, LTR, ROLL</li>
+                      <li>• Size MM: Accepts both numbers and text (auto-converted)</li>
+                      <li>• Category Mapping: Automatic validation against existing categories</li>
+                      <li>• Item Code Generation: Smart generation for new items</li>
+                    </ul>
+                  </div>
+                </AlertDescription>
+              </Alert>
+              
+              <FileUpload
+                onFilesSelected={handleFileSelect}
+                accept=".csv,.xlsx"
+                disabled={isProcessing}
+                className="min-h-[200px]"
+              />
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -324,7 +347,7 @@ export function ItemMasterUpsert() {
                     <div className="space-y-2">
                       <p className="font-semibold">Issues Found:</p>
                       <div className="max-h-40 overflow-y-auto space-y-1">
-                        {validationErrors.slice(0, 5).map((error, index) => (
+                        {validationErrors.slice(0, 10).map((error, index) => (
                           <p key={index} className="text-sm">
                             Row {error.row}: {error.errors.join(", ")}
                           </p>
@@ -334,9 +357,9 @@ export function ItemMasterUpsert() {
                             Row {record.row_number}: {record.validation_errors?.join(", ")}
                           </p>
                         ))}
-                        {(validationErrors.length + (summary?.category_errors || 0)) > 5 && (
+                        {(validationErrors.length + (summary?.category_errors || 0)) > 10 && (
                           <p className="text-sm text-muted-foreground">
-                            ... and {(validationErrors.length + (summary?.category_errors || 0)) - 5} more errors
+                            ... and {(validationErrors.length + (summary?.category_errors || 0)) - 10} more errors
                           </p>
                         )}
                       </div>
