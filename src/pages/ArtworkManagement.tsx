@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings } from "lucide-react";
+import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface ArtworkItem {
   item_code: string;
@@ -41,10 +49,48 @@ export default function ArtworkManagement() {
   const [customerFilter, setCustomerFilter] = useState("all");
   const [colorFilter, setColorFilter] = useState("all");
   const [selectedArtwork, setSelectedArtwork] = useState<ArtworkItem | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
-  // Fetch artwork data
+  // Fetch artwork statistics (total count without pagination)
+  const { data: artworkStats, isLoading: isStatsLoading } = useQuery({
+    queryKey: ["artwork-stats", searchTerm, customerFilter, colorFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("master_data_artworks_se")
+        .select("item_code, customer_name, file_hyperlink, no_of_colours");
+
+      if (searchTerm) {
+        query = query.or(`item_code.ilike.%${searchTerm}%,item_name.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%`);
+      }
+
+      if (customerFilter && customerFilter !== "all") {
+        query = query.eq("customer_name", customerFilter);
+      }
+
+      if (colorFilter && colorFilter !== "all") {
+        query = query.eq("no_of_colours", colorFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const totalArtworks = data.length;
+      const withLinks = data.filter(item => item.file_hyperlink && item.file_hyperlink.trim() !== '' && validateGoogleDriveLink(item.file_hyperlink)).length;
+      const uniqueCustomers = [...new Set(data.map(item => item.customer_name).filter(Boolean))];
+
+      return {
+        totalArtworks,
+        withLinks,
+        customers: uniqueCustomers.length,
+        data: data
+      };
+    },
+  });
+
+  // Fetch paginated artwork data
   const { data: artworkData = [], isLoading } = useQuery({
-    queryKey: ["artwork-management", searchTerm, customerFilter, colorFilter],
+    queryKey: ["artwork-management", searchTerm, customerFilter, colorFilter, currentPage, pageSize],
     queryFn: async () => {
       let query = supabase
         .from("master_data_artworks_se")
@@ -63,7 +109,10 @@ export default function ArtworkManagement() {
         query = query.eq("no_of_colours", colorFilter);
       }
 
-      const { data, error } = await query.limit(100);
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
+      const { data, error } = await query.range(from, to);
       if (error) throw error;
       return data as ArtworkItem[];
     },
@@ -98,9 +147,14 @@ export default function ArtworkManagement() {
     },
   });
 
-  // Get unique customers and colors for filters
-  const uniqueCustomers = [...new Set(artworkData.map(item => item.customer_name).filter(Boolean))];
-  const uniqueColors = [...new Set(artworkData.map(item => item.no_of_colours).filter(Boolean))];
+  // Get unique customers and colors for filters from stats data
+  const uniqueCustomers = artworkStats?.data ? [...new Set(artworkStats.data.map(item => item.customer_name).filter(Boolean))] : [];
+  const uniqueColors = artworkStats?.data ? [...new Set(artworkStats.data.map(item => item.no_of_colours).filter(Boolean))] : [];
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, customerFilter, colorFilter]);
 
   // Get cylinders for selected artwork
   const getArtworkCylinders = (itemCode: string) => {
@@ -129,16 +183,14 @@ export default function ArtworkManagement() {
     return url;
   };
 
-  const getArtworkStats = () => {
-    const totalArtworks = artworkData.length;
-    const withLinks = artworkData.filter(item => validateGoogleDriveLink(item.file_hyperlink)).length;
-    const customers = uniqueCustomers.length;
-    const cylindersTotal = cylinderData.length;
-
-    return { totalArtworks, withLinks, customers, cylindersTotal };
+  const stats = {
+    totalArtworks: artworkStats?.totalArtworks || 0,
+    withLinks: artworkStats?.withLinks || 0,
+    customers: artworkStats?.customers || 0,
+    cylindersTotal: cylinderData.length
   };
 
-  const stats = getArtworkStats();
+  const totalPages = Math.ceil((stats.totalArtworks || 0) / pageSize);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -170,7 +222,9 @@ export default function ArtworkManagement() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalArtworks}</div>
+            <div className="text-2xl font-bold">
+              {isStatsLoading ? "..." : stats.totalArtworks}
+            </div>
             <p className="text-xs text-muted-foreground">
               Catalog items
             </p>
@@ -183,9 +237,11 @@ export default function ArtworkManagement() {
             <ExternalLink className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.withLinks}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {isStatsLoading ? "..." : stats.withLinks}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {((stats.withLinks / stats.totalArtworks) * 100).toFixed(1)}% coverage
+              {stats.totalArtworks > 0 ? ((stats.withLinks / stats.totalArtworks) * 100).toFixed(1) : 0}% coverage
             </p>
           </CardContent>
         </Card>
@@ -196,7 +252,9 @@ export default function ArtworkManagement() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.customers}</div>
+            <div className="text-2xl font-bold">
+              {isStatsLoading ? "..." : stats.customers}
+            </div>
             <p className="text-xs text-muted-foreground">
               Unique customers
             </p>
@@ -224,7 +282,7 @@ export default function ArtworkManagement() {
           <CardDescription>Find artworks by item code, name, customer, or specifications</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 flex-wrap">
+          <div className="flex gap-4 flex-wrap items-center">
             <div className="flex-1 min-w-[300px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -262,6 +320,17 @@ export default function ArtworkManagement() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25 per page</SelectItem>
+                <SelectItem value="50">50 per page</SelectItem>
+                <SelectItem value="100">100 per page</SelectItem>
+                <SelectItem value="200">200 per page</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={() => {setSearchTerm(""); setCustomerFilter("all"); setColorFilter("all");}}>
               <Filter className="h-4 w-4 mr-2" />
               Clear
@@ -280,10 +349,37 @@ export default function ArtworkManagement() {
         <TabsContent value="artworks">
           <Card>
             <CardHeader>
-              <CardTitle>Artwork Catalog</CardTitle>
-              <CardDescription>
-                {isLoading ? 'Loading...' : `Showing ${artworkData.length} artworks`}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Artwork Catalog</CardTitle>
+                  <CardDescription>
+                    {isLoading ? 'Loading...' : `Showing ${artworkData.length} of ${stats.totalArtworks} artworks (Page ${currentPage} of ${totalPages})`}
+                  </CardDescription>
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -433,6 +529,55 @@ export default function ArtworkManagement() {
                   ))
                 )}
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-6 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(prev => Math.max(1, prev - 1));
+                          }}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      
+                      {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                        const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                        return (
+                          <PaginationItem key={pageNum}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(pageNum);
+                              }}
+                              isActive={currentPage === pageNum}
+                            >
+                              {pageNum}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                          }}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -481,7 +626,7 @@ export default function ArtworkManagement() {
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className="bg-green-600 h-2 rounded-full"
-                      style={{ width: `${(stats.withLinks / stats.totalArtworks) * 100}%` }}
+                      style={{ width: `${stats.totalArtworks > 0 ? (stats.withLinks / stats.totalArtworks) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
@@ -495,7 +640,7 @@ export default function ArtworkManagement() {
               <CardContent>
                 <div className="space-y-2">
                   {uniqueCustomers.slice(0, 5).map((customer) => {
-                    const count = artworkData.filter(item => item.customer_name === customer).length;
+                    const count = artworkStats?.data?.filter(item => item.customer_name === customer).length || 0;
                     return (
                       <div key={customer} className="flex justify-between">
                         <span className="truncate">{customer}</span>
