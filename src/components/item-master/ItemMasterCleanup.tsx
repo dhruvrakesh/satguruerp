@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,29 +102,64 @@ export function ItemMasterCleanup() {
             const keepItem = items[0];
             const itemsToRemove = items.slice(1);
             
-            // For each item to remove, check if it has stock references
+            // For each item to remove, transfer all references to the kept item
             for (const item of itemsToRemove) {
               try {
-                // First, try to update any stock records to point to the kept item
-                const { error: stockUpdateError } = await supabase
-                  .from('satguru_stock')
-                  .update({ item_code: keepItem.item_code })
-                  .eq('item_code', item.item_code);
-
-                if (stockUpdateError) {
-                  console.warn(`Could not update stock references for ${item.item_code}:`, stockUpdateError);
-                }
-
-                // Try to update other related tables that might exist
-                try {
-                  // Update any daily stock summary records
-                  await supabase
+                console.log(`Processing item ${item.item_code} -> ${keepItem.item_code}`);
+                
+                // Update all referencing tables
+                const updatePromises = [];
+                
+                // Update stock table
+                updatePromises.push(
+                  supabase
+                    .from('stock')
+                    .update({ item_code: keepItem.item_code })
+                    .eq('item_code', item.item_code)
+                );
+                
+                // Update grn_log table
+                updatePromises.push(
+                  supabase
+                    .from('grn_log')
+                    .update({ item_code: keepItem.item_code })
+                    .eq('item_code', item.item_code)
+                );
+                
+                // Update issue_log table
+                updatePromises.push(
+                  supabase
+                    .from('issue_log')
+                    .update({ item_code: keepItem.item_code })
+                    .eq('item_code', item.item_code)
+                );
+                
+                // Update daily_stock_summary table
+                updatePromises.push(
+                  supabase
                     .from('daily_stock_summary')
                     .update({ item_code: keepItem.item_code })
-                    .eq('item_code', item.item_code);
-                } catch (updateError) {
-                  console.warn(`Could not update related table references for ${item.item_code}:`, updateError);
-                }
+                    .eq('item_code', item.item_code)
+                );
+                
+                // Update satguru_stock table if it exists
+                updatePromises.push(
+                  supabase
+                    .from('satguru_stock')
+                    .update({ item_code: keepItem.item_code })
+                    .eq('item_code', item.item_code)
+                );
+
+                // Execute all updates
+                const results = await Promise.allSettled(updatePromises);
+                
+                // Log any update failures but continue
+                results.forEach((result, index) => {
+                  if (result.status === 'rejected') {
+                    const tableNames = ['stock', 'grn_log', 'issue_log', 'daily_stock_summary', 'satguru_stock'];
+                    console.warn(`Failed to update ${tableNames[index]} for ${item.item_code}:`, result.reason);
+                  }
+                });
 
                 // Now try to delete the duplicate item
                 const { error: deleteError } = await supabase
@@ -135,6 +171,7 @@ export function ItemMasterCleanup() {
                   console.error(`Error deleting item ${item.id}:`, deleteError);
                   errors++;
                 } else {
+                  console.log(`Successfully deleted duplicate item ${item.item_code}`);
                   cleaned++;
                 }
               } catch (itemError) {
@@ -206,7 +243,7 @@ export function ItemMasterCleanup() {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Found {duplicates.length} items with duplicate names. 
-              Cleanup will keep the most recently updated record for each item name.
+              Cleanup will keep the most recently updated record for each item name and transfer all related data.
             </AlertDescription>
           </Alert>
         )}
