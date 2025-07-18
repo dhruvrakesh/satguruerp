@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +24,7 @@ interface BulkUploadResult {
   }>;
 }
 
-// Data transformation utilities
+// Enhanced data transformation utilities
 const transformUOM = (uom: string): string => {
   const uomMap: Record<string, string> = {
     'kg': 'KG',
@@ -38,10 +37,23 @@ const transformUOM = (uom: string): string => {
     'meter': 'MTR',
     'piece': 'PCS',
     'litre': 'LTR',
-    'square meter': 'SQM'
+    'square meter': 'SQM',
+    'nos': 'PCS',
+    'boxes': 'BOX',
+    'metre': 'MTR',
+    'Nos': 'PCS',
+    'NOS': 'PCS',
+    'Boxes': 'BOX',
+    'BOXES': 'BOX',
+    'Metre': 'MTR',
+    'METRE': 'MTR',
+    'pieces': 'PCS',
+    'Pieces': 'PCS',
+    'PIECES': 'PCS'
   };
   
-  return uomMap[uom.toLowerCase().trim()] || uom.toUpperCase().trim();
+  const normalizedUom = uom.trim();
+  return uomMap[normalizedUom] || normalizedUom.toUpperCase();
 };
 
 const transformUsageType = (type: string): string => {
@@ -62,10 +74,17 @@ const transformUsageType = (type: string): string => {
     'raw material': 'RAW_MATERIAL',
     'raw_material': 'RAW_MATERIAL',
     'finished_good': 'FINISHED_GOOD',
-    'finished good': 'FINISHED_GOOD'
+    'finished good': 'FINISHED_GOOD',
+    'hot melt': 'RAW_MATERIAL',
+    'general': 'CONSUMABLE',
+    'consumables': 'CONSUMABLE',
+    'maintenance': 'CONSUMABLE',
+    'spares': 'CONSUMABLE',
+    'tooling': 'CONSUMABLE'
   };
   
-  return typeMap[type.toLowerCase().trim()] || 'RAW_MATERIAL';
+  const normalizedType = type.toLowerCase().trim();
+  return typeMap[normalizedType] || 'RAW_MATERIAL';
 };
 
 const parseGSM = (gsmValue: string): number | null => {
@@ -89,6 +108,22 @@ const validateUOM = (uom: string): boolean => {
 const validateUsageType = (type: string): boolean => {
   const validTypes = ['RAW_MATERIAL', 'FINISHED_GOOD', 'WIP', 'PACKAGING', 'CONSUMABLE'];
   return validTypes.includes(type);
+};
+
+const generateSuggestion = (originalValue: string, type: 'uom' | 'usage_type'): string => {
+  if (type === 'uom') {
+    const commonMappings = {
+      'nos': 'PCS', 'boxes': 'BOX', 'metre': 'MTR', 'pieces': 'PCS'
+    };
+    const suggestion = commonMappings[originalValue.toLowerCase()];
+    return suggestion ? ` Did you mean '${suggestion}'?` : '';
+  } else {
+    const commonMappings = {
+      'hot melt': 'RAW_MATERIAL', 'general': 'CONSUMABLE', 'consumables': 'CONSUMABLE'
+    };
+    const suggestion = commonMappings[originalValue.toLowerCase()];
+    return suggestion ? ` Mapped to: ${suggestion}` : '';
+  }
 };
 
 export function useBulkUpload() {
@@ -130,6 +165,13 @@ export function useBulkUpload() {
 
       console.log('📂 Found categories:', categories?.length || 0);
 
+      // Get existing item codes for smarter duplicate detection
+      const { data: existingItems } = await supabase
+        .from('item_master')
+        .select('item_code, item_name');
+
+      const existingItemCodes = new Set(existingItems?.map(item => item.item_code) || []);
+
       // Process each row
       for (let i = 1; i < lines.length; i++) {
         setProgress((i / (lines.length - 1)) * 90);
@@ -158,13 +200,15 @@ export function useBulkUpload() {
           // Transform and validate UOM
           const transformedUOM = transformUOM(rowData.uom);
           if (!validateUOM(transformedUOM)) {
-            throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL`);
+            const suggestion = generateSuggestion(rowData.uom, 'uom');
+            throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
           }
 
           // Transform and validate usage type
           const transformedUsageType = transformUsageType(rowData.usage_type || 'raw material');
           if (!validateUsageType(transformedUsageType)) {
-            throw new Error(`Invalid usage type: ${rowData.usage_type}`);
+            const suggestion = generateSuggestion(rowData.usage_type || '', 'usage_type');
+            throw new Error(`Invalid usage type: ${rowData.usage_type}.${suggestion}`);
           }
 
           // Parse GSM
@@ -213,6 +257,21 @@ export function useBulkUpload() {
 
           console.log('🔑 Generated item code:', generatedCode);
 
+          // Enhanced duplicate detection - check if exact same item exists
+          if (existingItemCodes.has(generatedCode)) {
+            // Check if it's truly a duplicate or just needs updating
+            const { data: existingItem } = await supabase
+              .from('item_master')
+              .select('*')
+              .eq('item_code', generatedCode)
+              .single();
+
+            if (existingItem && existingItem.item_name === rowData.item_name) {
+              console.log('⚠️ Skipping duplicate item:', generatedCode);
+              throw new Error(`Item code already exists: ${generatedCode}. Use update functionality if you want to modify this item.`);
+            }
+          }
+
           // Prepare item data for the correct table
           const itemData = {
             item_code: generatedCode,
@@ -236,7 +295,7 @@ export function useBulkUpload() {
 
           if (insertError) {
             if (insertError.code === '23505') { // Unique constraint violation
-              throw new Error("Item code already exists");
+              throw new Error(`Item code already exists: ${generatedCode}`);
             }
             console.error('❌ Insert error:', insertError);
             throw new Error(`Database error: ${insertError.message}`);
@@ -244,6 +303,7 @@ export function useBulkUpload() {
 
           console.log('✅ Successfully inserted item:', generatedCode);
           results.successCount++;
+          existingItemCodes.add(generatedCode); // Add to set to prevent duplicates within same batch
 
         } catch (error: any) {
           console.error(`❌ Error processing row ${i + 1}:`, error.message);
