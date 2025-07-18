@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -98,7 +97,7 @@ export function MaterialFlowTracker({
 
   const loadExistingFlow = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('material_flow_tracking')
         .select('*')
         .eq('uiorn', uiorn)
@@ -114,7 +113,7 @@ export function MaterialFlowTracker({
 
   const loadAvailableInputs = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('material_flow_tracking')
         .select('*')
         .eq('uiorn', uiorn)
@@ -160,7 +159,7 @@ export function MaterialFlowTracker({
         recorded_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('material_flow_tracking')
         .insert([dataToSave]);
 
@@ -454,18 +453,22 @@ export function MaterialFlowTracker({
             <TabsContent value="history" className="space-y-4">
               <div className="space-y-3">
                 {flowData.map((flow, index) => (
-                  <div key={flow.id || index} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
+                  <div key={index} className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <span className="font-medium">{flow.input_material_type}</span>
                         <Badge className={getQualityGradeBadge(flow.quality_grade)}>
                           {flow.quality_grade}
                         </Badge>
+                        <div className={`font-bold ${getYieldColor(flow.yield_percentage)}`}>
+                          {flow.yield_percentage.toFixed(1)}% Yield
+                        </div>
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {new Date(flow.recorded_at).toLocaleString()}
                       </div>
                     </div>
+                    
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Input:</span> {flow.input_quantity} {flow.input_unit}
@@ -474,33 +477,32 @@ export function MaterialFlowTracker({
                         <span className="text-muted-foreground">Good:</span> {flow.output_good_quantity}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Waste:</span> {flow.output_waste_quantity}
+                        <span className="text-muted-foreground">Rework:</span> {flow.output_rework_quantity}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Yield:</span> 
-                        <span className={getYieldColor(flow.yield_percentage)}> {flow.yield_percentage.toFixed(1)}%</span>
+                        <span className="text-muted-foreground">Waste:</span> {flow.output_waste_quantity}
                       </div>
                     </div>
-                    {flow.rework_quantity > 0 && (
-                      <div className="text-sm text-orange-600 mt-1">
-                        Rework: {flow.output_rework_quantity} - {flow.rework_reason}
+                    
+                    {flow.notes && (
+                      <div className="text-sm text-muted-foreground mt-2 p-2 bg-gray-50 rounded">
+                        {flow.notes}
                       </div>
                     )}
                   </div>
                 ))}
                 {flowData.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    No material flow records yet
+                    No material flow recorded yet
                   </div>
                 )}
               </div>
             </TabsContent>
           </Tabs>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 mt-6">
             <Button onClick={saveFlowData} disabled={isLoading} className="flex-1">
-              {isLoading ? 'Saving...' : 'Save Material Flow Data'}
+              {isLoading ? 'Saving...' : 'Save Flow Data'}
             </Button>
             <Button variant="outline" onClick={resetCurrentFlow}>
               Reset

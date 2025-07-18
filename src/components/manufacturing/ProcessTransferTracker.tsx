@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,7 +67,7 @@ export function ProcessTransferTracker({
 
   const loadTransfers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('process_transfers')
         .select('*')
         .eq('uiorn', uiorn)
@@ -84,7 +83,7 @@ export function ProcessTransferTracker({
 
   const loadPendingReceives = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('process_transfers')
         .select('*')
         .eq('uiorn', uiorn)
@@ -113,7 +112,7 @@ export function ProcessTransferTracker({
         sent_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('process_transfers')
         .insert([transferData]);
 
@@ -148,14 +147,14 @@ export function ProcessTransferTracker({
 
       const discrepancy = Math.abs(quantityReceived - transfer.quantity_sent) > 0.01;
       
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('process_transfers')
         .update({
           quantity_received: quantityReceived,
           received_by: user.data.user?.id,
           received_at: new Date().toISOString(),
           transfer_status: discrepancy ? 'DISCREPANCY' : 'RECEIVED',
-          quality_notes,
+          quality_notes: qualityNotes,
           discrepancy_notes: discrepancy ? 
             `Sent: ${transfer.quantity_sent}, Received: ${quantityReceived}` : null
         })

@@ -3508,6 +3508,81 @@ export type Database = {
           },
         ]
       }
+      material_flow_tracking: {
+        Row: {
+          created_at: string | null
+          id: string
+          input_material_type: string
+          input_quantity: number
+          input_source_process: string | null
+          input_unit: string
+          material_cost_per_unit: number
+          notes: string | null
+          operator_id: string | null
+          output_good_quantity: number
+          output_rework_quantity: number
+          output_waste_quantity: number
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          quality_grade: string
+          recorded_at: string
+          rework_reason: string | null
+          total_input_cost: number
+          uiorn: string
+          updated_at: string | null
+          waste_classification: string
+          waste_cost_impact: number
+          yield_percentage: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          input_material_type: string
+          input_quantity?: number
+          input_source_process?: string | null
+          input_unit?: string
+          material_cost_per_unit?: number
+          notes?: string | null
+          operator_id?: string | null
+          output_good_quantity?: number
+          output_rework_quantity?: number
+          output_waste_quantity?: number
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          quality_grade?: string
+          recorded_at?: string
+          rework_reason?: string | null
+          total_input_cost?: number
+          uiorn: string
+          updated_at?: string | null
+          waste_classification?: string
+          waste_cost_impact?: number
+          yield_percentage?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          input_material_type?: string
+          input_quantity?: number
+          input_source_process?: string | null
+          input_unit?: string
+          material_cost_per_unit?: number
+          notes?: string | null
+          operator_id?: string | null
+          output_good_quantity?: number
+          output_rework_quantity?: number
+          output_waste_quantity?: number
+          process_stage?: Database["public"]["Enums"]["process_stage"]
+          quality_grade?: string
+          recorded_at?: string
+          rework_reason?: string | null
+          total_input_cost?: number
+          uiorn?: string
+          updated_at?: string | null
+          waste_classification?: string
+          waste_cost_impact?: number
+          yield_percentage?: number
+        }
+        Relationships: []
+      }
       material_selection: {
         Row: {
           alternative_materials: Json | null
@@ -4992,6 +5067,66 @@ export type Database = {
           code?: string
           name?: string
           ordinal?: number
+        }
+        Relationships: []
+      }
+      process_transfers: {
+        Row: {
+          created_at: string | null
+          discrepancy_notes: string | null
+          from_process: string
+          id: string
+          material_type: string
+          quality_notes: string | null
+          quantity_received: number | null
+          quantity_sent: number
+          received_at: string | null
+          received_by: string | null
+          sent_at: string
+          sent_by: string | null
+          to_process: string
+          transfer_status: string
+          uiorn: string
+          unit_of_measure: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          discrepancy_notes?: string | null
+          from_process: string
+          id?: string
+          material_type: string
+          quality_notes?: string | null
+          quantity_received?: number | null
+          quantity_sent: number
+          received_at?: string | null
+          received_by?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          to_process: string
+          transfer_status?: string
+          uiorn: string
+          unit_of_measure?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          discrepancy_notes?: string | null
+          from_process?: string
+          id?: string
+          material_type?: string
+          quality_notes?: string | null
+          quantity_received?: number | null
+          quantity_sent?: number
+          received_at?: string | null
+          received_by?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          to_process?: string
+          transfer_status?: string
+          uiorn?: string
+          unit_of_measure?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
