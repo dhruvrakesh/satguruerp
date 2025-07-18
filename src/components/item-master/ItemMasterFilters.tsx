@@ -18,7 +18,7 @@ interface ItemMasterFiltersProps {
 
 export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemMasterFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search || "");
-  const debouncedSearch = useDebounce(searchInput, 500); // Increased debounce time
+  const debouncedSearch = useDebounce(searchInput, 500);
   const { data: categoriesWithStats, isLoading: categoriesLoading, error: categoriesError } = useCategoriesWithStats();
 
   // Update filters when debounced search changes
@@ -53,24 +53,53 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
   // Get selected category for display
   const selectedCategory = categoriesWithStats?.find(c => c.id === filters.category_id);
 
-  // Filter categories - only show categories with items
-  const getFilteredCategories = () => {
-    if (!categoriesWithStats) return [];
+  // Process categories - ensure unique categories with proper counts
+  const getProcessedCategories = () => {
+    if (!categoriesWithStats) {
+      console.log('No categories data available');
+      return [];
+    }
     
-    console.log('All categories with stats:', categoriesWithStats.map(c => ({
+    console.log('Raw categories data:', categoriesWithStats.map(c => ({
+      id: c.id,
       name: c.category_name,
-      total: c.total_items,
-      id: c.id
+      total: c.total_items
     })));
     
-    // Show all categories with their total counts, filtered to only show categories with items
-    const filteredCats = categoriesWithStats.filter(category => category.total_items > 0);
-    console.log('Filtered categories (with items):', filteredCats.map(c => c.category_name));
+    // Filter categories to only show those with items and ensure uniqueness
+    const uniqueCategories = new Map();
     
-    return filteredCats;
+    categoriesWithStats.forEach(category => {
+      const key = category.category_name.toLowerCase().trim();
+      if (category.total_items > 0) {
+        // If we already have this category name, sum the totals
+        if (uniqueCategories.has(key)) {
+          const existing = uniqueCategories.get(key);
+          existing.total_items += category.total_items;
+          existing.active_items += category.active_items;
+          existing.fg_items += category.fg_items;
+          existing.rm_items += category.rm_items;
+          existing.packaging_items += category.packaging_items;
+          existing.consumable_items += category.consumable_items;
+        } else {
+          uniqueCategories.set(key, { ...category });
+        }
+      }
+    });
+    
+    const processedCategories = Array.from(uniqueCategories.values())
+      .sort((a, b) => a.category_name.localeCompare(b.category_name));
+    
+    console.log('Processed unique categories with items:', processedCategories.map(c => ({
+      id: c.id,
+      name: c.category_name,
+      total: c.total_items
+    })));
+    
+    return processedCategories;
   };
 
-  const filteredCategories = getFilteredCategories();
+  const processedCategories = getProcessedCategories();
 
   if (categoriesError) {
     console.error('Categories loading error:', categoriesError);
@@ -104,7 +133,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
           <Select 
             value={filters.category_id || "__ALL__"} 
             onValueChange={(value) => {
-              console.log('Category filter changed:', value);
+              console.log('Category filter changed:', value, 'Available categories:', processedCategories.length);
               handleFilterChange('category_id', value);
             }}
             disabled={categoriesLoading}
@@ -114,7 +143,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__ALL__">All Categories</SelectItem>
-              {filteredCategories.map((category) => (
+              {processedCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.category_name} ({category.total_items} items)
                 </SelectItem>
@@ -127,7 +156,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
                   </div>
                 </SelectItem>
               )}
-              {!categoriesLoading && filteredCategories.length === 0 && (
+              {!categoriesLoading && processedCategories.length === 0 && (
                 <SelectItem value="__EMPTY__" disabled>
                   No categories with items found
                 </SelectItem>
@@ -251,8 +280,16 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
         {categoriesError && (
           <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
             <p className="text-sm text-destructive">
-              Unable to load categories. Please refresh the page.
+              Unable to load categories. Please refresh the page. Error: {categoriesError.message}
             </p>
+          </div>
+        )}
+
+        {/* Debug Information */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-2 p-2 bg-muted/50 rounded-md text-xs">
+            <p>Debug: Categories loaded: {processedCategories.length}, Loading: {categoriesLoading ? 'Yes' : 'No'}</p>
+            <p>Active filters: {activeFiltersCount}, Selected category: {selectedCategory?.category_name || 'None'}</p>
           </div>
         )}
       </CardContent>

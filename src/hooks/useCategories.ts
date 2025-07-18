@@ -46,62 +46,83 @@ export function useCategoriesWithStats() {
   return useQuery({
     queryKey: ['categoriesWithStats'],
     queryFn: async () => {
-      console.log('Fetching categories with stats using optimized single query...');
+      console.log('Fetching categories with stats using optimized aggregation query...');
       
-      // Single optimized query with aggregation
+      // Single optimized query with proper aggregation using PostgreSQL functions
       const { data, error } = await supabase
-        .from('categories')
-        .select(`
-          id,
-          category_name,
-          description,
-          created_at,
-          updated_at,
-          item_master (
-            id,
-            status,
-            usage_type
-          )
-        `)
-        .eq('is_active', true)
-        .order('category_name');
+        .rpc('get_categories_with_item_stats');
       
       if (error) {
         console.error('Error fetching categories with stats:', error);
-        throw error;
-      }
-
-      // Process the data to calculate stats
-      const categoriesWithStats: CategoryWithStats[] = (data || []).map(category => {
-        const items = category.item_master || [];
+        console.log('Falling back to manual aggregation...');
         
-        // Calculate stats
-        const total_items = items.length;
-        const active_items = items.filter(item => item.status === 'active').length;
-        const fg_items = items.filter(item => item.usage_type === 'FINISHED_GOOD').length;
-        const rm_items = items.filter(item => item.usage_type === 'RAW_MATERIAL').length;
-        const packaging_items = items.filter(item => item.usage_type === 'PACKAGING').length;
-        const consumable_items = items.filter(item => item.usage_type === 'CONSUMABLE').length;
+        // Fallback to manual aggregation if RPC doesn't exist
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('categories')
+          .select(`
+            id,
+            category_name,
+            description,
+            created_at,
+            updated_at
+          `)
+          .eq('is_active', true)
+          .order('category_name');
+        
+        if (categoryError) {
+          console.error('Error fetching categories in fallback:', categoryError);
+          throw categoryError;
+        }
 
-        return {
-          id: category.id,
-          category_name: category.category_name,
-          description: category.description,
-          created_at: category.created_at,
-          updated_at: category.updated_at,
-          total_items,
-          active_items,
-          fg_items,
-          rm_items,
-          packaging_items,
-          consumable_items
-        };
-      });
+        // Get item counts for each category
+        const categoriesWithStats: CategoryWithStats[] = [];
+        
+        for (const category of categoryData || []) {
+          const { data: itemData, error: itemError } = await supabase
+            .from('item_master')
+            .select('status, usage_type')
+            .eq('category_id', category.id);
+          
+          if (itemError) {
+            console.error(`Error fetching items for category ${category.category_name}:`, itemError);
+            continue;
+          }
+
+          const items = itemData || [];
+          const total_items = items.length;
+          const active_items = items.filter(item => item.status === 'active').length;
+          const fg_items = items.filter(item => item.usage_type === 'FINISHED_GOOD').length;
+          const rm_items = items.filter(item => item.usage_type === 'RAW_MATERIAL').length;
+          const packaging_items = items.filter(item => item.usage_type === 'PACKAGING').length;
+          const consumable_items = items.filter(item => item.usage_type === 'CONSUMABLE').length;
+
+          categoriesWithStats.push({
+            id: category.id,
+            category_name: category.category_name,
+            description: category.description,
+            created_at: category.created_at,
+            updated_at: category.updated_at,
+            total_items,
+            active_items,
+            fg_items,
+            rm_items,
+            packaging_items,
+            consumable_items
+          });
+        }
+        
+        console.log('Categories with stats (fallback):', categoriesWithStats.length);
+        console.log('Sample category stats:', categoriesWithStats[0]);
+        
+        return categoriesWithStats;
+      }
       
-      console.log('Categories with stats processed:', categoriesWithStats.length);
-      console.log('Sample category stats:', categoriesWithStats[0]);
+      console.log('Categories with stats processed via RPC:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('Sample category stats:', data[0]);
+      }
       
-      return categoriesWithStats;
+      return data || [];
     },
   });
 }
@@ -121,7 +142,7 @@ export function useCategoryMutations() {
         .select()
         .single();
       
-      if error) throw error;
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
