@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette, Droplets, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
@@ -10,6 +9,8 @@ import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
+import { ViscosityTables } from "@/components/manufacturing/ViscosityTables";
+import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -117,6 +118,17 @@ export default function GravurePrinting() {
     });
   };
 
+  // Handle parameter application from artwork
+  const handleParametersApplied = (parameters: any) => {
+    setPrintingParams({
+      speed: parameters.line_speed_mpm?.toString() || '',
+      temperature: parameters.drying_temp_c?.toString() || '',
+      pressure: parameters.impression_pressure?.toString() || '2.5',
+      viscosity: parameters.ink_viscosity_sec?.toString() || '',
+      solventRatio: parameters.solvent_ratio || '70:30'
+    });
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -195,9 +207,10 @@ export default function GravurePrinting() {
       </div>
 
       <Tabs defaultValue="printing" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="printing">Print Control</TabsTrigger>
           <TabsTrigger value="colors">Color Management</TabsTrigger>
+          <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
           <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
@@ -313,80 +326,31 @@ export default function GravurePrinting() {
         </TabsContent>
 
         <TabsContent value="colors" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Color Deck Setup</CardTitle>
-                <CardDescription>
-                  {selectedOrder && artworkData?.no_of_colours ? 
-                    `${extractColorCount(artworkData.no_of_colours)} colors required` : 
-                    'Select an order to see color requirements'
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {selectedOrder && artworkData?.no_of_colours ? (
-                  <div className="space-y-3">
-                    {generateColorNames(extractColorCount(artworkData.no_of_colours)).map((color, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
-                        <div className="w-6 h-6 rounded border bg-gradient-to-r from-blue-500 to-purple-500"></div>
-                        <div className="flex-1">
-                          <p className="font-medium">Deck {index + 1}: {color}</p>
-                          <p className="text-sm text-muted-foreground">Viscosity: 18 sec | Density: 1.2</p>
-                        </div>
-                        <Badge variant="outline">Ready</Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center p-8 text-muted-foreground">
-                    Select an order to configure color decks
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <ViscosityTables
+            uiorn={selectedOrder?.uiorn || ""}
+            colorCount={selectedOrder && artworkData?.no_of_colours ? 
+              extractColorCount(artworkData.no_of_colours) : 4}
+            artworkData={artworkData}
+            onParametersApplied={handleParametersApplied}
+          />
+        </TabsContent>
 
+        <TabsContent value="consumption" className="space-y-6">
+          {selectedOrder ? (
+            <RMConsumptionTracker
+              uiorn={selectedOrder.uiorn}
+              processStage="GRAVURE_PRINTING"
+              artworkData={artworkData}
+            />
+          ) : (
             <Card>
-              <CardHeader>
-                <CardTitle>Ink Management</CardTitle>
-                <CardDescription>Monitor ink levels and viscosity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Cyan Ink</p>
-                      <p className="text-sm text-muted-foreground">Tank A1</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">75%</p>
-                      <p className="text-xs text-muted-foreground">18.2 sec</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Magenta Ink</p>
-                      <p className="text-sm text-muted-foreground">Tank A2</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">60%</p>
-                      <p className="text-xs text-muted-foreground">17.8 sec</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Yellow Ink</p>
-                      <p className="text-sm text-muted-foreground">Tank A3</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">85%</p>
-                      <p className="text-xs text-muted-foreground">18.5 sec</p>
-                    </div>
-                  </div>
-                </div>
+              <CardContent className="text-center p-8">
+                <p className="text-muted-foreground">
+                  Select an order to track material consumption
+                </p>
               </CardContent>
             </Card>
-          </div>
+          )}
         </TabsContent>
 
         <TabsContent value="artwork" className="space-y-6">
