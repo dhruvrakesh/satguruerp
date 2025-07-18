@@ -67,9 +67,9 @@ export function BulkUploadOpeningStock() {
     const valid: StockRow[] = [];
     const invalid: Array<{ row: number; data: any; errors: string[] }> = [];
 
-    // Get existing item codes for validation
+    // Get existing item codes for validation from satguru_item_master
     const { data: items } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .select('item_code');
     
     const validItemCodes = new Set(items?.map(item => item.item_code) || []);
@@ -216,7 +216,7 @@ export function BulkUploadOpeningStock() {
           last_updated: new Date().toISOString()
         }));
 
-        // Upsert to stock table
+        // Upsert to satguru_stock table
         const { error: stockError } = await supabase
           .from('satguru_stock')
           .upsert(stockData, { onConflict: 'item_code' });
@@ -226,11 +226,13 @@ export function BulkUploadOpeningStock() {
         // Log opening stock entries
         const logData = batch.map(item => ({
           item_code: item.item_code,
-          transaction_type: 'OPENING_STOCK',
+          grn_number: `OPENING-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           qty_received: item.opening_qty,
-          rate: item.rate || 0,
-          transaction_date: item.date || new Date().toISOString().split('T')[0],
-          remarks: 'Opening stock upload'
+          uom: 'KG',
+          amount_inr: item.rate ? item.rate * item.opening_qty : 0,
+          date: item.date || new Date().toISOString().split('T')[0],
+          remarks: 'Opening stock upload',
+          vendor: 'Opening Stock'
         }));
 
         const { error: logError } = await supabase

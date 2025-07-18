@@ -84,10 +84,16 @@ export default function StockOperations() {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <BulkUploadOpeningStock
-            open={bulkOpeningStockOpen}
-            onOpenChange={setBulkOpeningStockOpen}
-          />
+          {bulkOpeningStockOpen && (
+            <Dialog open={bulkOpeningStockOpen} onOpenChange={setBulkOpeningStockOpen}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Bulk Upload Opening Stock</DialogTitle>
+                </DialogHeader>
+                <BulkUploadOpeningStock />
+              </DialogContent>
+            </Dialog>
+          )}
           
           <BulkUploadGRN
             open={bulkGRNOpen}

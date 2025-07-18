@@ -1,636 +1,400 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useCreateOrder } from "@/hooks/useManufacturingOrders";
-import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Package, Settings, Palette, Layers } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { ItemSelector } from "./ItemSelector";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { X, Calculator, Package, Truck, AlertCircle } from "lucide-react";
 
-const orderSchema = z.object({
-  item_code: z.string().min(1, "Item code selection is required"),
-  customer_name: z.string().min(1, "Customer name is required"),
-  product_description: z.string().min(1, "Product description is required"),
-  order_quantity: z.number().min(1, "Quantity must be at least 1"),
-  substrate_type: z.string().min(1, "Substrate selection is required"),
-  priority_level: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
-  delivery_date: z.string().optional(),
-  special_instructions: z.string().optional(),
-  specifications: z.object({
-    width_mm: z.number().optional(),
-    colors: z.number().optional(),
-    finish: z.string().optional(),
-    dimensions: z.string().optional(),
-    ups: z.number().optional(),
-    circum: z.number().optional(),
-  }).optional(),
-});
-
-type OrderFormData = z.infer<typeof orderSchema>;
-
-interface Substrate {
-  id: string;
-  substrate_name: string;
-  substrate_type: string;
-  width_mm: number;
-  supplier: string;
-}
-
-interface SelectedItem {
+interface Item {
   item_code: string;
-  customer_name: string;
   item_name: string;
   uom: string;
   status: string;
   usage_type: string;
 }
 
-export function EnhancedOrderCreationDialog() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
-  const { mutate: createOrder, isPending } = useCreateOrder();
-  const { toast } = useToast();
+interface SelectedItem {
+  item_code: string;
+  item_name: string;
+  uom: string;
+  usage_type: string;
+  quantity: number;
+}
 
-  const form = useForm<OrderFormData>({
-    resolver: zodResolver(orderSchema),
-    defaultValues: {
-      item_code: "",
-      customer_name: "",
-      product_description: "",
-      order_quantity: 1,
-      substrate_type: "",
-      priority_level: "NORMAL",
-      delivery_date: "",
-      special_instructions: "",
-      specifications: {
-        width_mm: 1000,
-        colors: 4,
-        finish: "GLOSSY",
-        dimensions: "",
-        ups: 0,
-        circum: 0,
-      },
-    },
+interface EnhancedOrderCreationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrderCreationDialogProps) {
+  const { toast } = useToast();
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [orderData, setOrderData] = useState({
+    customer_name: "",
+    customer_code: "",
+    product_description: "",
+    order_type: "PRINTING",
+    priority: "MEDIUM",
+    expected_delivery: "",
+    special_instructions: "",
+    total_quantity: 0,
+    unit_price: 0,
+    total_value: 0
   });
 
-  // Auto-populate form when item is selected
-  useEffect(() => {
-    if (selectedItem) {
-      form.setValue("item_code", selectedItem.item_code);
-      form.setValue("customer_name", selectedItem.customer_name || "");
-      form.setValue("product_description", selectedItem.item_name);
-      form.setValue("specifications", {
-        width_mm: 1000,
-        colors: 4,
-        finish: "GLOSSY",
-        dimensions: "",
-        ups: 0,
-        circum: 0,
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleItemSelect = (item: Item) => {
+    const selectedItem: SelectedItem = {
+      item_code: item.item_code,
+      item_name: item.item_name,
+      uom: item.uom,
+      usage_type: item.usage_type,
+      quantity: 1
+    };
+    
+    const exists = selectedItems.find(si => si.item_code === item.item_code);
+    if (!exists) {
+      setSelectedItems(prev => [...prev, selectedItem]);
+    } else {
+      toast({
+        title: "Item already selected",
+        description: `${item.item_name} is already in the order`,
+        variant: "destructive"
       });
     }
-  }, [selectedItem, form]);
+  };
 
-  // Fetch substrates
-  const { data: substrates = [] } = useQuery({
-    queryKey: ["substrates"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("substrate_catalog")
-        .select("id, substrate_name, substrate_type, width_mm, supplier")
-        .eq("is_active", true)
-        .order("substrate_name");
-      if (error) throw error;
-      return data as Substrate[];
-    },
-  });
+  const handleRemoveItem = (itemCode: string) => {
+    setSelectedItems(prev => prev.filter(item => item.item_code !== itemCode));
+  };
 
-  const onSubmit = async (data: OrderFormData) => {
-    createOrder(
-      {
-        item_code: data.item_code,
-        customer_name: data.customer_name,
-        product_description: data.product_description,
-        order_quantity: data.order_quantity,
-        priority_level: data.priority_level,
-        delivery_date: data.delivery_date,
-        special_instructions: data.special_instructions,
-        order_date: new Date().toISOString().split('T')[0],
-        status: "PENDING",
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Success",
-            description: "Order created successfully",
-          });
-          setIsOpen(false);
-          setCurrentStep(1);
-          form.reset();
-          setSelectedItem(null);
-        },
-        onError: (error) => {
-          toast({
-            title: "Error",
-            description: "Failed to create order: " + error.message,
-            variant: "destructive",
-          });
-        },
-      }
+  const handleQuantityChange = (itemCode: string, quantity: number) => {
+    setSelectedItems(prev => 
+      prev.map(item => 
+        item.item_code === itemCode 
+          ? { ...item, quantity: Math.max(0, quantity) }
+          : item
+      )
     );
   };
 
-  const nextStep = () => {
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+  const calculateTotals = () => {
+    const totalQty = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalVal = totalQty * orderData.unit_price;
+    
+    setOrderData(prev => ({
+      ...prev,
+      total_quantity: totalQty,
+      total_value: totalVal
+    }));
   };
 
-  const prevStep = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-  };
+  const handleSubmit = async () => {
+    if (selectedItems.length === 0) {
+      toast({
+        title: "No items selected",
+        description: "Please select at least one item for the order",
+        variant: "destructive"
+      });
+      return;
+    }
 
-  const selectedSubstrate = substrates.find(
-    (s) => s.substrate_name === form.watch("substrate_type")
-  );
+    if (!orderData.customer_name.trim()) {
+      toast({
+        title: "Customer name required",
+        description: "Please enter the customer name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Create the main order
+      const { data: order, error: orderError } = await supabase
+        .from('orders_dashboard_se')
+        .insert({
+          customer_name: orderData.customer_name,
+          customer_code: orderData.customer_code || null,
+          product_description: orderData.product_description,
+          order_type: orderData.order_type,
+          priority: orderData.priority,
+          expected_delivery: orderData.expected_delivery || null,
+          special_instructions: orderData.special_instructions || null,
+          total_quantity: orderData.total_quantity,
+          unit_price: orderData.unit_price,
+          total_value: orderData.total_value,
+          status: 'PENDING'
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = selectedItems.map(item => ({
+        uiorn: order.uiorn,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        quantity: item.quantity,
+        uom: item.uom,
+        usage_type: item.usage_type
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items_se')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: "Order created successfully",
+        description: `Order ${order.uiorn} has been created with ${selectedItems.length} items`
+      });
+
+      // Reset form
+      setSelectedItems([]);
+      setOrderData({
+        customer_name: "",
+        customer_code: "",
+        product_description: "",
+        order_type: "PRINTING",
+        priority: "MEDIUM",
+        expected_delivery: "",
+        special_instructions: "",
+        total_quantity: 0,
+        unit_price: 0,
+        total_value: 0
+      });
+
+      onOpenChange(false);
+
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      toast({
+        title: "Failed to create order",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Create Enhanced Order
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Manufacturing Order</DialogTitle>
-          <DialogDescription>
-            Step {currentStep} of 3: {currentStep === 1 ? "Basic Information" : currentStep === 2 ? "Technical Specifications" : "Review & Submit"}
-          </DialogDescription>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Create New Manufacturing Order
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex mb-6">
-          {[1, 2, 3].map((step) => (
-            <div
-              key={step}
-              className={`flex-1 h-2 rounded-full mx-1 ${
-                step <= currentStep ? "bg-primary" : "bg-muted"
-              }`}
-            />
-          ))}
-        </div>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5" />
-                      Item Selection
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <FormField
-                      control={form.control}
-                      name="item_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Select Item Code</FormLabel>
-                          <FormControl>
-                            <ItemSelector
-                              onSelect={(item) => {
-                                setSelectedItem(item);
-                                field.onChange(item.item_code);
-                              }}
-                              selectedItem={selectedItem}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-
-                {selectedItem && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Layers className="h-5 w-5" />
-                        Auto-Populated Specifications
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="customer_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Customer Name</FormLabel>
-                              <FormControl>
-                                <Input {...field} readOnly className="bg-muted" />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="priority_level"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Priority Level</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select priority" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="LOW">
-                                    <Badge variant="secondary">Low</Badge>
-                                  </SelectItem>
-                                  <SelectItem value="NORMAL">
-                                    <Badge variant="outline">Normal</Badge>
-                                  </SelectItem>
-                                  <SelectItem value="HIGH">
-                                    <Badge variant="default">High</Badge>
-                                  </SelectItem>
-                                  <SelectItem value="URGENT">
-                                    <Badge variant="destructive">Urgent</Badge>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <FormField
-                        control={form.control}
-                        name="product_description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Product Description</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                className="h-20 bg-muted"
-                                readOnly
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="order_quantity"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Quantity (Meters)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="1000"
-                                  {...field}
-                                  onChange={(e) => field.onChange(Number(e.target.value))}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="delivery_date"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Delivery Date</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Order Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Order Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="customer_name">Customer Name *</Label>
+                  <Input
+                    id="customer_name"
+                    value={orderData.customer_name}
+                    onChange={(e) => setOrderData(prev => ({ ...prev, customer_name: e.target.value }))}
+                    placeholder="Enter customer name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="customer_code">Customer Code</Label>
+                  <Input
+                    id="customer_code"
+                    value={orderData.customer_code}
+                    onChange={(e) => setOrderData(prev => ({ ...prev, customer_code: e.target.value }))}
+                    placeholder="Optional customer code"
+                  />
+                </div>
               </div>
-            )}
 
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5" />
-                      Substrate Selection
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <FormField
-                      control={form.control}
-                      name="substrate_type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Substrate Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select substrate" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {substrates.map((substrate) => (
-                                <SelectItem key={substrate.id} value={substrate.substrate_name}>
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{substrate.substrate_name}</span>
-                                    <Badge variant="outline" className="ml-2">
-                                      {substrate.width_mm}mm
-                                    </Badge>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {selectedSubstrate && (
-                      <div className="mt-4 p-4 bg-muted rounded-lg">
-                        <h4 className="font-medium mb-2">Substrate Details</h4>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Type: {selectedSubstrate.substrate_type}</div>
-                          <div>Width: {selectedSubstrate.width_mm}mm</div>
-                          <div>Supplier: {selectedSubstrate.supplier}</div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Settings className="h-5 w-5" />
-                      Technical Specifications
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="specifications.width_mm"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Width (mm)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="1000"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                                className={selectedItem ? "bg-muted" : ""}
-                                readOnly={!!selectedItem}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="specifications.colors"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Colors</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="4"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                                className={selectedItem ? "bg-muted" : ""}
-                                readOnly={!!selectedItem}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="specifications.finish"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Finish</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select finish" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="MATTE">Matte</SelectItem>
-                                <SelectItem value="GLOSSY">Glossy</SelectItem>
-                                <SelectItem value="SATIN">Satin</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                      <FormField
-                        control={form.control}
-                        name="specifications.dimensions"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Dimensions</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="e.g., 100x200mm" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="specifications.ups"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>UPS (Units Per Sheet)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="1"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="specifications.circum"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Circumference (mm)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Order Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <strong>Customer:</strong> {form.getValues("customer_name")}
-                      </div>
-                      <div>
-                        <strong>Priority:</strong>{" "}
-                        <Badge
-                          variant={
-                            form.getValues("priority_level") === "URGENT"
-                              ? "destructive"
-                              : form.getValues("priority_level") === "HIGH"
-                              ? "default"
-                              : "outline"
-                          }
-                        >
-                          {form.getValues("priority_level")}
-                        </Badge>
-                      </div>
-                      <div>
-                        <strong>Quantity:</strong> {form.getValues("order_quantity")} meters
-                      </div>
-                      <div>
-                        <strong>Substrate:</strong> {form.getValues("substrate_type")}
-                      </div>
-                    </div>
-                    <div>
-                      <strong>Product:</strong> {form.getValues("product_description")}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <FormField
-                  control={form.control}
-                  name="special_instructions"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Special Instructions (Optional)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Any special requirements or notes..."
-                          className="h-20"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+              <div>
+                <Label htmlFor="product_description">Product Description</Label>
+                <Textarea
+                  id="product_description"
+                  value={orderData.product_description}
+                  onChange={(e) => setOrderData(prev => ({ ...prev, product_description: e.target.value }))}
+                  placeholder="Describe the product to be manufactured"
+                  rows={3}
                 />
               </div>
-            )}
 
-            <div className="flex justify-between pt-6 border-t">
-              <div className="flex gap-2">
-                {currentStep > 1 && (
-                  <Button type="button" variant="outline" onClick={prevStep}>
-                    Previous
-                  </Button>
-                )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="order_type">Order Type</Label>
+                  <Select value={orderData.order_type} onValueChange={(value) => setOrderData(prev => ({ ...prev, order_type: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PRINTING">Printing</SelectItem>
+                      <SelectItem value="LAMINATION">Lamination</SelectItem>
+                      <SelectItem value="COATING">Coating</SelectItem>
+                      <SelectItem value="SLITTING">Slitting</SelectItem>
+                      <SelectItem value="PACKAGING">Packaging</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <Select value={orderData.priority} onValueChange={(value) => setOrderData(prev => ({ ...prev, priority: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOW">Low</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HIGH">High</SelectItem>
+                      <SelectItem value="URGENT">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex gap-2">
-                {currentStep < 3 ? (
-                  <Button type="button" onClick={nextStep}>
-                    Next
-                  </Button>
-                ) : (
-                  <Button type="submit" disabled={isPending}>
-                    {isPending ? "Creating..." : "Create Order"}
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsOpen(false);
-                    setCurrentStep(1);
-                    form.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
+
+              <div>
+                <Label htmlFor="expected_delivery">Expected Delivery Date</Label>
+                <Input
+                  id="expected_delivery"
+                  type="date"
+                  value={orderData.expected_delivery}
+                  onChange={(e) => setOrderData(prev => ({ ...prev, expected_delivery: e.target.value }))}
+                />
               </div>
-            </div>
-          </form>
-        </Form>
+
+              <div>
+                <Label htmlFor="special_instructions">Special Instructions</Label>
+                <Textarea
+                  id="special_instructions"
+                  value={orderData.special_instructions}
+                  onChange={(e) => setOrderData(prev => ({ ...prev, special_instructions: e.target.value }))}
+                  placeholder="Any special requirements or instructions"
+                  rows={2}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Item Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Item Selection</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Select Items</Label>
+                <ItemSelector onSelect={handleItemSelect} />
+              </div>
+
+              {selectedItems.length > 0 && (
+                <div className="space-y-3">
+                  <Label>Selected Items ({selectedItems.length})</Label>
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {selectedItems.map((item, index) => (
+                      <div key={item.item_code} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{item.item_code}</div>
+                          <div className="text-xs text-muted-foreground">{item.item_name}</div>
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {item.usage_type}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleQuantityChange(item.item_code, parseInt(e.target.value) || 0)}
+                            className="w-20 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">{item.uom}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveItem(item.item_code)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pricing Section */}
+              <div className="border-t pt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="unit_price">Unit Price (₹)</Label>
+                    <Input
+                      id="unit_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={orderData.unit_price}
+                      onChange={(e) => setOrderData(prev => ({ ...prev, unit_price: parseFloat(e.target.value) || 0 }))}
+                      onBlur={calculateTotals}
+                    />
+                  </div>
+                  <div>
+                    <Label>Total Quantity</Label>
+                    <div className="flex items-center h-10 px-3 border rounded-md bg-muted text-sm">
+                      {selectedItems.reduce((sum, item) => sum + item.quantity, 0)}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <Label>Total Value</Label>
+                  <div className="flex items-center h-10 px-3 border rounded-md bg-muted font-medium">
+                    ₹ {(selectedItems.reduce((sum, item) => sum + item.quantity, 0) * orderData.unit_price).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between pt-4 border-t">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4" />
+            Ensure all required fields are filled before creating the order
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={isSubmitting || selectedItems.length === 0}
+              className="min-w-32"
+            >
+              {isSubmitting ? "Creating..." : "Create Order"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

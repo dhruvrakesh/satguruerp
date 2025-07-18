@@ -204,7 +204,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                       </TableCell>
                       <TableCell className="font-medium">{item.item_code}</TableCell>
                       <TableCell>{item.item_name}</TableCell>
-                      <TableCell>{item.categories?.category_name || '-'}</TableCell>
+                      <TableCell>{item.category?.category_name || '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{item.usage_type}</Badge>
                       </TableCell>

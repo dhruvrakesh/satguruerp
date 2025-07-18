@@ -54,7 +54,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
         .from('satguru_item_master')
         .select(`
           *,
-          categories!satguru_item_master_category_id_fkey (
+          category:categories(
             id,
             category_name
           )
