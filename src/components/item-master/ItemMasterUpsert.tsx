@@ -11,28 +11,17 @@ import { CheckCircle, AlertCircle, Info, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validateBulkUploadData, type CsvItemData } from "@/schemas/itemMasterSchema";
+import { ParsedRecord, UpsertSummary, UpsertProgress } from "@/types/itemMasterUpsert";
+import { CategoryResolver } from "@/utils/categoryResolver";
+import { ItemMasterProcessor } from "@/utils/itemMasterProcessor";
 import * as XLSX from "xlsx";
-
-interface ParsedRecord extends CsvItemData {
-  row_number: number;
-  action: 'INSERT' | 'UPDATE';
-  existing_item?: any;
-}
-
-interface UpsertSummary {
-  total: number;
-  updates: number;
-  inserts: number;
-  errors: number;
-  processed: number;
-}
 
 export function ItemMasterUpsert() {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedRecord[]>([]);
   const [summary, setSummary] = useState<UpsertSummary | null>(null);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState<UpsertProgress>({ current: 0, total: 0, stage: 'analyzing' });
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
 
   const parseCSVFile = async (file: File): Promise<CsvItemData[]> => {
@@ -58,6 +47,7 @@ export function ItemMasterUpsert() {
   const analyzeData = async (csvData: CsvItemData[]) => {
     try {
       setIsProcessing(true);
+      setProgress({ current: 0, total: csvData.length, stage: 'analyzing' });
       
       // Validate CSV data
       const { valid, invalid } = validateBulkUploadData(csvData);
@@ -71,14 +61,21 @@ export function ItemMasterUpsert() {
         });
       }
 
-      // Get all categories for mapping
-      const { data: categories } = await supabase
-        .from('categories')
-        .select('id, category_name');
+      // Initialize category resolver
+      const categoryResolver = new CategoryResolver();
+      await categoryResolver.initialize();
 
-      const categoryMap = new Map(
-        categories?.map(cat => [cat.category_name.toLowerCase(), cat.id]) || []
-      );
+      // Check for unmapped categories
+      const categoryNames = [...new Set(valid.map(item => item.category_name))];
+      const unmappedCategories = categoryResolver.getUnmappedCategories(categoryNames);
+      
+      if (unmappedCategories.length > 0) {
+        toast({
+          title: "Unknown Categories",
+          description: `Categories not found: ${unmappedCategories.join(', ')}. Please check category names.`,
+          variant: "destructive"
+        });
+      }
 
       // Get existing items to determine updates vs inserts
       const existingItemNames = valid.map(item => item.item_name);
@@ -94,25 +91,35 @@ export function ItemMasterUpsert() {
       // Analyze each record
       const analyzed: ParsedRecord[] = valid.map((item, index) => {
         const existingItem = existingItemMap.get(item.item_name.toLowerCase());
-        const categoryId = categoryMap.get(item.category_name.toLowerCase());
+        const categoryId = categoryResolver.resolveCategoryId(item.category_name);
+        const validationErrors: string[] = [];
+        
+        if (!categoryId) {
+          validationErrors.push(`Category "${item.category_name}" not found`);
+        }
         
         return {
           ...item,
           row_number: index + 1,
           action: existingItem ? 'UPDATE' : 'INSERT',
           existing_item: existingItem,
-          category_id: categoryId || null
+          category_id: categoryId,
+          validation_errors: validationErrors,
+          can_process: validationErrors.length === 0
         };
       });
 
       setParsedData(analyzed);
       
+      const processableRecords = analyzed.filter(r => r.can_process);
       const summary: UpsertSummary = {
         total: analyzed.length,
-        updates: analyzed.filter(r => r.action === 'UPDATE').length,
-        inserts: analyzed.filter(r => r.action === 'INSERT').length,
+        updates: processableRecords.filter(r => r.action === 'UPDATE').length,
+        inserts: processableRecords.filter(r => r.action === 'INSERT').length,
         errors: invalid.length,
-        processed: 0
+        processed: 0,
+        category_errors: analyzed.filter(r => !r.category_id).length,
+        validation_errors: analyzed.filter(r => r.validation_errors && r.validation_errors.length > 0).length
       };
       
       setSummary(summary);
@@ -128,82 +135,49 @@ export function ItemMasterUpsert() {
     }
   };
 
-  const generateItemCode = (item: CsvItemData, categoryName: string): string => {
-    const categoryCode = categoryName.substring(0, 3).toUpperCase();
-    const timestamp = Date.now().toString().slice(-6);
-    return `${categoryCode}-${timestamp}`;
-  };
-
   const executeUpsert = async () => {
     if (!parsedData.length || !summary) return;
 
     try {
       setIsProcessing(true);
-      setProgress(0);
+      setProgress({ current: 0, total: parsedData.length, stage: 'processing' });
       
-      let processedCount = 0;
-      const batchSize = 10;
+      // Filter only processable records
+      const processableRecords = parsedData.filter(r => r.can_process);
       
-      for (let i = 0; i < parsedData.length; i += batchSize) {
-        const batch = parsedData.slice(i, i + batchSize);
-        
-        for (const record of batch) {
-          try {
-            if (record.action === 'UPDATE' && record.existing_item) {
-              const updateData = {
-                item_name: record.item_name,
-                category_id: record.category_id,
-                qualifier: record.qualifier,
-                gsm: record.gsm,
-                size_mm: record.size_mm,
-                uom: record.uom,
-                usage_type: record.usage_type,
-                updated_at: new Date().toISOString()
-              };
-
-              await supabase
-                .from('item_master')
-                .update(updateData)
-                .eq('id', record.existing_item.id);
-                
-            } else if (record.action === 'INSERT') {
-              const itemCode = generateItemCode(record, record.category_name);
-              
-              const insertData = {
-                item_code: itemCode,
-                item_name: record.item_name,
-                category_id: record.category_id,
-                qualifier: record.qualifier,
-                gsm: record.gsm,
-                size_mm: record.size_mm,
-                uom: record.uom,
-                usage_type: record.usage_type,
-                status: 'active',
-                created_at: new Date().toISOString()
-              };
-
-              await supabase
-                .from('item_master')
-                .insert(insertData);
-            }
-            
-            processedCount++;
-            setProgress((processedCount / parsedData.length) * 100);
-            
-          } catch (error: any) {
-            console.error(`Error processing row ${record.row_number}:`, error);
-          }
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
+      if (processableRecords.length === 0) {
+        toast({
+          title: "No Valid Records",
+          description: "No records can be processed due to validation errors.",
+          variant: "destructive"
+        });
+        return;
       }
+
+      // Initialize and run processor
+      const processor = new ItemMasterProcessor();
+      await processor.initialize();
       
-      setSummary(prev => prev ? { ...prev, processed: processedCount } : null);
+      const result = await processor.processRecords(
+        processableRecords,
+        (progressUpdate) => setProgress(progressUpdate)
+      );
       
-      toast({
-        title: "Upsert Complete",
-        description: `Successfully processed ${processedCount} out of ${parsedData.length} records.`
-      });
+      setSummary(prev => prev ? { ...prev, processed: result.success } : null);
+      
+      if (result.errors.length > 0) {
+        console.error('Processing errors:', result.errors);
+        toast({
+          title: "Partial Success",
+          description: `${result.success} records processed successfully. ${result.errors.length} failed.`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Upsert Complete",
+          description: `Successfully processed ${result.success} records.`
+        });
+      }
       
     } catch (error: any) {
       toast({
@@ -244,8 +218,13 @@ export function ItemMasterUpsert() {
   const resetData = () => {
     setParsedData([]);
     setSummary(null);
-    setProgress(0);
+    setProgress({ current: 0, total: 0, stage: 'analyzing' });
     setValidationErrors([]);
+  };
+
+  const getProgressPercentage = () => {
+    if (progress.total === 0) return 0;
+    return (progress.current / progress.total) * 100;
   };
 
   return (
@@ -275,7 +254,7 @@ export function ItemMasterUpsert() {
               </div>
               
               {summary && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2">
@@ -317,8 +296,20 @@ export function ItemMasterUpsert() {
                       <div className="flex items-center gap-2">
                         <AlertCircle className="h-4 w-4 text-red-500" />
                         <div>
-                          <p className="text-sm text-muted-foreground">Errors</p>
-                          <p className="text-2xl font-bold text-red-600">{summary.errors}</p>
+                          <p className="text-sm text-muted-foreground">Validation Errors</p>
+                          <p className="text-2xl font-bold text-red-600">{summary.validation_errors}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-orange-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Category Errors</p>
+                          <p className="text-2xl font-bold text-orange-600">{summary.category_errors}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -326,21 +317,26 @@ export function ItemMasterUpsert() {
                 </div>
               )}
 
-              {validationErrors.length > 0 && (
+              {(validationErrors.length > 0 || (summary && summary.category_errors > 0)) && (
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
                     <div className="space-y-2">
-                      <p className="font-semibold">Validation Errors Found:</p>
+                      <p className="font-semibold">Issues Found:</p>
                       <div className="max-h-40 overflow-y-auto space-y-1">
                         {validationErrors.slice(0, 5).map((error, index) => (
                           <p key={index} className="text-sm">
                             Row {error.row}: {error.errors.join(", ")}
                           </p>
                         ))}
-                        {validationErrors.length > 5 && (
+                        {parsedData.filter(r => !r.can_process).slice(0, 5).map((record, index) => (
+                          <p key={`category-${index}`} className="text-sm">
+                            Row {record.row_number}: {record.validation_errors?.join(", ")}
+                          </p>
+                        ))}
+                        {(validationErrors.length + (summary?.category_errors || 0)) > 5 && (
                           <p className="text-sm text-muted-foreground">
-                            ... and {validationErrors.length - 5} more errors
+                            ... and {(validationErrors.length + (summary?.category_errors || 0)) - 5} more errors
                           </p>
                         )}
                       </div>
@@ -353,13 +349,18 @@ export function ItemMasterUpsert() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
-                      Processing... {Math.round(progress)}%
+                      {progress.stage === 'analyzing' ? 'Analyzing...' : 'Processing...'} {Math.round(getProgressPercentage())}%
                     </span>
                     <span className="text-sm text-muted-foreground">
-                      {summary?.processed || 0} / {summary?.total || 0}
+                      {progress.current} / {progress.total}
                     </span>
                   </div>
-                  <Progress value={progress} className="w-full" />
+                  <Progress value={getProgressPercentage()} className="w-full" />
+                  {progress.currentRecord && (
+                    <p className="text-xs text-muted-foreground">
+                      Processing: {progress.currentRecord.item_name} ({progress.currentRecord.action})
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -373,16 +374,21 @@ export function ItemMasterUpsert() {
                   <Badge variant="outline">
                     {summary?.inserts || 0} New Items
                   </Badge>
-                  {validationErrors.length > 0 && (
+                  {(summary?.validation_errors || 0) > 0 && (
                     <Badge variant="destructive">
-                      {validationErrors.length} Errors
+                      {summary?.validation_errors} Validation Errors
+                    </Badge>
+                  )}
+                  {(summary?.category_errors || 0) > 0 && (
+                    <Badge variant="destructive">
+                      {summary?.category_errors} Category Errors
                     </Badge>
                   )}
                 </div>
                 
                 <Button 
                   onClick={executeUpsert}
-                  disabled={isProcessing || parsedData.length === 0}
+                  disabled={isProcessing || parsedData.length === 0 || (summary && (summary.updates + summary.inserts) === 0)}
                   className="min-w-[120px]"
                 >
                   {isProcessing ? "Processing..." : "Execute Upsert"}
