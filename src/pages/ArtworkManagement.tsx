@@ -36,11 +36,10 @@ interface ArtworkItem {
   remarks?: string;
 }
 
-
 export default function ArtworkManagement() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [customerFilter, setCustomerFilter] = useState("");
-  const [colorFilter, setColorFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [colorFilter, setColorFilter] = useState("all");
   const [selectedArtwork, setSelectedArtwork] = useState<ArtworkItem | null>(null);
 
   // Fetch artwork data
@@ -56,11 +55,11 @@ export default function ArtworkManagement() {
         query = query.or(`item_code.ilike.%${searchTerm}%,item_name.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%`);
       }
 
-      if (customerFilter) {
+      if (customerFilter && customerFilter !== "all") {
         query = query.eq("customer_name", customerFilter);
       }
 
-      if (colorFilter) {
+      if (colorFilter && colorFilter !== "all") {
         query = query.eq("no_of_colours", colorFilter);
       }
 
@@ -242,7 +241,7 @@ export default function ArtworkManagement() {
                 <SelectValue placeholder="Filter by Customer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Customers</SelectItem>
+                <SelectItem value="all">All Customers</SelectItem>
                 {uniqueCustomers.map((customer) => (
                   <SelectItem key={customer} value={customer}>
                     {customer}
@@ -255,7 +254,7 @@ export default function ArtworkManagement() {
                 <SelectValue placeholder="Colors" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Colors</SelectItem>
+                <SelectItem value="all">All Colors</SelectItem>
                 {uniqueColors.map((color) => (
                   <SelectItem key={color} value={color}>
                     {color}
@@ -263,7 +262,7 @@ export default function ArtworkManagement() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => {setSearchTerm(""); setCustomerFilter(""); setColorFilter("");}}>
+            <Button variant="outline" onClick={() => {setSearchTerm(""); setCustomerFilter("all"); setColorFilter("all");}}>
               <Filter className="h-4 w-4 mr-2" />
               Clear
             </Button>
