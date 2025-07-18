@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,38 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BOMBulkUploadDialog } from "./BOMBulkUploadDialog";
+
+// Simplified types to avoid TypeScript recursion
+interface BOMItem {
+  id: string;
+  fg_item_code: string;
+  rm_item_code: string;
+  quantity_required: number;
+  unit_of_measure: string;
+  bom_group_id?: string;
+  consumption_rate: number;
+  wastage_percentage: number;
+  gsm_contribution?: number;
+  percentage_contribution?: number;
+  customer_code?: string;
+  bom_version: number;
+  is_active: boolean;
+  bom_groups?: {
+    group_name: string;
+    group_code: string;
+  };
+}
+
+interface ItemMaster {
+  item_code: string;
+  item_name: string;
+}
+
+interface BOMGroup {
+  id: string;
+  group_name: string;
+  group_code: string;
+}
 
 export const BOMManagement: React.FC = () => {
   const { toast } = useToast();
@@ -37,65 +70,80 @@ export const BOMManagement: React.FC = () => {
   const [bomExplosionData, setBomExplosionData] = useState<any[]>([]);
   const [explosionQuantity, setExplosionQuantity] = useState('1000');
 
-  // Simplified BOM data query
+  // Simplified BOM data query with explicit typing
   const { data: bomData, isLoading } = useQuery({
     queryKey: ['bom-data', searchQuery, selectedFGItem, selectedCustomer],
-    queryFn: async (): Promise<any[]> => {
+    queryFn: async (): Promise<BOMItem[]> => {
       const { data, error } = await supabase
         .from('bill_of_materials')
-        .select('*, bom_groups(group_name, group_code)')
+        .select(`
+          id,
+          fg_item_code,
+          rm_item_code,
+          quantity_required,
+          unit_of_measure,
+          bom_group_id,
+          consumption_rate,
+          wastage_percentage,
+          gsm_contribution,
+          percentage_contribution,
+          customer_code,
+          bom_version,
+          is_active,
+          bom_groups!inner(group_name, group_code)
+        `)
         .order('fg_item_code');
 
       if (error) throw error;
-      return data || [];
+      return (data as any[]) || [];
     }
   });
 
   // Simplified finished goods query
   const { data: finishedGoods } = useQuery({
     queryKey: ['finished-goods'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
         .eq('usage_type', 'FINISHED_GOOD')
         .order('item_code');
       if (error) throw error;
-      return data || [];
+      return (data as ItemMaster[]) || [];
     }
   });
 
   // Simplified raw materials query
   const { data: rawMaterials } = useQuery({
     queryKey: ['raw-materials'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
         .in('usage_type', ['RAW_MATERIAL', 'PACKAGING', 'CONSUMABLE'])
         .order('item_code');
       if (error) throw error;
-      return data || [];
+      return (data as ItemMaster[]) || [];
     }
   });
 
   // Simplified BOM groups query
   const { data: bomGroups } = useQuery({
     queryKey: ['bom-groups'],
-    queryFn: async () => {
+    queryFn: async (): Promise<BOMGroup[]> => {
       const { data, error } = await supabase
         .from('bom_groups')
-        .select('*')
+        .select('id, group_name, group_code')
         .eq('is_active', true)
         .order('group_name');
       if (error) throw error;
-      return data || [];
+      return (data as BOMGroup[]) || [];
     }
   });
 
   // Create new BOM item
   const createBOM = useMutation({
-    mutationFn: async (bomData: any) => {
+    mutationFn: async () => {
       const { data, error } = await supabase
         .from('bill_of_materials')
         .insert({
@@ -165,7 +213,7 @@ export const BOMManagement: React.FC = () => {
     }
   });
 
-  // BOM Explosion function
+  // BOM Explosion function - simplified and optimized
   const calculateBOMExplosion = async () => {
     if (!selectedFGItem || !explosionQuantity) {
       toast({
@@ -179,19 +227,20 @@ export const BOMManagement: React.FC = () => {
     try {
       const { data: bomItems, error } = await supabase
         .from('bill_of_materials')
-        .select('*')
+        .select('rm_item_code, quantity_required, unit_of_measure, gsm_contribution, percentage_contribution')
         .eq('fg_item_code', selectedFGItem)
         .eq('is_active', true);
 
       if (error) throw error;
       
-      const explosionData = (bomItems as any[] || []).map((item: any) => ({
+      const quantity = parseFloat(explosionQuantity);
+      const explosionData = (bomItems || []).map((item: any) => ({
         rm_item_code: item.rm_item_code,
-        required_quantity: item.quantity_required * parseFloat(explosionQuantity),
+        required_quantity: (item.quantity_required || 0) * quantity,
         unit_of_measure: item.unit_of_measure,
         gsm_contribution: item.gsm_contribution || 0,
         percentage_contribution: item.percentage_contribution || 0,
-        total_cost: item.quantity_required * parseFloat(explosionQuantity) * 10
+        total_cost: (item.quantity_required || 0) * quantity * 10 // Mock cost calculation
       }));
 
       setBomExplosionData(explosionData);
@@ -210,7 +259,7 @@ export const BOMManagement: React.FC = () => {
     }
   };
 
-  const filteredBOMData = bomData?.filter((item: any) =>
+  const filteredBOMData = bomData?.filter((item: BOMItem) =>
     item.fg_item_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.rm_item_code.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
@@ -255,7 +304,7 @@ export const BOMManagement: React.FC = () => {
                             <SelectValue placeholder="Select FG Item" />
                           </SelectTrigger>
                           <SelectContent>
-                            {finishedGoods?.map((item: any) => (
+                            {finishedGoods?.map((item) => (
                               <SelectItem key={item.item_code} value={item.item_code}>
                                 {item.item_code} - {item.item_name}
                               </SelectItem>
@@ -356,7 +405,7 @@ export const BOMManagement: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All FG Items</SelectItem>
-                  {finishedGoods?.map((item: any) => (
+                  {finishedGoods?.map((item) => (
                     <SelectItem key={item.item_code} value={item.item_code}>
                       {item.item_code} - {item.item_name}
                     </SelectItem>
@@ -397,7 +446,7 @@ export const BOMManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBOMData.map((bomItem: any) => (
+              {filteredBOMData.map((bomItem) => (
                 <TableRow key={bomItem.id}>
                   <TableCell className="font-medium">{bomItem.fg_item_code}</TableCell>
                   <TableCell>{bomItem.rm_item_code}</TableCell>
@@ -460,7 +509,7 @@ export const BOMManagement: React.FC = () => {
                     <SelectValue placeholder="Select FG Item" />
                   </SelectTrigger>
                   <SelectContent>
-                    {finishedGoods?.map((item: any) => (
+                    {finishedGoods?.map((item) => (
                       <SelectItem key={item.item_code} value={item.item_code}>
                         {item.item_code} - {item.item_name}
                       </SelectItem>
@@ -475,7 +524,7 @@ export const BOMManagement: React.FC = () => {
                     <SelectValue placeholder="Select RM Item" />
                   </SelectTrigger>
                   <SelectContent>
-                    {rawMaterials?.map((item: any) => (
+                    {rawMaterials?.map((item) => (
                       <SelectItem key={item.item_code} value={item.item_code}>
                         {item.item_code} - {item.item_name}
                       </SelectItem>
@@ -518,7 +567,7 @@ export const BOMManagement: React.FC = () => {
                     <SelectValue placeholder="Select group" />
                   </SelectTrigger>
                   <SelectContent>
-                    {bomGroups?.map((group: any) => (
+                    {bomGroups?.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.group_name}
                       </SelectItem>
@@ -606,7 +655,7 @@ export const BOMManagement: React.FC = () => {
               />
             </div>
 
-            <Button onClick={() => createBOM.mutate(newBOMItem)} className="w-full">
+            <Button onClick={() => createBOM.mutate()} className="w-full">
               Create BOM Item
             </Button>
           </div>

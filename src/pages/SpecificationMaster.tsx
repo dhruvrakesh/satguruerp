@@ -9,10 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, Plus, Search, Download, Upload, Eye, FileText } from "lucide-react";
+import { Trash2, Edit, Plus, Search, Download, Upload, Eye, FileText, History, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { SpecificationPreviewDialog } from "@/components/manufacturing/SpecificationPreviewDialog";
 
 interface CustomerSpecification {
   id: string;
@@ -45,14 +46,22 @@ export default function SpecificationMaster() {
     file: null as File | null
   });
 
-  // Fetch customer specifications
+  // Fetch customer specifications with enhanced filtering
   const { data: specifications, isLoading } = useQuery({
     queryKey: ['customer-specifications', searchQuery, selectedCustomer, selectedStatus],
     queryFn: async (): Promise<CustomerSpecification[]> => {
       let query = supabase
         .from('customer_specifications')
         .select(`
-          *,
+          id,
+          item_code,
+          customer_code,
+          specification_name,
+          file_path,
+          file_size,
+          upload_date,
+          version,
+          status,
           item_master (
             item_name,
             customer_name,
@@ -91,14 +100,37 @@ export default function SpecificationMaster() {
     }
   });
 
+  // Get specification statistics
+  const specStats = React.useMemo(() => {
+    if (!specifications) return { total: 0, approved: 0, pending: 0, rejected: 0 };
+    
+    return {
+      total: specifications.length,
+      approved: specifications.filter(s => s.status === 'APPROVED').length,
+      pending: specifications.filter(s => s.status === 'PENDING').length,
+      rejected: specifications.filter(s => s.status === 'REJECTED').length,
+    };
+  }, [specifications]);
+
   // Upload specification file
   const uploadSpecification = useMutation({
-    mutationFn: async (specData: any) => {
+    mutationFn: async () => {
       if (!newSpecification.file) throw new Error('No file selected');
+
+      // Check for existing version
+      const { data: existingSpecs } = await supabase
+        .from('customer_specifications')
+        .select('version')
+        .eq('item_code', newSpecification.item_code)
+        .eq('customer_code', newSpecification.customer_code)
+        .order('version', { ascending: false })
+        .limit(1);
+
+      const nextVersion = existingSpecs && existingSpecs.length > 0 ? existingSpecs[0].version + 1 : 1;
 
       // Upload file to Supabase Storage
       const fileExt = newSpecification.file.name.split('.').pop();
-      const fileName = `${newSpecification.item_code}_${newSpecification.customer_code}_v${Date.now()}.${fileExt}`;
+      const fileName = `${newSpecification.item_code}_${newSpecification.customer_code}_v${nextVersion}.${fileExt}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('customer-specifications')
@@ -115,8 +147,8 @@ export default function SpecificationMaster() {
           specification_name: newSpecification.specification_name,
           file_path: uploadData.path,
           file_size: newSpecification.file.size,
-          version: 1,
-          status: 'ACTIVE'
+          version: nextVersion,
+          status: 'PENDING'
         })
         .select();
 
@@ -145,32 +177,7 @@ export default function SpecificationMaster() {
     }
   });
 
-  // Download specification file
-  const downloadFile = async (filePath: string, fileName: string) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('customer-specifications')
-        .download(filePath);
-
-      if (error) throw error;
-
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to download file",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Export specifications to CSV
+  // Export specifications to CSV with enhanced data
   const exportToCSV = () => {
     if (!specifications || specifications.length === 0) {
       toast({
@@ -191,11 +198,14 @@ export default function SpecificationMaster() {
       version: spec.version,
       status: spec.status,
       upload_date: spec.upload_date,
-      file_size_kb: Math.round(spec.file_size / 1024)
+      file_size_kb: Math.round(spec.file_size / 1024),
+      file_path: spec.file_path
     }));
 
     const headers = Object.keys(csvData[0]).join(',');
-    const rows = csvData.map(row => Object.values(row).join(','));
+    const rows = csvData.map(row => Object.values(row).map(value => 
+      typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+    ).join(','));
     const csvContent = [headers, ...rows].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -219,6 +229,54 @@ export default function SpecificationMaster() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Specifications</p>
+                <p className="text-2xl font-bold">{specStats.total}</p>
+              </div>
+              <FileText className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Approved</p>
+                <p className="text-2xl font-bold text-green-600">{specStats.approved}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold text-yellow-600">{specStats.pending}</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Rejected</p>
+                <p className="text-2xl font-bold text-red-600">{specStats.rejected}</p>
+              </div>
+              <History className="h-8 w-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -298,12 +356,12 @@ export default function SpecificationMaster() {
                     </div>
 
                     <Button 
-                      onClick={() => uploadSpecification.mutate(newSpecification)} 
+                      onClick={() => uploadSpecification.mutate()} 
                       className="w-full"
-                      disabled={!newSpecification.item_code || !newSpecification.customer_code || !newSpecification.file}
+                      disabled={!newSpecification.item_code || !newSpecification.customer_code || !newSpecification.file || uploadSpecification.isPending}
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Upload Specification
+                      {uploadSpecification.isPending ? 'Uploading...' : 'Upload Specification'}
                     </Button>
                   </div>
                 </DialogContent>
@@ -337,6 +395,8 @@ export default function SpecificationMaster() {
                   <SelectItem value="RB">Reckitt Benckiser</SelectItem>
                   <SelectItem value="HUL">Hindustan Unilever</SelectItem>
                   <SelectItem value="ITC">ITC Limited</SelectItem>
+                  <SelectItem value="PATANJALI">Patanjali</SelectItem>
+                  <SelectItem value="ANCHOR">Anchor</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -348,71 +408,75 @@ export default function SpecificationMaster() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All status</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item Code</TableHead>
-                <TableHead>Item Name</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Specification Name</TableHead>
-                <TableHead>Dimensions</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Upload Date</TableHead>
-                <TableHead>File Size</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredSpecs.map((spec) => (
-                <TableRow key={spec.id}>
-                  <TableCell className="font-medium">{spec.item_code}</TableCell>
-                  <TableCell>{spec.item_master?.item_name || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{spec.customer_code}</Badge>
-                  </TableCell>
-                  <TableCell>{spec.specification_name}</TableCell>
-                  <TableCell>{spec.item_master?.dimensions || '-'}</TableCell>
-                  <TableCell>v{spec.version}</TableCell>
-                  <TableCell>
-                    <Badge variant={spec.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {spec.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(spec.upload_date).toLocaleDateString()}</TableCell>
-                  <TableCell>{Math.round(spec.file_size / 1024)} KB</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => downloadFile(spec.file_path, spec.specification_name)}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item Code</TableHead>
+                  <TableHead>Item Name</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Specification Name</TableHead>
+                  <TableHead>Dimensions</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Upload Date</TableHead>
+                  <TableHead>File Size</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredSpecs.map((spec) => (
+                  <TableRow key={spec.id}>
+                    <TableCell className="font-medium">{spec.item_code}</TableCell>
+                    <TableCell>{spec.item_master?.item_name || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{spec.customer_code}</Badge>
+                    </TableCell>
+                    <TableCell>{spec.specification_name}</TableCell>
+                    <TableCell>{spec.item_master?.dimensions || '-'}</TableCell>
+                    <TableCell>v{spec.version}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        spec.status === 'APPROVED' ? 'default' : 
+                        spec.status === 'REJECTED' ? 'destructive' : 'secondary'
+                      }>
+                        {spec.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(spec.upload_date).toLocaleDateString()}</TableCell>
+                    <TableCell>{Math.round(spec.file_size / 1024)} KB</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <SpecificationPreviewDialog specification={spec}>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </SpecificationPreviewDialog>
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
