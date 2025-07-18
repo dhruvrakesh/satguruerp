@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { MaterialFlowTracker } from "@/components/manufacturing/MaterialFlowTracker";
+import { ProcessTransferTracker } from "@/components/manufacturing/ProcessTransferTracker";
+import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
 
 export default function SlittingPackaging() {
   const [slittingLogs, setSlittingLogs] = useState([]);
@@ -85,6 +88,16 @@ export default function SlittingPackaging() {
   const getProcessColor = (process: string) => {
     return process === 'SLITTING' ? 'text-orange-600 bg-orange-50' : 'text-blue-600 bg-blue-50';
   };
+
+  const allProcessStages = [
+    'ARTWORK_UPLOAD',
+    'GRAVURE_PRINTING', 
+    'LAMINATION',
+    'ADHESIVE_COATING',
+    'SLITTING',
+    'PACKAGING',
+    'DISPATCH'
+  ];
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -164,10 +177,12 @@ export default function SlittingPackaging() {
       </div>
 
       <Tabs defaultValue="active" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="active">Active Jobs</TabsTrigger>
+          <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
+          <TabsTrigger value="rm-consumption">RM Consumption</TabsTrigger>
+          <TabsTrigger value="transfers">Process Transfers</TabsTrigger>
           <TabsTrigger value="setup">Job Setup</TabsTrigger>
-          <TabsTrigger value="dispatch">Dispatch Queue</TabsTrigger>
           <TabsTrigger value="history">Process History</TabsTrigger>
         </TabsList>
 
@@ -253,6 +268,96 @@ export default function SlittingPackaging() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="material-flow">
+          <Card>
+            <CardHeader>
+              <CardTitle>Material Flow Tracking - Slitting & Packaging</CardTitle>
+              <CardDescription>
+                Track input materials, output production, waste, and rework quantities
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Slitting Material Flow */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Scissors className="h-5 w-5 text-orange-500" />
+                    Slitting Process
+                  </h3>
+                  <MaterialFlowTracker
+                    uiorn="250718005" // This should come from selected order
+                    processStage="SLITTING"
+                    previousProcessStage="LAMINATION"
+                  />
+                </div>
+
+                {/* Packaging Material Flow */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-500" />
+                    Packaging Process
+                  </h3>
+                  <MaterialFlowTracker
+                    uiorn="250718005" // This should come from selected order
+                    processStage="PACKAGING"
+                    previousProcessStage="SLITTING"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="rm-consumption">
+          <Card>
+            <CardHeader>
+              <CardTitle>Raw Material Consumption</CardTitle>
+              <CardDescription>
+                Track packaging materials, adhesives, and other consumables
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Slitting RM Consumption */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Slitting Materials</h3>
+                  <RMConsumptionTracker
+                    uiorn="250718005"
+                    processStage="SLITTING"
+                  />
+                </div>
+
+                {/* Packaging RM Consumption */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Packaging Materials</h3>
+                  <RMConsumptionTracker
+                    uiorn="250718005"
+                    processStage="PACKAGING"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="transfers">
+          <Card>
+            <CardHeader>
+              <CardTitle>Process Material Transfers</CardTitle>
+              <CardDescription>
+                Manage material handoffs between processes and track quantities
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProcessTransferTracker
+                uiorn="250718005"
+                currentProcess="SLITTING"
+                availableProcesses={allProcessStages}
+              />
             </CardContent>
           </Card>
         </TabsContent>
