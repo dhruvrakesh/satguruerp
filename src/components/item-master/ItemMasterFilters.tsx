@@ -18,22 +18,25 @@ interface ItemMasterFiltersProps {
 
 export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemMasterFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search || "");
-  const debouncedSearch = useDebounce(searchInput, 300);
+  const debouncedSearch = useDebounce(searchInput, 500); // Increased debounce time
   const { data: categoriesWithStats, isLoading: categoriesLoading, error: categoriesError } = useCategoriesWithStats();
 
   // Update filters when debounced search changes
   useEffect(() => {
     if (debouncedSearch !== filters.search) {
+      console.log('Applying debounced search:', debouncedSearch);
       onFiltersChange({ ...filters, search: debouncedSearch });
     }
   }, [debouncedSearch, filters, onFiltersChange]);
 
   const handleFilterChange = (key: keyof FilterType, value: string) => {
+    console.log(`Filter change: ${key} = ${value}`);
     const newValue = value === "__ALL__" ? undefined : value;
     onFiltersChange({ ...filters, [key]: newValue });
   };
 
   const clearFilters = () => {
+    console.log('Clearing all filters');
     setSearchInput("");
     onFiltersChange({});
   };
@@ -50,12 +53,21 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
   // Get selected category for display
   const selectedCategory = categoriesWithStats?.find(c => c.id === filters.category_id);
 
-  // Filter categories based on current filters (exclude category filter itself)
+  // Filter categories - only show categories with items
   const getFilteredCategories = () => {
     if (!categoriesWithStats) return [];
     
-    // Show all categories with their total counts
-    return categoriesWithStats.filter(category => category.total_items > 0);
+    console.log('All categories with stats:', categoriesWithStats.map(c => ({
+      name: c.category_name,
+      total: c.total_items,
+      id: c.id
+    })));
+    
+    // Show all categories with their total counts, filtered to only show categories with items
+    const filteredCats = categoriesWithStats.filter(category => category.total_items > 0);
+    console.log('Filtered categories (with items):', filteredCats.map(c => c.category_name));
+    
+    return filteredCats;
   };
 
   const filteredCategories = getFilteredCategories();
@@ -74,7 +86,10 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
             <Input
               placeholder="Search items by code or name..."
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={(e) => {
+                console.log('Search input changed:', e.target.value);
+                setSearchInput(e.target.value);
+              }}
               className="pl-10"
               disabled={isLoading}
             />
@@ -88,7 +103,10 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
           {/* Category Filter */}
           <Select 
             value={filters.category_id || "__ALL__"} 
-            onValueChange={(value) => handleFilterChange('category_id', value)}
+            onValueChange={(value) => {
+              console.log('Category filter changed:', value);
+              handleFilterChange('category_id', value);
+            }}
             disabled={categoriesLoading}
           >
             <SelectTrigger className="w-64">

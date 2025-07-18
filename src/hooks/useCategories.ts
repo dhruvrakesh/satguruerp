@@ -46,79 +46,61 @@ export function useCategoriesWithStats() {
   return useQuery({
     queryKey: ['categoriesWithStats'],
     queryFn: async () => {
-      console.log('Fetching categories with detailed item stats...');
+      console.log('Fetching categories with stats using optimized single query...');
       
-      // First get all categories
-      const { data: categories, error: categoriesError } = await supabase
+      // Single optimized query with aggregation
+      const { data, error } = await supabase
         .from('categories')
-        .select('id, category_name, description, created_at, updated_at')
+        .select(`
+          id,
+          category_name,
+          description,
+          created_at,
+          updated_at,
+          item_master (
+            id,
+            status,
+            usage_type
+          )
+        `)
         .eq('is_active', true)
         .order('category_name');
       
-      if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
-        throw categoriesError;
+      if (error) {
+        console.error('Error fetching categories with stats:', error);
+        throw error;
       }
 
-      // Then get detailed item counts for each category
-      const categoriesWithStats: CategoryWithStats[] = [];
+      // Process the data to calculate stats
+      const categoriesWithStats: CategoryWithStats[] = (data || []).map(category => {
+        const items = category.item_master || [];
+        
+        // Calculate stats
+        const total_items = items.length;
+        const active_items = items.filter(item => item.status === 'active').length;
+        const fg_items = items.filter(item => item.usage_type === 'FINISHED_GOOD').length;
+        const rm_items = items.filter(item => item.usage_type === 'RAW_MATERIAL').length;
+        const packaging_items = items.filter(item => item.usage_type === 'PACKAGING').length;
+        const consumable_items = items.filter(item => item.usage_type === 'CONSUMABLE').length;
+
+        return {
+          id: category.id,
+          category_name: category.category_name,
+          description: category.description,
+          created_at: category.created_at,
+          updated_at: category.updated_at,
+          total_items,
+          active_items,
+          fg_items,
+          rm_items,
+          packaging_items,
+          consumable_items
+        };
+      });
       
-      for (const category of categories || []) {
-        // Get total count
-        const { count: totalCount, error: totalError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id);
-
-        // Get active count
-        const { count: activeCount, error: activeError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id)
-          .eq('status', 'active');
-
-        // Get counts by usage type
-        const { count: fgCount, error: fgError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id)
-          .eq('usage_type', 'FINISHED_GOOD');
-
-        const { count: rmCount, error: rmError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id)
-          .eq('usage_type', 'RAW_MATERIAL');
-
-        const { count: packagingCount, error: packagingError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id)
-          .eq('usage_type', 'PACKAGING');
-
-        const { count: consumableCount, error: consumableError } = await supabase
-          .from('item_master')
-          .select('*', { count: 'exact', head: true })
-          .eq('category_id', category.id)
-          .eq('usage_type', 'CONSUMABLE');
-
-        if (totalError || activeError || fgError || rmError || packagingError || consumableError) {
-          console.error('Error counting items for category:', category.category_name);
-          continue;
-        }
-
-        categoriesWithStats.push({
-          ...category,
-          total_items: totalCount || 0,
-          active_items: activeCount || 0,
-          fg_items: fgCount || 0,
-          rm_items: rmCount || 0,
-          packaging_items: packagingCount || 0,
-          consumable_items: consumableCount || 0
-        });
-      }
+      console.log('Categories with stats processed:', categoriesWithStats.length);
+      console.log('Sample category stats:', categoriesWithStats[0]);
       
-      console.log('Categories with detailed stats processed:', categoriesWithStats.length);
       return categoriesWithStats;
     },
   });
@@ -139,7 +121,7 @@ export function useCategoryMutations() {
         .select()
         .single();
       
-      if (error) throw error;
+      if error) throw error;
       return data;
     },
     onSuccess: () => {
