@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
 import { ItemMasterFilters } from "./ItemMasterFilters";
@@ -14,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Trash2, Edit, Plus, Upload, Download, ExternalLink, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { ItemMasterUpsert } from "./ItemMasterUpsert";
 
 interface ItemMasterTableProps {
   onBulkUpload: () => void;
@@ -106,6 +106,20 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                 <Upload className="h-4 w-4 mr-2" />
                 Bulk Upload
               </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Smart Update
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Smart Item Master Update/Insert</DialogTitle>
+                  </DialogHeader>
+                  <ItemMasterUpsert />
+                </DialogContent>
+              </Dialog>
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline">
