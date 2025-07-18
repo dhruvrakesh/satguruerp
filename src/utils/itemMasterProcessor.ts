@@ -81,8 +81,8 @@ export class ItemMasterProcessor {
   }
 
   private async insertNewItem(record: ParsedRecord): Promise<void> {
-    // Generate item code using the category name from the record
-    const itemCode = this.itemCodeGenerator.generateUniqueCode(
+    // Generate or get existing item code for this item_name
+    const itemCode = await this.itemCodeGenerator.getOrGenerateCodeForItem(
       record, 
       record.category_name
     );
