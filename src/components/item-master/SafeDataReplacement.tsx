@@ -41,11 +41,20 @@ export function SafeDataReplacement() {
     queryFn: async (): Promise<ReplacementStats> => {
       console.log('🔍 Checking all foreign key dependencies...');
       
+      // First get all item_codes from item_master to check dependencies
+      const { data: itemMasterData, error: itemMasterError } = await supabase
+        .from('item_master')
+        .select('item_code');
+      
+      if (itemMasterError) throw itemMasterError;
+      
+      const itemCodes = itemMasterData.map(item => item.item_code);
+      
       const [
-        itemsResult, 
-        stockResult, 
-        bomResult, 
-        grnLogResult, 
+        itemsResult,
+        stockResult,
+        bomResult,
+        grnLogResult,
         issueLogResult,
         satguruStockResult,
         satguruGrnLogResult,
@@ -53,14 +62,14 @@ export function SafeDataReplacement() {
         specsResult
       ] = await Promise.all([
         supabase.from('item_master').select('id', { count: 'exact', head: true }),
-        supabase.from('stock').select('id', { count: 'exact', head: true }),
-        supabase.from('bill_of_materials').select('id', { count: 'exact', head: true }),
-        supabase.from('grn_log').select('id', { count: 'exact', head: true }),
-        supabase.from('issue_log').select('id', { count: 'exact', head: true }),
-        supabase.from('satguru_stock').select('id', { count: 'exact', head: true }),
-        supabase.from('satguru_grn_log').select('id', { count: 'exact', head: true }),
-        supabase.from('satguru_issue_log').select('id', { count: 'exact', head: true }),
-        supabase.from('customer_specifications').select('id', { count: 'exact', head: true })
+        supabase.from('stock').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('bill_of_materials').select('id', { count: 'exact', head: true }).or(`fg_item_code.in.(${itemCodes.join(',')}),rm_item_code.in.(${itemCodes.join(',')})`),
+        supabase.from('grn_log').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('issue_log').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('satguru_stock').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('satguru_grn_log').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('satguru_issue_log').select('id', { count: 'exact', head: true }).in('item_code', itemCodes),
+        supabase.from('customer_specifications').select('id', { count: 'exact', head: true }).in('item_code', itemCodes)
       ]);
 
       const stats = {
@@ -79,7 +88,7 @@ export function SafeDataReplacement() {
       stats.totalDependencies = stats.stockReferences + stats.bomReferences + 
         stats.grnLogReferences + stats.issueLogReferences + 
         stats.satguruStockReferences + stats.satguruGrnLogReferences + 
-        stats.satguruIssueLogReferences;
+        stats.satguruIssueLogReferences + stats.specReferences;
 
       console.log('📊 Comprehensive dependency stats:', stats);
       return stats;
@@ -160,30 +169,104 @@ export function SafeDataReplacement() {
     mutationFn: async () => {
       console.log('🧹 Starting comprehensive dependent data cleanup...');
       
+      // First get all item_codes from item_master
+      const { data: itemMasterData, error: itemMasterError } = await supabase
+        .from('item_master')
+        .select('item_code');
+      
+      if (itemMasterError) throw itemMasterError;
+      
+      const itemCodes = itemMasterData.map(item => item.item_code);
+      console.log(`🔍 Found ${itemCodes.length} item codes to clear dependencies for`);
+
+      // Delete dependent data in correct order (child records first)
       const clearingSteps = [
-        { table: 'issue_log', description: 'Issue Log Records' },
-        { table: 'grn_log', description: 'GRN Log Records' },
-        { table: 'satguru_issue_log', description: 'Satguru Issue Log Records' },
-        { table: 'satguru_grn_log', description: 'Satguru GRN Log Records' },
-        { table: 'bill_of_materials', description: 'Bill of Materials' },
-        { table: 'stock', description: 'Stock Records' },
-        { table: 'satguru_stock', description: 'Satguru Stock Records' }
+        {
+          name: 'Issue Log Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('issue_log')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Issue Log: ${error.message}`);
+          }
+        },
+        {
+          name: 'GRN Log Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('grn_log')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear GRN Log: ${error.message}`);
+          }
+        },
+        {
+          name: 'Satguru Issue Log Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('satguru_issue_log')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Satguru Issue Log: ${error.message}`);
+          }
+        },
+        {
+          name: 'Satguru GRN Log Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('satguru_grn_log')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Satguru GRN Log: ${error.message}`);
+          }
+        },
+        {
+          name: 'Bill of Materials',
+          action: async () => {
+            const { error } = await supabase
+              .from('bill_of_materials')
+              .delete()
+              .or(`fg_item_code.in.(${itemCodes.join(',')}),rm_item_code.in.(${itemCodes.join(',')})`);
+            if (error) throw new Error(`Failed to clear BOM: ${error.message}`);
+          }
+        },
+        {
+          name: 'Stock Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('stock')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Stock: ${error.message}`);
+          }
+        },
+        {
+          name: 'Satguru Stock Records',
+          action: async () => {
+            const { error } = await supabase
+              .from('satguru_stock')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Satguru Stock: ${error.message}`);
+          }
+        },
+        {
+          name: 'Customer Specifications',
+          action: async () => {
+            const { error } = await supabase
+              .from('customer_specifications')
+              .delete()
+              .in('item_code', itemCodes);
+            if (error) throw new Error(`Failed to clear Customer Specifications: ${error.message}`);
+          }
+        }
       ];
 
       for (const step of clearingSteps) {
-        console.log(`🗑️ Clearing ${step.description}...`);
-        
-        const { error } = await supabase
-          .from(step.table)
-          .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000');
-        
-        if (error) {
-          console.error(`❌ ${step.description} deletion error:`, error);
-          throw new Error(`Failed to clear ${step.description}: ${error.message}`);
-        }
-        
-        console.log(`✅ ${step.description} cleared successfully`);
+        console.log(`🗑️ Clearing ${step.name}...`);
+        await step.action();
+        console.log(`✅ ${step.name} cleared successfully`);
       }
 
       console.log('✅ All dependent data cleared successfully');
