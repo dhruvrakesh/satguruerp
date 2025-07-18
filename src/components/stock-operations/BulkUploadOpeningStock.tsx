@@ -31,27 +31,48 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
   const [results, setResults] = useState<BulkUploadResult | null>(null);
   const queryClient = useQueryClient();
 
-  const downloadTemplate = () => {
-    const headers = [
-      'Item Code',
-      'Opening Qty',
-      'Date',
-      'Remarks'
-    ];
+  const downloadTemplate = async () => {
+    try {
+      // Get a few sample item codes from the database
+      const { data: sampleItems } = await supabase
+        .from('satguru_item_master')
+        .select('item_code')
+        .limit(3);
 
-    const sampleData = [
-      'RAW_001,1000,2025-01-01,Initial stock for raw materials',
-      'FIN_002,500,2025-01-01,Opening stock for finished goods'
-    ];
+      const headers = [
+        'Item Code',
+        'Opening Qty',
+        'Date',
+        'Remarks'
+      ];
 
-    const csvContent = [headers.join(','), ...sampleData].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(url);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'opening_stock_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+      // Use real item codes from the database if available
+      const sampleCodes = sampleItems && sampleItems.length > 0 
+        ? sampleItems.map(item => item.item_code)
+        : ['SAT001', 'SAT002', 'SAT003']; // fallback codes
+
+      const sampleData = [
+        `${sampleCodes[0] || 'SAT001'},1000,2025-01-01,Initial stock for item 1`,
+        `${sampleCodes[1] || 'SAT002'},500,2025-01-01,Initial stock for item 2`,
+        `${sampleCodes[2] || 'SAT003'},750,2025-01-01,Initial stock for item 3`
+      ];
+
+      const csvContent = [headers.join(','), ...sampleData].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'opening_stock_template.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate template. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getValidationRules = (): ValidationRule<BulkOpeningStockRow>[] => [
@@ -147,7 +168,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
         throw new Error("No valid data rows found in CSV file");
       }
 
-      // Get valid item codes
+      // Get valid item codes and provide better error messages
       setProgress(10);
       
       const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
@@ -158,6 +179,14 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
         .in('item_code', itemCodes);
 
       const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
+
+      // Get a few example item codes for better error messages
+      const { data: exampleItems } = await supabase
+        .from('satguru_item_master')
+        .select('item_code')
+        .limit(5);
+
+      const exampleCodes = exampleItems?.map(i => i.item_code).join(', ') || 'No items found';
 
       setProgress(20);
 
@@ -182,9 +211,12 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
 
           const validatedData = validation.transformedData as BulkOpeningStockRow;
 
-          // Item code validation
+          // Enhanced item code validation with suggestions
           if (!validItemSet.has(validatedData.item_code)) {
-            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
+            throw new Error(
+              `Item code '${validatedData.item_code}' not found in item master. ` +
+              `Please use valid item codes. Examples: ${exampleCodes}`
+            );
           }
 
           const stockDate = validatedData.date || new Date().toISOString().split('T')[0];
@@ -306,7 +338,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
               Download Template
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template for opening stock upload.
+              Download the CSV template with real item codes from your item master.
               Headers are case-insensitive and flexible (e.g., "Item Code" or "item_code" both work).
             </p>
           </div>
