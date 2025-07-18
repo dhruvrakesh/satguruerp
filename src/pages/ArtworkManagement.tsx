@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings, ChevronLeft, ChevronRight } from "lucide-react";
+import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings, ChevronLeft, ChevronRight, Edit, Upload, Users, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { ArtworkEditDialog } from "@/components/artwork/ArtworkEditDialog";
+import { ArtworkUploadDialog } from "@/components/artwork/ArtworkUploadDialog";
+import { BulkArtworkActions } from "@/components/artwork/BulkArtworkActions";
 
 interface ArtworkItem {
   item_code: string;
@@ -44,17 +47,26 @@ interface ArtworkItem {
   remarks?: string;
 }
 
+interface CustomerCount {
+  customer_name: string;
+  count: number;
+}
+
 export default function ArtworkManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [customerFilter, setCustomerFilter] = useState("all");
   const [colorFilter, setColorFilter] = useState("all");
+  const [pdfFilter, setPdfFilter] = useState("all");
   const [selectedArtwork, setSelectedArtwork] = useState<ArtworkItem | null>(null);
+  const [selectedArtworks, setSelectedArtworks] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [editingArtwork, setEditingArtwork] = useState<ArtworkItem | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
 
-  // Fetch artwork statistics (total count without pagination)
+  // Fetch artwork statistics and customer data (full dataset)
   const { data: artworkStats, isLoading: isStatsLoading } = useQuery({
-    queryKey: ["artwork-stats", searchTerm, customerFilter, colorFilter],
+    queryKey: ["artwork-stats", searchTerm, customerFilter, colorFilter, pdfFilter],
     queryFn: async () => {
       let query = supabase
         .from("master_data_artworks_se")
@@ -72,25 +84,52 @@ export default function ArtworkManagement() {
         query = query.eq("no_of_colours", colorFilter);
       }
 
+      if (pdfFilter && pdfFilter !== "all") {
+        if (pdfFilter === "with_pdf") {
+          query = query.not("file_hyperlink", "is", null);
+        } else if (pdfFilter === "without_pdf") {
+          query = query.is("file_hyperlink", null);
+        }
+      }
+
       const { data, error } = await query;
       if (error) throw error;
 
       const totalArtworks = data.length;
-      const withLinks = data.filter(item => item.file_hyperlink && item.file_hyperlink.trim() !== '' && validateGoogleDriveLink(item.file_hyperlink)).length;
-      const uniqueCustomers = [...new Set(data.map(item => item.customer_name).filter(Boolean))];
+      const withLinks = data.filter(item => 
+        item.file_hyperlink && 
+        item.file_hyperlink.trim() !== '' && 
+        validateGoogleDriveLink(item.file_hyperlink)
+      ).length;
+
+      // Calculate customer counts and sort by artwork count (descending)
+      const customerCounts = data.reduce((acc: Record<string, number>, item) => {
+        if (item.customer_name) {
+          acc[item.customer_name] = (acc[item.customer_name] || 0) + 1;
+        }
+        return acc;
+      }, {});
+
+      const sortedCustomers: CustomerCount[] = Object.entries(customerCounts)
+        .map(([customer_name, count]) => ({ customer_name, count }))
+        .sort((a, b) => b.count - a.count);
+
+      const uniqueCustomers = sortedCustomers.map(c => c.customer_name);
 
       return {
         totalArtworks,
         withLinks,
         customers: uniqueCustomers.length,
-        data: data
+        data: data,
+        customerCounts: sortedCustomers,
+        uniqueCustomers
       };
     },
   });
 
   // Fetch paginated artwork data
   const { data: artworkData = [], isLoading } = useQuery({
-    queryKey: ["artwork-management", searchTerm, customerFilter, colorFilter, currentPage, pageSize],
+    queryKey: ["artwork-management", searchTerm, customerFilter, colorFilter, pdfFilter, currentPage, pageSize],
     queryFn: async () => {
       let query = supabase
         .from("master_data_artworks_se")
@@ -107,6 +146,14 @@ export default function ArtworkManagement() {
 
       if (colorFilter && colorFilter !== "all") {
         query = query.eq("no_of_colours", colorFilter);
+      }
+
+      if (pdfFilter && pdfFilter !== "all") {
+        if (pdfFilter === "with_pdf") {
+          query = query.not("file_hyperlink", "is", null);
+        } else if (pdfFilter === "without_pdf") {
+          query = query.is("file_hyperlink", null);
+        }
       }
 
       const from = (currentPage - 1) * pageSize;
@@ -147,14 +194,13 @@ export default function ArtworkManagement() {
     },
   });
 
-  // Get unique customers and colors for filters from stats data
-  const uniqueCustomers = artworkStats?.data ? [...new Set(artworkStats.data.map(item => item.customer_name).filter(Boolean))] : [];
+  // Get unique colors for filters
   const uniqueColors = artworkStats?.data ? [...new Set(artworkStats.data.map(item => item.no_of_colours).filter(Boolean))] : [];
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, customerFilter, colorFilter]);
+  }, [searchTerm, customerFilter, colorFilter, pdfFilter]);
 
   // Get cylinders for selected artwork
   const getArtworkCylinders = (itemCode: string) => {
@@ -183,6 +229,15 @@ export default function ArtworkManagement() {
     return url;
   };
 
+  const handleBulkDownloadPDFs = () => {
+    selectedArtworks.forEach(itemCode => {
+      const artwork = artworkData.find(a => a.item_code === itemCode);
+      if (artwork?.file_hyperlink && validateGoogleDriveLink(artwork.file_hyperlink)) {
+        window.open(artwork.file_hyperlink, '_blank');
+      }
+    });
+  };
+
   const stats = {
     totalArtworks: artworkStats?.totalArtworks || 0,
     withLinks: artworkStats?.withLinks || 0,
@@ -203,6 +258,10 @@ export default function ArtworkManagement() {
           <p className="text-muted-foreground">Comprehensive artwork catalog with Google Drive integration and cylinder tracking</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowUploadDialog(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Artwork
+          </Button>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export Catalog
@@ -295,14 +354,14 @@ export default function ArtworkManagement() {
               </div>
             </div>
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[220px]">
                 <SelectValue placeholder="Filter by Customer" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Customers</SelectItem>
-                {uniqueCustomers.map((customer) => (
-                  <SelectItem key={customer} value={customer}>
-                    {customer}
+                {artworkStats?.customerCounts?.slice(0, 20).map((customer) => (
+                  <SelectItem key={customer.customer_name} value={customer.customer_name}>
+                    {customer.customer_name} ({customer.count})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -320,6 +379,16 @@ export default function ArtworkManagement() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={pdfFilter} onValueChange={setPdfFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="PDF Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All PDFs</SelectItem>
+                <SelectItem value="with_pdf">With PDF</SelectItem>
+                <SelectItem value="without_pdf">Without PDF</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue />
@@ -331,13 +400,28 @@ export default function ArtworkManagement() {
                 <SelectItem value="200">200 per page</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => {setSearchTerm(""); setCustomerFilter("all"); setColorFilter("all");}}>
+            <Button variant="outline" onClick={() => {
+              setSearchTerm(""); 
+              setCustomerFilter("all"); 
+              setColorFilter("all");
+              setPdfFilter("all");
+            }}>
               <Filter className="h-4 w-4 mr-2" />
               Clear
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Actions */}
+      {selectedArtworks.length > 0 && (
+        <BulkArtworkActions
+          selectedCount={selectedArtworks.length}
+          onClearSelection={() => setSelectedArtworks([])}
+          onBulkDownload={handleBulkDownloadPDFs}
+          onBulkEdit={() => {/* TODO: Implement bulk edit */}}
+        />
+      )}
 
       <Tabs defaultValue="artworks" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
@@ -395,48 +479,71 @@ export default function ArtworkManagement() {
                   artworkData.map((artwork) => (
                     <Card key={artwork.item_code} className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold text-lg">{artwork.item_name}</h3>
-                            <Badge variant="outline">{artwork.item_code}</Badge>
-                            <Badge variant="secondary">{artwork.no_of_colours}</Badge>
-                            {validateGoogleDriveLink(artwork.file_hyperlink) && (
-                              <Badge variant="default" className="bg-green-600">
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                PDF Available
-                              </Badge>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedArtworks.includes(artwork.item_code)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedArtworks([...selectedArtworks, artwork.item_code]);
+                              } else {
+                                setSelectedArtworks(selectedArtworks.filter(id => id !== artwork.item_code));
+                              }
+                            }}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="font-semibold text-lg">{artwork.item_name}</h3>
+                              <Badge variant="outline">{artwork.item_code}</Badge>
+                              <Badge variant="secondary">{artwork.no_of_colours}</Badge>
+                              {validateGoogleDriveLink(artwork.file_hyperlink) && (
+                                <Badge variant="default" className="bg-green-600">
+                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                  PDF Available
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Customer</p>
+                                <p className="font-medium">{artwork.customer_name || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Dimensions</p>
+                                <p className="font-medium">{artwork.dimensions || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">UPS</p>
+                                <p className="font-medium">{artwork.ups || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Cylinders</p>
+                                <p className="font-medium">{getArtworkCylinders(artwork.item_code).length}</p>
+                              </div>
+                            </div>
+
+                            {artwork.location && (
+                              <div className="mt-2">
+                                <p className="text-sm text-muted-foreground">
+                                  <strong>Location:</strong> {artwork.location}
+                                </p>
+                              </div>
                             )}
                           </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Customer</p>
-                              <p className="font-medium">{artwork.customer_name || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Dimensions</p>
-                              <p className="font-medium">{artwork.dimensions || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">UPS</p>
-                              <p className="font-medium">{artwork.ups || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Cylinders</p>
-                              <p className="font-medium">{getArtworkCylinders(artwork.item_code).length}</p>
-                            </div>
-                          </div>
-
-                          {artwork.location && (
-                            <div className="mt-2">
-                              <p className="text-sm text-muted-foreground">
-                                <strong>Location:</strong> {artwork.location}
-                              </p>
-                            </div>
-                          )}
                         </div>
 
                         <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setEditingArtwork(artwork)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button 
@@ -635,25 +742,53 @@ export default function ArtworkManagement() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Customer Distribution</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5" />
+                  Top Customers by Artwork Count
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {uniqueCustomers.slice(0, 5).map((customer) => {
-                    const count = artworkStats?.data?.filter(item => item.customer_name === customer).length || 0;
-                    return (
-                      <div key={customer} className="flex justify-between">
-                        <span className="truncate">{customer}</span>
-                        <span className="font-medium">{count}</span>
+                  {artworkStats?.customerCounts?.slice(0, 6).map((customer, index) => (
+                    <div key={customer.customer_name} className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-muted rounded-full w-6 h-6 flex items-center justify-center font-medium">
+                          {index + 1}
+                        </span>
+                        <span className="truncate font-medium">{customer.customer_name}</span>
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-primary">{customer.count}</span>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <ArtworkEditDialog
+        artwork={editingArtwork}
+        open={!!editingArtwork}
+        onClose={() => setEditingArtwork(null)}
+        onSave={() => {
+          setEditingArtwork(null);
+          // Refetch data
+        }}
+      />
+
+      <ArtworkUploadDialog
+        open={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        onUpload={() => {
+          setShowUploadDialog(false);
+          // Refetch data
+        }}
+      />
     </div>
   );
 }
