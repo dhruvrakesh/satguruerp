@@ -87,7 +87,7 @@ export function ItemMasterUpsert() {
       // Get existing items to determine updates vs inserts
       const existingItemNames = valid.map(item => item.item_name);
       const { data: existingItems } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('*')
         .in('item_name', existingItemNames);
 

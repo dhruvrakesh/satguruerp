@@ -7378,6 +7378,16 @@ export type Database = {
         }
         Returns: string
       }
+      get_active_items_for_selection: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          item_code: string
+          item_name: string
+          uom: string
+          status: string
+          usage_type: string
+        }[]
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string

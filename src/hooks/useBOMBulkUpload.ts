@@ -84,12 +84,12 @@ export const useBOMBulkUpload = () => {
 
     // Get all existing item codes for validation
     const { data: fgItems } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .select('item_code')
       .eq('usage_type', 'FINISHED_GOOD');
 
     const { data: rmItems } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .select('item_code')
       .in('usage_type', ['RAW_MATERIAL', 'PACKAGING', 'CONSUMABLE']);
 

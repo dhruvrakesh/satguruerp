@@ -31,7 +31,7 @@ export function ItemMasterCleanup() {
     try {
       // Get all items with their creation dates
       const { data: allItems, error: queryError } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_name, id, item_code, created_at')
         .order('item_name');
 
@@ -273,7 +273,7 @@ export function ItemMasterCleanup() {
               
               // Now safe to delete the duplicate item
               const { error: deleteError } = await supabase
-                .from('item_master')
+                .from('satguru_item_master')
                 .delete()
                 .eq('id', itemToRemove.id);
 

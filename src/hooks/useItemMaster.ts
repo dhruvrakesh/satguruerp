@@ -10,7 +10,13 @@ export const useItemsForSelection = () => {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_active_items_for_selection');
       if (error) throw error;
-      return data || [];
+      return (data || []) as Array<{
+        item_code: string;
+        item_name: string;
+        uom: string;
+        status: string;
+        usage_type: string;
+      }>;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

@@ -125,7 +125,7 @@ export const BOMManagement: React.FC = () => {
     queryKey: ['finished-goods'],
     queryFn: async (): Promise<SimpleItemMaster[]> => {
       const { data, error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code, item_name')
         .eq('usage_type', 'FINISHED_GOOD')
         .order('item_code');
@@ -139,7 +139,7 @@ export const BOMManagement: React.FC = () => {
     queryKey: ['raw-materials'],
     queryFn: async (): Promise<SimpleItemMaster[]> => {
       const { data, error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code, item_name')
         .in('usage_type', ['RAW_MATERIAL', 'PACKAGING', 'CONSUMABLE'])
         .order('item_code');

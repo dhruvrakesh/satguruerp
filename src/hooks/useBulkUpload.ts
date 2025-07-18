@@ -165,9 +165,9 @@ export function useBulkUpload() {
 
       console.log('📂 Found categories:', categories?.length || 0);
 
-      // Get existing item codes for smarter duplicate detection
+      // Get existing item codes for smarter duplicate detection from satguru_item_master
       const { data: existingItems } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code, item_name');
 
       const existingItemCodes = new Set(existingItems?.map(item => item.item_code) || []);
@@ -261,7 +261,7 @@ export function useBulkUpload() {
           if (existingItemCodes.has(generatedCode)) {
             // Check if it's truly a duplicate or just needs updating
             const { data: existingItem } = await supabase
-              .from('item_master')
+              .from('satguru_item_master')
               .select('*')
               .eq('item_code', generatedCode)
               .single();
@@ -288,9 +288,9 @@ export function useBulkUpload() {
 
           console.log('💾 Inserting item data:', itemData);
 
-          // Insert item into the correct table
+          // Insert item into satguru_item_master table
           const { error: insertError } = await supabase
-            .from('item_master')
+            .from('satguru_item_master')
             .insert([itemData]);
 
           if (insertError) {

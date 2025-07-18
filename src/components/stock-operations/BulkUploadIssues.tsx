@@ -42,9 +42,9 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
 
   const downloadTemplate = async () => {
     try {
-      // Get sample item codes from item_master for reference
+      // Get sample item codes from satguru_item_master for reference
       const { data: sampleItems } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code')
         .limit(3);
 
@@ -201,14 +201,14 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
       
       const { data: validItems } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code')
         .in('item_code', itemCodes);
 
       const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
 
       const { data: exampleItems } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code')
         .limit(5);
 
