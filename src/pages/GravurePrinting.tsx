@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette, Activity, Thermometer, Droplets, CheckCircle, AlertTriangle, Play, Pause, Search, Filter } from "lucide-react";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
-import { useProcessHistory } from "@/hooks/useProcessHistory";
+import { useOrderProcessHistoryView } from "@/hooks/useProcessHistory";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { ViscosityTables } from "@/components/manufacturing/ViscosityTables";
 import { PrintingTemplateLoader } from "@/components/manufacturing/PrintingTemplateLoader";
@@ -38,8 +39,7 @@ export default function GravurePrinting() {
     status: "IN_PROGRESS"
   });
 
-  const { data: processHistory = [] } = useProcessHistory.useOrderProcessHistoryView();
-  const artworkData = useArtworkByUiorn(selectedUiorn);
+  const { data: processHistory = [] } = useOrderProcessHistoryView();
 
   useEffect(() => {
     fetchPrintingData();
@@ -58,23 +58,23 @@ export default function GravurePrinting() {
 
   // Enhanced active jobs with real customer data
   const activeJobs = orders.map((order, index) => {
-    const mockJobData = {
+    const artworkData = useArtworkByUiorn(order.uiorn);
+    const customerName = artworkData.data?.customer_name || order.customer_name || "Loading...";
+    const colorCount = extractColorCount(artworkData.data?.no_of_colours || order.product_description || "");
+    
+    return {
       id: index + 1,
+      uiorn: order.uiorn,
+      customer: customerName,
+      product: order.product_description,
       substrate: index % 2 === 0 ? "BOPP Film" : "PET Film",
-      colors: index % 2 === 0 ? ["Cyan", "Magenta", "Yellow", "Black"] : ["Blue", "White", "Silver"],
-      colorCount: index % 2 === 0 ? 4 : 3,
+      colors: generateColorNames(colorCount),
+      colorCount: colorCount,
       speed: index % 2 === 0 ? "120 m/min" : "95 m/min",
       temperature: index % 2 === 0 ? "185°C" : "175°C",
       status: index === 0 ? "RUNNING" : "SETUP",
       progress: index === 0 ? 65 : 15,
       operator: index % 2 === 0 ? "Rajesh Kumar" : "Suresh Patel"
-    };
-
-    return {
-      ...mockJobData,
-      uiorn: order.uiorn,
-      customer: order.customer_name,
-      product: order.product_description
     };
   });
 
@@ -89,11 +89,36 @@ export default function GravurePrinting() {
   };
 
   const extractColorCount = (colorString: string): number => {
-    if (colorString?.includes('COL')) {
-      const match = colorString.match(/(\d+)COL/);
-      return match ? parseInt(match[1]) : 4;
+    console.log('Processing color string:', colorString);
+    
+    if (!colorString) return 4;
+    
+    // Handle various formats: "7COL", "8COL", "COL", "YTRCOL", etc.
+    const colMatch = colorString.match(/(\d+)COL/i);
+    if (colMatch) {
+      const count = parseInt(colMatch[1]);
+      console.log('Extracted color count:', count);
+      return count > 0 && count <= 12 ? count : 4;
     }
-    return 4; // default
+    
+    // Handle pure numbers
+    const numberMatch = colorString.match(/\b(\d+)\b/);
+    if (numberMatch) {
+      const count = parseInt(numberMatch[1]);
+      if (count > 0 && count <= 12) {
+        console.log('Extracted numeric color count:', count);
+        return count;
+      }
+    }
+    
+    // Default fallback
+    console.log('Using default color count: 4');
+    return 4;
+  };
+
+  const generateColorNames = (count: number): string[] => {
+    const allColors = ['Cyan', 'Magenta', 'Yellow', 'Black', 'Blue', 'Green', 'Red', 'White', 'Orange', 'Purple', 'Pink', 'Brown'];
+    return allColors.slice(0, count);
   };
 
   const handleTemplateLoad = (template: any) => {
@@ -299,7 +324,6 @@ export default function GravurePrinting() {
                   <h3 className="font-semibold">Printing Parameters</h3>
                   <PrintingTemplateLoader 
                     uiorn={selectedUiorn}
-                    itemCode={artworkData.data?.artwork?.item_code}
                     onTemplateLoad={handleTemplateLoad}
                   />
                 </div>
