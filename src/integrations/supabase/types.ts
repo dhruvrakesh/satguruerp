@@ -7269,6 +7269,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      cleanup_duplicate_item_names: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          duplicate_groups_found: number
+          records_preserved: number
+          records_deleted: number
+        }[]
+      }
       cleanup_stuck_jobs: {
         Args: Record<PropertyKey, never>
         Returns: number
