@@ -11,7 +11,7 @@ export class ItemCodeGenerator {
     if (this.initialized) return;
 
     const { data: items, error } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .select('item_code, item_name');
 
     if (error) {
@@ -32,7 +32,7 @@ export class ItemCodeGenerator {
       throw new Error('ItemCodeGenerator not initialized. Call initialize() first.');
     }
 
-    // Check if item_name already has an item_code
+    // Check if item_name already has an item_code - preserve existing codes to maintain foreign key relationships
     const existingCode = await this.lookupExistingCodeForName(item.item_name);
     if (existingCode) {
       return existingCode;
@@ -50,7 +50,7 @@ export class ItemCodeGenerator {
 
     // If not in cache, query database directly
     const { data, error } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .select('item_code')
       .eq('item_name', itemName)
       .maybeSingle();
@@ -84,7 +84,15 @@ export class ItemCodeGenerator {
       throw new Error(`Failed to generate item code: ${error.message}`);
     }
 
-    const newCode = data as string;
+    let newCode = data as string;
+    
+    // Ensure uniqueness by checking against existing codes
+    let counter = 1;
+    let baseCode = newCode;
+    while (this.existingCodes.has(newCode)) {
+      newCode = `${baseCode}_${counter.toString().padStart(2, '0')}`;
+      counter++;
+    }
     
     // Add to our tracking
     this.existingCodes.add(newCode);

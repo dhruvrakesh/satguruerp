@@ -1,28 +1,31 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
-import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError } from "@/types";
-import { CSVParser } from "@/utils/csvParser";
+import { AlertCircle, Download, Upload, CheckCircle } from "lucide-react";
 import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkGRNRow {
-  grn_number: string;
-  date: string;
   item_code: string;
+  grn_number: string;
   qty_received: number;
-  uom?: string;
-  vendor?: string;
-  invoice_number?: string;
-  amount_inr?: number;
+  received_date: string;
+  supplier_name?: string;
+  rate?: number;
+  batch_number?: string;
   remarks?: string;
+}
+
+interface BulkUploadResult {
+  success: number;
+  errors: Array<{ row: number; message: string }>;
 }
 
 interface BulkUploadGRNProps {
@@ -31,60 +34,68 @@ interface BulkUploadGRNProps {
 }
 
 export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BulkUploadResult | null>(null);
   const queryClient = useQueryClient();
 
-  const downloadTemplate = () => {
-    const headers = [
-      'GRN Number',
-      'Date',
-      'Item Code',
-      'Qty Received',
-      'UOM',
-      'Vendor',
-      'Invoice Number',
-      'Amount INR',
-      'Remarks'
-    ];
+  const downloadTemplate = async () => {
+    try {
+      // Get sample item codes from item_master for reference
+      const { data: sampleItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .limit(3);
 
-    const sampleData = [
-      'SGRN202501170001,2025-01-17,RAW_001,100,KG,Supplier ABC,INV001,5000,Received in good condition',
-      'SGRN202501170002,2025-01-17,FIN_002,50,PCS,Supplier XYZ,INV002,2500,Quality checked'
-    ];
+      const headers = [
+        'Item Code',
+        'GRN Number',
+        'Qty Received',
+        'Received Date',
+        'Supplier Name',
+        'Rate',
+        'Batch Number',
+        'Remarks'
+      ];
 
-    const csvContent = [headers.join(','), ...sampleData].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'grn_bulk_upload_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+      const sampleCodes = sampleItems && sampleItems.length > 0 
+        ? sampleItems.map(item => item.item_code)
+        : ['RAW_ADH_117', 'PAC_ADH_110', 'FIN_001'];
+
+      const sampleData = [
+        `${sampleCodes[0] || 'RAW_ADH_117'},GRN-2025-001,1000,2025-01-15,Supplier A,25.50,BATCH001,Raw material receipt`,
+        `${sampleCodes[1] || 'PAC_ADH_110'},GRN-2025-002,500,2025-01-15,Supplier B,12.00,BATCH002,Packaging material receipt`,
+        `${sampleCodes[2] || 'FIN_001'},GRN-2025-003,200,2025-01-15,Internal,0,BATCH003,Internal transfer`
+      ];
+
+      const csvContent = [headers.join(','), ...sampleData].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'grn_upload_template.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate template. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getValidationRules = (): ValidationRule<BulkGRNRow>[] => [
     {
-      field: 'grn_number',
-      required: true,
-      type: 'string',
-      pattern: /^[A-Z0-9_-]+$/,
-      customValidator: (value) => {
-        if (value && value.length < 5) {
-          return 'GRN number should be at least 5 characters';
-        }
-        return null;
-      }
-    },
-    {
-      field: 'date',
-      required: true,
-      type: 'date',
-      customValidator: (value) => BulkUploadValidator.validateDate(value)
-    },
-    {
       field: 'item_code',
+      required: true,
+      type: 'string'
+    },
+    {
+      field: 'grn_number',
       required: true,
       type: 'string'
     },
@@ -92,30 +103,28 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       field: 'qty_received',
       required: true,
       type: 'number',
-      min: 0.001,
-      max: 999999
+      min: 0
     },
     {
-      field: 'uom',
-      required: false,
-      type: 'string',
-      defaultValue: 'PCS'
+      field: 'received_date',
+      required: true,
+      type: 'date'
     },
     {
-      field: 'vendor',
+      field: 'supplier_name',
       required: false,
       type: 'string'
     },
     {
-      field: 'invoice_number',
-      required: false,
-      type: 'string'
-    },
-    {
-      field: 'amount_inr',
+      field: 'rate',
       required: false,
       type: 'number',
       min: 0
+    },
+    {
+      field: 'batch_number',
+      required: false,
+      type: 'string'
     },
     {
       field: 'remarks',
@@ -124,316 +133,302 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     }
   ];
 
-  const processCSV = async (file: File): Promise<BulkUploadResult> => {
-    setIsProcessing(true);
-    setProgress(0);
-
-    try {
-      const text = await file.text();
-      console.log('📄 Processing CSV file:', file.name, 'Size:', file.size);
-
-      // Enhanced CSV parsing with flexible header mapping
-      const headerMapping = {
-        'grn_number': 'grn_number',
-        'grnnumber': 'grn_number',
-        'grn': 'grn_number',
-        'date': 'date',
-        'grn_date': 'date',
-        'item_code': 'item_code',
-        'itemcode': 'item_code',
-        'item': 'item_code',
-        'qty_received': 'qty_received',
-        'qtyreceived': 'qty_received',
-        'quantity': 'qty_received',
-        'qty': 'qty_received',
-        'uom': 'uom',
-        'unit': 'uom',
-        'vendor': 'vendor',
-        'supplier': 'vendor',
-        'invoice_number': 'invoice_number',
-        'invoicenumber': 'invoice_number',
-        'invoice': 'invoice_number',
-        'amount_inr': 'amount_inr',
-        'amountinr': 'amount_inr',
-        'amount': 'amount_inr',
-        'value': 'amount_inr',
-        'remarks': 'remarks',
-        'notes': 'remarks'
-      };
-
-      const parseResult = CSVParser.parseCSV(text, {
-        requiredHeaders: ['grn_number', 'date', 'item_code', 'qty_received'],
-        headerMapping,
-        skipEmptyRows: true,
-        trimValues: true
-      });
-
-      console.log('📊 CSV Parse Result:', {
-        totalRows: parseResult.totalRows,
-        validRows: parseResult.validRows,
-        parseErrors: parseResult.errors.length,
-        headers: parseResult.headers
-      });
-
-      if (parseResult.errors.length > 0) {
-        console.error('❌ CSV Parse Errors:', parseResult.errors);
-      }
-
-      const results: BulkUploadResult = {
-        successCount: 0,
-        errorCount: 0,
-        errors: []
-      };
-
-      // Add parse errors to results
-      parseResult.errors.forEach(error => {
-        results.errorCount++;
-        results.errors.push({
-          rowNumber: error.rowNumber,
-          reason: error.error,
-          data: { raw_data: error.rawData || '' }
-        });
-      });
-
-      if (parseResult.data.length === 0) {
-        throw new Error("No valid data rows found in CSV file");
-      }
-
-      // Get existing GRN numbers and item codes for validation
-      setProgress(10);
-      
-      const grnNumbers = parseResult.data.map(row => row.grn_number).filter(Boolean);
-      const itemCodes = parseResult.data.map(row => row.item_code).filter(Boolean);
-
-      const [existingGRNs, validItems] = await Promise.all([
-        supabase
-          .from('satguru_grn_log')
-          .select('grn_number')
-          .in('grn_number', grnNumbers),
-        supabase
-          .from('satguru_item_master')
-          .select('item_code')
-          .in('item_code', itemCodes)
-      ]);
-
-      const existingGRNSet = new Set(existingGRNs.data?.map(g => g.grn_number) || []);
-      const validItemSet = new Set(validItems.data?.map(i => i.item_code) || []);
-
-      setProgress(20);
-
-      // Validation rules
-      const validationRules = getValidationRules();
-
-      // Process each row with enhanced validation
-      for (let i = 0; i < parseResult.data.length; i++) {
-        const rowNumber = i + 1;
-        const rowData = parseResult.data[i];
-        
-        setProgress(20 + (i / parseResult.data.length) * 70);
-        
-        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
-
-        try {
-          // Validate row data
-          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
-          
-          if (!validation.isValid) {
-            throw new Error(validation.errors.join('; '));
-          }
-
-          const validatedData = validation.transformedData as BulkGRNRow;
-
-          // Business logic validations
-          if (existingGRNSet.has(validatedData.grn_number)) {
-            throw new Error(`GRN number ${validatedData.grn_number} already exists`);
-          }
-
-          if (!validItemSet.has(validatedData.item_code)) {
-            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
-          }
-
-          // Prepare GRN data for insertion
-          const grnData = {
-            grn_number: validatedData.grn_number,
-            date: validatedData.date,
-            item_code: validatedData.item_code,
-            qty_received: validatedData.qty_received,
-            vendor: validatedData.vendor || null,
-            invoice_number: validatedData.invoice_number || null,
-            amount_inr: validatedData.amount_inr || null,
-            remarks: validatedData.remarks || null,
-            uom: validatedData.uom || 'PCS'
-          };
-
-          console.log('💾 Inserting GRN:', grnData);
-
-          // Insert GRN
-          const { error: insertError } = await supabase
-            .from('satguru_grn_log')
-            .insert([grnData]);
-
-          if (insertError) {
-            console.error('❌ Insert error:', insertError);
-            throw new Error(`Database error: ${insertError.message}`);
-          }
-
-          console.log('✅ Successfully inserted GRN:', validatedData.grn_number);
-          results.successCount++;
-          
-          // Add to existing set to prevent duplicates within batch
-          existingGRNSet.add(validatedData.grn_number);
-
-        } catch (error) {
-          console.error(`❌ Error processing row ${rowNumber}:`, error);
-          results.errorCount++;
-          results.errors.push({
-            rowNumber: rowNumber + parseResult.errors.length, // Adjust for parse errors
-            reason: error instanceof Error ? error.message : 'Unknown error',
-            data: rowData
-          });
-        }
-      }
-
-      setProgress(100);
-      console.log('🎉 Processing complete:', results);
-      return results;
-
-    } finally {
-      setIsProcessing(false);
+  const parseCSV = (content: string) => {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
     }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
+    const data: any[] = [];
+
+    // Flexible header mapping
+    const headerMap: Record<string, string[]> = {
+      'item_code': ['item_code', 'itemcode', 'item', 'code'],
+      'grn_number': ['grn_number', 'grnnumber', 'grn', 'receipt_number'],
+      'qty_received': ['qty_received', 'qtyreceived', 'quantity', 'qty'],
+      'received_date': ['received_date', 'receiveddate', 'date', 'receipt_date'],
+      'supplier_name': ['supplier_name', 'suppliername', 'supplier', 'vendor'],
+      'rate': ['rate', 'price', 'unit_price', 'cost'],
+      'batch_number': ['batch_number', 'batchnumber', 'batch', 'lot'],
+      'remarks': ['remarks', 'notes', 'comment', 'description']
+    };
+
+    // Find matching headers
+    const mappedHeaders: Record<string, number> = {};
+    Object.entries(headerMap).forEach(([field, alternatives]) => {
+      const headerIndex = headers.findIndex(h => alternatives.includes(h));
+      if (headerIndex !== -1) {
+        mappedHeaders[field] = headerIndex;
+      }
+    });
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length === 1 && values[0] === '') continue;
+
+      const row: any = {};
+      Object.entries(mappedHeaders).forEach(([field, index]) => {
+        if (values[index] !== undefined) {
+          row[field] = values[index];
+        }
+      });
+
+      if (row.item_code && row.grn_number) {
+        data.push(row);
+      }
+    }
+
+    return { data, headers: Object.keys(mappedHeaders) };
   };
 
-  const uploadMutation = useMutation({
-    mutationFn: processCSV,
-    onSuccess: (results) => {
-      setResults(results);
-      queryClient.invalidateQueries({ queryKey: ['grn'] });
-      queryClient.invalidateQueries({ queryKey: ['stock'] });
-      
+  const handleUpload = async () => {
+    if (!file) {
       toast({
-        title: "GRN upload completed",
-        description: `${results.successCount} GRNs uploaded successfully${results.errorCount > 0 ? `, ${results.errorCount} errors found` : ''}`
-      });
-    },
-    onError: (error: Error) => {
-      console.error('💥 Upload failed:', error);
-      toast({
-        title: "Upload failed",
-        description: error.message || "An error occurred during upload",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleFileUpload = (files: File[]) => {
-    if (files.length === 0) return;
-    
-    const file = files[0];
-    if (!file.name.endsWith('.csv')) {
-      toast({
-        title: "Invalid file",
-        description: "Please upload a CSV file",
+        title: "Error",
+        description: "Please select a CSV file to upload",
         variant: "destructive"
       });
       return;
     }
 
-    console.log('📁 Starting file upload:', file.name);
+    setIsUploading(true);
+    setProgress(0);
     setResults(null);
-    uploadMutation.mutate(file);
+
+    try {
+      const content = await file.text();
+      const parseResult = parseCSV(content);
+
+      if (!parseResult.data || parseResult.data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
+      }
+
+      // Validate against item_master
+      setProgress(10);
+      
+      const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
+      
+      const { data: validItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .in('item_code', itemCodes);
+
+      const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
+
+      const { data: exampleItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .limit(5);
+
+      const exampleCodes = exampleItems?.map(i => i.item_code).join(', ') || 'No items found';
+
+      setProgress(20);
+
+      const validationRules = getValidationRules();
+      const processedRows: any[] = [];
+      const errors: Array<{ row: number; message: string }> = [];
+
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const rowNum = i + 2;
+        try {
+          const validation = BulkUploadValidator.validateRow(
+            parseResult.data[i],
+            validationRules,
+            rowNum
+          );
+
+          if (!validation.isValid) {
+            errors.push({
+              row: rowNum,
+              message: validation.errors.join('; ')
+            });
+            continue;
+          }
+
+          const validatedData = validation.transformedData as BulkGRNRow;
+
+          if (!validItemSet.has(validatedData.item_code)) {
+            throw new Error(
+              `Item code '${validatedData.item_code}' not found in item master. ` +
+              `Please use valid item codes. Examples: ${exampleCodes}`
+            );
+          }
+
+          processedRows.push({
+            item_code: validatedData.item_code,
+            grn_number: validatedData.grn_number,
+            qty_received: validatedData.qty_received,
+            received_date: validatedData.received_date,
+            supplier_name: validatedData.supplier_name || 'Unknown',
+            rate: validatedData.rate || 0,
+            batch_number: validatedData.batch_number || null,
+            remarks: validatedData.remarks || 'Bulk GRN upload',
+            created_at: new Date().toISOString()
+          });
+
+        } catch (error: any) {
+          errors.push({
+            row: rowNum,
+            message: error.message || 'Unknown validation error'
+          });
+        }
+      }
+
+      setProgress(60);
+
+      // Insert into satguru_grn_log
+      let successCount = 0;
+      if (processedRows.length > 0) {
+        const { data, error } = await supabase
+          .from('satguru_grn_log')
+          .insert(processedRows)
+          .select();
+
+        if (error) {
+          throw new Error(`Database error: ${error.message}`);
+        }
+
+        successCount = processedRows.length;
+      }
+
+      setProgress(100);
+
+      const result: BulkUploadResult = {
+        success: successCount,
+        errors: errors
+      };
+
+      setResults(result);
+
+      if (successCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['grn'] });
+        queryClient.invalidateQueries({ queryKey: ['stock'] });
+        toast({
+          title: "Success",
+          description: `Successfully uploaded ${successCount} GRN entries`,
+        });
+      }
+
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+      setProgress(0);
+    }
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setResults(null);
+    setProgress(0);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Upload className="w-5 h-5" />
-            Bulk Upload GRNs
-          </DialogTitle>
+          <DialogTitle>Bulk Upload GRN</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <div>
-            <Button onClick={downloadTemplate} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 1: Download Template</Label>
+            <Button onClick={downloadTemplate} variant="outline" className="w-full">
+              <Download className="h-4 w-4 mr-2" />
               Download Template
             </Button>
-            <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template with sample data and required headers. 
-              Headers are case-insensitive and flexible (e.g., "GRN Number" or "grn_number" both work).
+            <p className="text-sm text-muted-foreground">
+              Download the CSV template with sample GRN data format.
             </p>
           </div>
 
-          {!isProcessing && !results && (
-            <FileUpload
-              onFilesSelected={handleFileUpload}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 2: Upload CSV File</Label>
+            <Input
+              type="file"
               accept=".csv"
-              multiple={false}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0];
+                if (selectedFile) {
+                  setFile(selectedFile);
+                  setResults(null);
+                }
+              }}
             />
-          )}
+            {file && (
+              <p className="text-sm text-green-600">
+                Selected: {file.name} ({Math.round(file.size / 1024)} KB)
+              </p>
+            )}
+          </div>
 
-          {isProcessing && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Processing GRN upload...</p>
-              </div>
+          {isUploading && (
+            <div className="space-y-2">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-center text-muted-foreground">
-                {progress.toFixed(0)}% complete
+              <p className="text-sm text-muted-foreground">
+                Processing... {progress}%
               </p>
             </div>
           )}
 
           {results && (
             <div className="space-y-4">
-              <Alert className={results.errorCount === 0 ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
-                <AlertCircle className="h-4 w-4" />
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="font-medium">{results.successCount} GRNs uploaded successfully</span>
-                    </div>
-                    {results.errorCount > 0 && (
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-orange-600" />
-                        <span className="font-medium">{results.errorCount} errors found</span>
-                      </div>
-                    )}
-                  </div>
+                  <strong>Upload Complete:</strong> {results.success} GRN entries processed successfully
+                  {results.errors.length > 0 && `, ${results.errors.length} errors`}
                 </AlertDescription>
               </Alert>
 
               {results.errors.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Errors:</h4>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {results.errors.map((error, index) => (
-                      <div key={index} className="text-sm p-2 bg-red-50 border border-red-200 rounded">
-                        <span className="font-medium">Row {error.rowNumber}:</span> {error.reason}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <strong>Errors found:</strong>
+                      {results.errors.slice(0, 5).map((error, index) => (
+                        <div key={index} className="text-xs">
+                          Row {error.row}: {error.message}
+                        </div>
+                      ))}
+                      {results.errors.length > 5 && (
+                        <div className="text-xs">
+                          ... and {results.errors.length - 5} more errors
+                        </div>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => {
-                    setResults(null);
-                    setProgress(0);
-                  }}
-                  variant="outline"
-                >
-                  Upload Another File
-                </Button>
-                <Button onClick={() => onOpenChange(false)}>
-                  Close
-                </Button>
-              </div>
             </div>
           )}
+
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={resetForm}>
+              Reset
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!file || isUploading}
+              className="min-w-[120px]"
+            >
+              {isUploading ? (
+                <>Processing...</>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload GRN
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

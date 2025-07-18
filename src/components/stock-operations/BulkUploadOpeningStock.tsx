@@ -1,23 +1,27 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
-import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError } from "@/types";
-import { CSVParser } from "@/utils/csvParser";
+import { AlertCircle, Download, Upload, CheckCircle } from "lucide-react";
 import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkOpeningStockRow {
   item_code: string;
   opening_qty: number;
-  date?: string;
+  date: string;
   remarks?: string;
+}
+
+interface BulkUploadResult {
+  success: number;
+  errors: Array<{ row: number; message: string }>;
 }
 
 interface BulkUploadOpeningStockProps {
@@ -26,16 +30,18 @@ interface BulkUploadOpeningStockProps {
 }
 
 export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpeningStockProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BulkUploadResult | null>(null);
   const queryClient = useQueryClient();
 
   const downloadTemplate = async () => {
     try {
-      // Get a few sample item codes from the database
+      // Get sample item codes from item_master (for validation reference)
       const { data: sampleItems } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .select('item_code')
         .limit(3);
 
@@ -49,12 +55,12 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
       // Use real item codes from the database if available
       const sampleCodes = sampleItems && sampleItems.length > 0 
         ? sampleItems.map(item => item.item_code)
-        : ['SAT001', 'SAT002', 'SAT003']; // fallback codes
+        : ['RAW_ADH_117', 'PAC_ADH_110', 'FIN_001']; // fallback codes
 
       const sampleData = [
-        `${sampleCodes[0] || 'SAT001'},1000,2025-01-01,Initial stock for item 1`,
-        `${sampleCodes[1] || 'SAT002'},500,2025-01-01,Initial stock for item 2`,
-        `${sampleCodes[2] || 'SAT003'},750,2025-01-01,Initial stock for item 3`
+        `${sampleCodes[0] || 'RAW_ADH_117'},1000,2025-01-01,Initial stock for item 1`,
+        `${sampleCodes[1] || 'PAC_ADH_110'},500,2025-01-01,Initial stock for item 2`,
+        `${sampleCodes[2] || 'FIN_001'},750,2025-01-01,Initial stock for item 3`
       ];
 
       const csvContent = [headers.join(','), ...sampleData].join('\n');
@@ -85,14 +91,7 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
       field: 'opening_qty',
       required: true,
       type: 'number',
-      min: 0,
-      max: 999999,
-      customValidator: (value) => {
-        if (value < 0) {
-          return 'Opening quantity cannot be negative';
-        }
-        return null;
-      }
+      min: 0
     },
     {
       field: 'date',
@@ -103,86 +102,93 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
     {
       field: 'remarks',
       required: false,
-      type: 'string',
-      defaultValue: 'Opening stock entry'
+      type: 'string'
     }
   ];
 
-  const processCSV = async (file: File): Promise<BulkUploadResult> => {
-    setIsProcessing(true);
+  const parseCSV = (content: string) => {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
+    const data: any[] = [];
+
+    // Flexible header mapping
+    const headerMap: Record<string, string> = {
+      'item_code': ['item_code', 'itemcode', 'item', 'code'],
+      'opening_qty': ['opening_qty', 'openingqty', 'qty', 'quantity', 'opening_quantity'],
+      'date': ['date', 'stock_date', 'opening_date'],
+      'remarks': ['remarks', 'notes', 'comment', 'description']
+    };
+
+    // Find matching headers
+    const mappedHeaders: Record<string, number> = {};
+    Object.entries(headerMap).forEach(([field, alternatives]) => {
+      const headerIndex = headers.findIndex(h => alternatives.includes(h));
+      if (headerIndex !== -1) {
+        mappedHeaders[field] = headerIndex;
+      }
+    });
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length === 1 && values[0] === '') continue; // Skip empty lines
+
+      const row: any = {};
+      Object.entries(mappedHeaders).forEach(([field, index]) => {
+        if (values[index] !== undefined) {
+          row[field] = values[index];
+        }
+      });
+
+      if (row.item_code) {
+        data.push(row);
+      }
+    }
+
+    return { data, headers: Object.keys(mappedHeaders) };
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      toast({
+        title: "Error",
+        description: "Please select a CSV file to upload",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
     setProgress(0);
+    setResults(null);
 
     try {
-      const text = await file.text();
-      console.log('📄 Processing Opening Stock CSV file:', file.name, 'Size:', file.size);
+      // Read and parse CSV
+      const content = await file.text();
+      const parseResult = parseCSV(content);
 
-      // Enhanced CSV parsing with flexible header mapping
-      const headerMapping = {
-        'item_code': 'item_code',
-        'itemcode': 'item_code',
-        'item': 'item_code',
-        'opening_qty': 'opening_qty',
-        'openingqty': 'opening_qty',
-        'opening_quantity': 'opening_qty',
-        'quantity': 'opening_qty',
-        'qty': 'opening_qty',
-        'date': 'date',
-        'stock_date': 'date',
-        'opening_date': 'date',
-        'remarks': 'remarks',
-        'notes': 'remarks',
-        'comment': 'remarks'
-      };
-
-      const parseResult = CSVParser.parseCSV(text, {
-        requiredHeaders: ['item_code', 'opening_qty'],
-        headerMapping,
-        skipEmptyRows: true,
-        trimValues: true
-      });
-
-      console.log('📊 CSV Parse Result:', {
-        totalRows: parseResult.totalRows,
-        validRows: parseResult.validRows,
-        parseErrors: parseResult.errors.length,
-        headers: parseResult.headers
-      });
-
-      const results: BulkUploadResult = {
-        successCount: 0,
-        errorCount: 0,
-        errors: []
-      };
-
-      // Add parse errors to results
-      parseResult.errors.forEach(error => {
-        results.errorCount++;
-        results.errors.push({
-          rowNumber: error.rowNumber,
-          reason: error.error,
-          data: { raw_data: error.rawData || '' }
-        });
-      });
-
-      if (parseResult.data.length === 0) {
+      if (!parseResult.data || parseResult.data.length === 0) {
         throw new Error("No valid data rows found in CSV file");
       }
 
-      // Get valid item codes and provide better error messages
+      // Get valid item codes from item_master (validation table)
       setProgress(10);
       
       const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
-
+      
       const { data: validItems } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .select('item_code')
         .in('item_code', itemCodes);
 
       const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
 
-      // Get a few example item codes for better error messages
+      // Get example item codes for better error messages
       const { data: exampleItems } = await supabase
-        .from('satguru_item_master')
+        .from('item_master')
         .select('item_code')
         .limit(5);
 
@@ -191,22 +197,26 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
       setProgress(20);
 
       const validationRules = getValidationRules();
+      const processedRows: any[] = [];
+      const errors: Array<{ row: number; message: string }> = [];
 
       // Process each row
       for (let i = 0; i < parseResult.data.length; i++) {
-        const rowNumber = i + 1;
-        const rowData = parseResult.data[i];
-        
-        setProgress(20 + (i / parseResult.data.length) * 70);
-        
-        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
-
+        const rowNum = i + 2; // Account for header row
         try {
           // Validate row data
-          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
-          
+          const validation = BulkUploadValidator.validateRow(
+            parseResult.data[i],
+            validationRules,
+            rowNum
+          );
+
           if (!validation.isValid) {
-            throw new Error(validation.errors.join('; '));
+            errors.push({
+              row: rowNum,
+              message: validation.errors.join('; ')
+            });
+            continue;
           }
 
           const validatedData = validation.transformedData as BulkOpeningStockRow;
@@ -221,120 +231,99 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
 
           const stockDate = validatedData.date || new Date().toISOString().split('T')[0];
 
-          // Insert/Update stock record
-          const { error: upsertError } = await supabase
-            .from('satguru_stock')
-            .upsert({
-              item_code: validatedData.item_code,
-              current_qty: validatedData.opening_qty,
-              last_updated: new Date().toISOString()
-            }, {
-              onConflict: 'item_code'
-            });
-
-          if (upsertError) {
-            console.error('❌ Stock upsert error:', upsertError);
-            throw new Error(`Stock update error: ${upsertError.message}`);
-          }
-
-          // Create GRN record for audit trail
-          const grnData = {
-            grn_number: `OPENING-${Date.now()}-${i + 1}`,
-            date: stockDate,
+          processedRows.push({
             item_code: validatedData.item_code,
-            qty_received: validatedData.opening_qty,
-            vendor: 'OPENING_STOCK',
-            remarks: validatedData.remarks || 'Opening stock entry',
-            uom: 'PCS'
-          };
+            current_qty: validatedData.opening_qty,
+            last_updated: new Date().toISOString(),
+            opening_stock_date: stockDate,
+            remarks: validatedData.remarks || 'Bulk opening stock upload'
+          });
 
-          const { error: grnError } = await supabase
-            .from('satguru_grn_log')
-            .insert([grnData]);
-
-          if (grnError) {
-            console.error('❌ GRN error:', grnError);
-            // Don't fail the whole operation for GRN audit trail issues
-            console.warn('GRN audit trail creation failed, but stock was updated');
-          }
-
-          console.log('✅ Successfully processed opening stock for:', validatedData.item_code);
-          results.successCount++;
-
-        } catch (error) {
-          console.error(`❌ Error processing row ${rowNumber}:`, error);
-          results.errorCount++;
-          results.errors.push({
-            rowNumber: rowNumber + parseResult.errors.length,
-            reason: error instanceof Error ? error.message : 'Unknown error',
-            data: rowData
+        } catch (error: any) {
+          errors.push({
+            row: rowNum,
+            message: error.message || 'Unknown validation error'
           });
         }
       }
 
-      setProgress(100);
-      console.log('🎉 Processing complete:', results);
-      return results;
+      setProgress(60);
 
+      // Insert valid rows into satguru_stock
+      let successCount = 0;
+      if (processedRows.length > 0) {
+        const { data, error } = await supabase
+          .from('satguru_stock')
+          .upsert(processedRows, { 
+            onConflict: 'item_code',
+            ignoreDuplicates: false 
+          })
+          .select();
+
+        if (error) {
+          throw new Error(`Database error: ${error.message}`);
+        }
+
+        successCount = processedRows.length;
+      }
+
+      setProgress(100);
+
+      const result: BulkUploadResult = {
+        success: successCount,
+        errors: errors
+      };
+
+      setResults(result);
+
+      if (successCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['stock'] });
+        toast({
+          title: "Success",
+          description: `Successfully uploaded opening stock for ${successCount} items`,
+        });
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${successCount} items uploaded, ${errors.length} errors occurred`,
+          variant: "destructive"
+        });
+      }
+
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
     } finally {
-      setIsProcessing(false);
+      setIsUploading(false);
+      setProgress(0);
     }
   };
 
-  const uploadMutation = useMutation({
-    mutationFn: processCSV,
-    onSuccess: (results) => {
-      setResults(results);
-      queryClient.invalidateQueries({ queryKey: ['stock'] });
-      queryClient.invalidateQueries({ queryKey: ['grn'] });
-      
-      toast({
-        title: "Opening stock upload completed",
-        description: `${results.successCount} items processed successfully${results.errorCount > 0 ? `, ${results.errorCount} errors found` : ''}`
-      });
-    },
-    onError: (error: Error) => {
-      console.error('💥 Upload failed:', error);
-      toast({
-        title: "Upload failed",
-        description: error.message || "An error occurred during upload",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleFileUpload = (files: File[]) => {
-    if (files.length === 0) return;
-    
-    const file = files[0];
-    if (!file.name.endsWith('.csv')) {
-      toast({
-        title: "Invalid file",
-        description: "Please upload a CSV file",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    console.log('📁 Starting opening stock file upload:', file.name);
+  const resetForm = () => {
+    setFile(null);
     setResults(null);
-    uploadMutation.mutate(file);
+    setProgress(0);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Upload className="w-5 h-5" />
-            Bulk Upload Opening Stock
-          </DialogTitle>
+          <DialogTitle>Bulk Upload Opening Stock</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <div>
-            <Button onClick={downloadTemplate} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
+          {/* Template Download */}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 1: Download Template</Label>
+            <Button onClick={downloadTemplate} variant="outline" className="w-full">
+              <Download className="h-4 w-4 mr-2" />
               Download Template
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
@@ -343,75 +332,91 @@ export function BulkUploadOpeningStock({ open, onOpenChange }: BulkUploadOpening
             </p>
           </div>
 
-          {!isProcessing && !results && (
-            <FileUpload
-              onFilesSelected={handleFileUpload}
+          {/* File Upload */}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 2: Upload CSV File</Label>
+            <Input
+              type="file"
               accept=".csv"
-              multiple={false}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0];
+                if (selectedFile) {
+                  setFile(selectedFile);
+                  setResults(null);
+                }
+              }}
             />
-          )}
+            {file && (
+              <p className="text-sm text-green-600">
+                Selected: {file.name} ({Math.round(file.size / 1024)} KB)
+              </p>
+            )}
+          </div>
 
-          {isProcessing && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Processing opening stock upload...</p>
-              </div>
+          {/* Upload Progress */}
+          {isUploading && (
+            <div className="space-y-2">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-center text-muted-foreground">
-                {progress.toFixed(0)}% complete
+              <p className="text-sm text-muted-foreground">
+                Processing... {progress}%
               </p>
             </div>
           )}
 
+          {/* Results */}
           {results && (
             <div className="space-y-4">
-              <Alert className={results.errorCount === 0 ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
-                <AlertCircle className="h-4 w-4" />
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="font-medium">{results.successCount} items processed successfully</span>
-                    </div>
-                    {results.errorCount > 0 && (
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-orange-600" />
-                        <span className="font-medium">{results.errorCount} errors found</span>
-                      </div>
-                    )}
-                  </div>
+                  <strong>Upload Complete:</strong> {results.success} items processed successfully
+                  {results.errors.length > 0 && `, ${results.errors.length} errors`}
                 </AlertDescription>
               </Alert>
 
               {results.errors.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Errors:</h4>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {results.errors.map((error, index) => (
-                      <div key={index} className="text-sm p-2 bg-red-50 border border-red-200 rounded">
-                        <span className="font-medium">Row {error.rowNumber}:</span> {error.reason}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <strong>Errors found:</strong>
+                      {results.errors.slice(0, 5).map((error, index) => (
+                        <div key={index} className="text-xs">
+                          Row {error.row}: {error.message}
+                        </div>
+                      ))}
+                      {results.errors.length > 5 && (
+                        <div className="text-xs">
+                          ... and {results.errors.length - 5} more errors
+                        </div>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => {
-                    setResults(null);
-                    setProgress(0);
-                  }}
-                  variant="outline"
-                >
-                  Upload Another File
-                </Button>
-                <Button onClick={() => onOpenChange(false)}>
-                  Close
-                </Button>
-              </div>
             </div>
           )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={resetForm}>
+              Reset
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!file || isUploading}
+              className="min-w-[120px]"
+            >
+              {isUploading ? (
+                <>Processing...</>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Stock
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

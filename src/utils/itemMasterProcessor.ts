@@ -71,7 +71,7 @@ export class ItemMasterProcessor {
     };
 
     const { error } = await supabase
-      .from('item_master')
+      .from('satguru_item_master')
       .update(updateData)
       .eq('id', record.existing_item.id);
 
@@ -81,11 +81,25 @@ export class ItemMasterProcessor {
   }
 
   private async insertNewItem(record: ParsedRecord): Promise<void> {
-    // Generate or get existing item code for this item_name
-    const itemCode = await this.itemCodeGenerator.getOrGenerateCodeForItem(
-      record, 
-      record.category_name
-    );
+    // Check if item_name already exists to preserve existing codes and foreign key relationships
+    const { data: existingItem } = await supabase
+      .from('satguru_item_master')
+      .select('item_code')
+      .eq('item_name', record.item_name)
+      .maybeSingle();
+
+    let itemCode: string;
+    
+    if (existingItem) {
+      // Use existing item code to preserve foreign key relationships
+      itemCode = existingItem.item_code;
+    } else {
+      // Generate or get new item code for new item_name
+      itemCode = await this.itemCodeGenerator.getOrGenerateCodeForItem(
+        record, 
+        record.category_name
+      );
+    }
 
     const insertData = {
       item_code: itemCode,
@@ -101,8 +115,11 @@ export class ItemMasterProcessor {
     };
 
     const { error } = await supabase
-      .from('item_master')
-      .insert(insertData);
+      .from('satguru_item_master')
+      .upsert(insertData, { 
+        onConflict: 'item_name',
+        ignoreDuplicates: false 
+      });
 
     if (error) {
       throw new Error(`Failed to insert item: ${error.message}`);

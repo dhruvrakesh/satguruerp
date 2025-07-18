@@ -1,24 +1,30 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
-import { FileUpload } from "@/components/ui/file-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { BulkUploadResult, BulkUploadError } from "@/types";
-import { CSVParser } from "@/utils/csvParser";
+import { AlertCircle, Download, Upload, CheckCircle } from "lucide-react";
 import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidation";
 
 interface BulkIssueRow {
-  date: string;
   item_code: string;
+  issue_number: string;
   qty_issued: number;
+  issue_date: string;
+  issued_to?: string;
   purpose?: string;
   remarks?: string;
+}
+
+interface BulkUploadResult {
+  success: number;
+  errors: Array<{ row: number; message: string }>;
 }
 
 interface BulkUploadIssuesProps {
@@ -27,44 +33,67 @@ interface BulkUploadIssuesProps {
 }
 
 export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BulkUploadResult | null>(null);
   const queryClient = useQueryClient();
 
-  const downloadTemplate = () => {
-    const headers = [
-      'Date',
-      'Item Code', 
-      'Qty Issued',
-      'Purpose',
-      'Remarks'
-    ];
+  const downloadTemplate = async () => {
+    try {
+      // Get sample item codes from item_master for reference
+      const { data: sampleItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .limit(3);
 
-    const sampleData = [
-      '2025-01-17,RAW_001,50,Manufacturing,Used in production batch B001',
-      '2025-01-17,FIN_002,10,Sampling,Quality testing samples'
-    ];
+      const headers = [
+        'Item Code',
+        'Issue Number',
+        'Qty Issued',
+        'Issue Date',
+        'Issued To',
+        'Purpose',
+        'Remarks'
+      ];
 
-    const csvContent = [headers.join(','), ...sampleData].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'issues_bulk_upload_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+      const sampleCodes = sampleItems && sampleItems.length > 0 
+        ? sampleItems.map(item => item.item_code)
+        : ['RAW_ADH_117', 'PAC_ADH_110', 'FIN_001'];
+
+      const sampleData = [
+        `${sampleCodes[0] || 'RAW_ADH_117'},ISS-2025-001,500,2025-01-15,Production Dept,Manufacturing,Raw material for production`,
+        `${sampleCodes[1] || 'PAC_ADH_110'},ISS-2025-002,100,2025-01-15,Packaging Dept,Packaging,Packaging material issue`,
+        `${sampleCodes[2] || 'FIN_001'},ISS-2025-003,50,2025-01-15,Quality Dept,Testing,Sample for quality testing`
+      ];
+
+      const csvContent = [headers.join(','), ...sampleData].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'issue_upload_template.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate template. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getValidationRules = (): ValidationRule<BulkIssueRow>[] => [
     {
-      field: 'date',
+      field: 'item_code',
       required: true,
-      type: 'date',
-      customValidator: (value) => BulkUploadValidator.validateDate(value)
+      type: 'string'
     },
     {
-      field: 'item_code',
+      field: 'issue_number',
       required: true,
       type: 'string'
     },
@@ -72,15 +101,22 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       field: 'qty_issued',
       required: true,
       type: 'number',
-      min: 0.001,
-      max: 999999,
-      customValidator: (value) => BulkUploadValidator.validateQuantity(value.toString())
+      min: 0
+    },
+    {
+      field: 'issue_date',
+      required: true,
+      type: 'date'
+    },
+    {
+      field: 'issued_to',
+      required: false,
+      type: 'string'
     },
     {
       field: 'purpose',
       required: false,
-      type: 'string',
-      defaultValue: 'General'
+      type: 'string'
     },
     {
       field: 'remarks',
@@ -89,308 +125,300 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
     }
   ];
 
-  const processCSV = async (file: File): Promise<BulkUploadResult> => {
-    setIsProcessing(true);
-    setProgress(0);
-
-    try {
-      const text = await file.text();
-      console.log('📄 Processing Issues CSV file:', file.name, 'Size:', file.size);
-
-      // Enhanced CSV parsing with flexible header mapping
-      const headerMapping = {
-        'date': 'date',
-        'issue_date': 'date',
-        'issuedate': 'date',
-        'item_code': 'item_code',
-        'itemcode': 'item_code',
-        'item': 'item_code',
-        'qty_issued': 'qty_issued',
-        'qtyissued': 'qty_issued',
-        'quantity_issued': 'qty_issued',
-        'quantity': 'qty_issued',
-        'qty': 'qty_issued',
-        'purpose': 'purpose',
-        'reason': 'purpose',
-        'remarks': 'remarks',
-        'notes': 'remarks',
-        'comment': 'remarks'
-      };
-
-      const parseResult = CSVParser.parseCSV(text, {
-        requiredHeaders: ['date', 'item_code', 'qty_issued'],
-        headerMapping,
-        skipEmptyRows: true,
-        trimValues: true
-      });
-
-      console.log('📊 CSV Parse Result:', {
-        totalRows: parseResult.totalRows,
-        validRows: parseResult.validRows,
-        parseErrors: parseResult.errors.length,
-        headers: parseResult.headers
-      });
-
-      const results: BulkUploadResult = {
-        successCount: 0,
-        errorCount: 0,
-        errors: []
-      };
-
-      // Add parse errors to results
-      parseResult.errors.forEach(error => {
-        results.errorCount++;
-        results.errors.push({
-          rowNumber: error.rowNumber,
-          reason: error.error,
-          data: { raw_data: error.rawData || '' }
-        });
-      });
-
-      if (parseResult.data.length === 0) {
-        throw new Error("No valid data rows found in CSV file");
-      }
-
-      // Get stock data and item validation
-      setProgress(10);
-      
-      const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
-
-      const [stockData, validItems] = await Promise.all([
-        supabase
-          .from('satguru_stock')
-          .select('item_code, current_qty')
-          .in('item_code', itemCodes),
-        supabase
-          .from('satguru_item_master')
-          .select('item_code')
-          .in('item_code', itemCodes)
-      ]);
-
-      const stockMap = new Map(stockData.data?.map(s => [s.item_code, s.current_qty]) || []);
-      const validItemSet = new Set(validItems.data?.map(i => i.item_code) || []);
-
-      setProgress(20);
-
-      // Track batch issues for stock validation
-      const batchIssues = new Map<string, number>();
-      const validationRules = getValidationRules();
-
-      // Process each row
-      for (let i = 0; i < parseResult.data.length; i++) {
-        const rowNumber = i + 1;
-        const rowData = parseResult.data[i];
-        
-        setProgress(20 + (i / parseResult.data.length) * 70);
-        
-        console.log(`🔄 Processing row ${rowNumber}:`, rowData);
-
-        try {
-          // Validate row data
-          const validation = BulkUploadValidator.validateRow(rowData, validationRules, rowNumber);
-          
-          if (!validation.isValid) {
-            throw new Error(validation.errors.join('; '));
-          }
-
-          const validatedData = validation.transformedData as BulkIssueRow;
-
-          // Item code validation
-          if (!validItemSet.has(validatedData.item_code)) {
-            throw new Error(`Item code ${validatedData.item_code} not found in master data`);
-          }
-
-          // Stock availability validation
-          const currentStock = stockMap.get(validatedData.item_code) || 0;
-          const previousBatchIssues = batchIssues.get(validatedData.item_code) || 0;
-          const totalRequiredQty = previousBatchIssues + validatedData.qty_issued;
-
-          if (totalRequiredQty > currentStock) {
-            throw new Error(`Insufficient stock. Available: ${currentStock}, Required: ${totalRequiredQty} (including previous rows in this batch)`);
-          }
-
-          // Update batch tracking
-          batchIssues.set(validatedData.item_code, totalRequiredQty);
-
-          // Prepare issue data
-          const issueData = {
-            date: validatedData.date,
-            item_code: validatedData.item_code,
-            qty_issued: validatedData.qty_issued,
-            purpose: validatedData.purpose || 'General',
-            remarks: validatedData.remarks || null
-          };
-
-          console.log('💾 Inserting issue:', issueData);
-
-          // Insert issue
-          const { error: insertError } = await supabase
-            .from('satguru_issue_log')
-            .insert([issueData]);
-
-          if (insertError) {
-            console.error('❌ Insert error:', insertError);
-            throw new Error(`Database error: ${insertError.message}`);
-          }
-
-          // Update local stock tracking for next validations
-          const newStock = currentStock - validatedData.qty_issued;
-          stockMap.set(validatedData.item_code, newStock);
-
-          console.log('✅ Successfully inserted issue for:', validatedData.item_code);
-          results.successCount++;
-
-        } catch (error) {
-          console.error(`❌ Error processing row ${rowNumber}:`, error);
-          results.errorCount++;
-          results.errors.push({
-            rowNumber: rowNumber + parseResult.errors.length, // Adjust for parse errors
-            reason: error instanceof Error ? error.message : 'Unknown error',
-            data: rowData
-          });
-        }
-      }
-
-      setProgress(100);
-      console.log('🎉 Processing complete:', results);
-      return results;
-
-    } finally {
-      setIsProcessing(false);
+  const parseCSV = (content: string) => {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
     }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
+    const data: any[] = [];
+
+    // Flexible header mapping
+    const headerMap: Record<string, string[]> = {
+      'item_code': ['item_code', 'itemcode', 'item', 'code'],
+      'issue_number': ['issue_number', 'issuenumber', 'issue', 'issue_no'],
+      'qty_issued': ['qty_issued', 'qtyissued', 'quantity', 'qty'],
+      'issue_date': ['issue_date', 'issuedate', 'date'],
+      'issued_to': ['issued_to', 'issuedto', 'recipient', 'department'],
+      'purpose': ['purpose', 'reason', 'usage'],
+      'remarks': ['remarks', 'notes', 'comment', 'description']
+    };
+
+    // Find matching headers
+    const mappedHeaders: Record<string, number> = {};
+    Object.entries(headerMap).forEach(([field, alternatives]) => {
+      const headerIndex = headers.findIndex(h => alternatives.includes(h));
+      if (headerIndex !== -1) {
+        mappedHeaders[field] = headerIndex;
+      }
+    });
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length === 1 && values[0] === '') continue;
+
+      const row: any = {};
+      Object.entries(mappedHeaders).forEach(([field, index]) => {
+        if (values[index] !== undefined) {
+          row[field] = values[index];
+        }
+      });
+
+      if (row.item_code && row.issue_number) {
+        data.push(row);
+      }
+    }
+
+    return { data, headers: Object.keys(mappedHeaders) };
   };
 
-  const uploadMutation = useMutation({
-    mutationFn: processCSV,
-    onSuccess: (results) => {
-      setResults(results);
-      queryClient.invalidateQueries({ queryKey: ['stock-issues'] });
-      queryClient.invalidateQueries({ queryKey: ['stock'] });
-      
+  const handleUpload = async () => {
+    if (!file) {
       toast({
-        title: "Issues upload completed",
-        description: `${results.successCount} issues uploaded successfully${results.errorCount > 0 ? `, ${results.errorCount} errors found` : ''}`
-      });
-    },
-    onError: (error: Error) => {
-      console.error('💥 Upload failed:', error);
-      toast({
-        title: "Upload failed",
-        description: error.message || "An error occurred during upload",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleFileUpload = (files: File[]) => {
-    if (files.length === 0) return;
-    
-    const file = files[0];
-    if (!file.name.endsWith('.csv')) {
-      toast({
-        title: "Invalid file",
-        description: "Please upload a CSV file",
+        title: "Error",
+        description: "Please select a CSV file to upload",
         variant: "destructive"
       });
       return;
     }
 
-    console.log('📁 Starting issues file upload:', file.name);
+    setIsUploading(true);
+    setProgress(0);
     setResults(null);
-    uploadMutation.mutate(file);
+
+    try {
+      const content = await file.text();
+      const parseResult = parseCSV(content);
+
+      if (!parseResult.data || parseResult.data.length === 0) {
+        throw new Error("No valid data rows found in CSV file");
+      }
+
+      // Validate against item_master
+      setProgress(10);
+      
+      const itemCodes = [...new Set(parseResult.data.map(row => row.item_code).filter(Boolean))];
+      
+      const { data: validItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .in('item_code', itemCodes);
+
+      const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
+
+      const { data: exampleItems } = await supabase
+        .from('item_master')
+        .select('item_code')
+        .limit(5);
+
+      const exampleCodes = exampleItems?.map(i => i.item_code).join(', ') || 'No items found';
+
+      setProgress(20);
+
+      const validationRules = getValidationRules();
+      const processedRows: any[] = [];
+      const errors: Array<{ row: number; message: string }> = [];
+
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const rowNum = i + 2;
+        try {
+          const validation = BulkUploadValidator.validateRow(
+            parseResult.data[i],
+            validationRules,
+            rowNum
+          );
+
+          if (!validation.isValid) {
+            errors.push({
+              row: rowNum,
+              message: validation.errors.join('; ')
+            });
+            continue;
+          }
+
+          const validatedData = validation.transformedData as BulkIssueRow;
+
+          if (!validItemSet.has(validatedData.item_code)) {
+            throw new Error(
+              `Item code '${validatedData.item_code}' not found in item master. ` +
+              `Please use valid item codes. Examples: ${exampleCodes}`
+            );
+          }
+
+          processedRows.push({
+            item_code: validatedData.item_code,
+            issue_number: validatedData.issue_number,
+            qty_issued: validatedData.qty_issued,
+            issue_date: validatedData.issue_date,
+            issued_to: validatedData.issued_to || 'Unknown',
+            purpose: validatedData.purpose || 'General Issue',
+            remarks: validatedData.remarks || 'Bulk issue upload',
+            created_at: new Date().toISOString()
+          });
+
+        } catch (error: any) {
+          errors.push({
+            row: rowNum,
+            message: error.message || 'Unknown validation error'
+          });
+        }
+      }
+
+      setProgress(60);
+
+      // Insert into satguru_issue_log
+      let successCount = 0;
+      if (processedRows.length > 0) {
+        const { data, error } = await supabase
+          .from('satguru_issue_log')
+          .insert(processedRows)
+          .select();
+
+        if (error) {
+          throw new Error(`Database error: ${error.message}`);
+        }
+
+        successCount = processedRows.length;
+      }
+
+      setProgress(100);
+
+      const result: BulkUploadResult = {
+        success: successCount,
+        errors: errors
+      };
+
+      setResults(result);
+
+      if (successCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['issues'] });
+        queryClient.invalidateQueries({ queryKey: ['stock'] });
+        toast({
+          title: "Success",
+          description: `Successfully uploaded ${successCount} issue entries`,
+        });
+      }
+
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+      setProgress(0);
+    }
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setResults(null);
+    setProgress(0);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Upload className="w-5 h-5" />
-            Bulk Upload Stock Issues
-          </DialogTitle>
+          <DialogTitle>Bulk Upload Issues</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <div>
-            <Button onClick={downloadTemplate} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 1: Download Template</Label>
+            <Button onClick={downloadTemplate} variant="outline" className="w-full">
+              <Download className="h-4 w-4 mr-2" />
               Download Template
             </Button>
-            <p className="text-sm text-muted-foreground mt-2">
-              Download the CSV template with sample data and required headers.
-              Headers are case-insensitive and flexible (e.g., "Item Code" or "item_code" both work).
+            <p className="text-sm text-muted-foreground">
+              Download the CSV template with sample issue data format.
             </p>
           </div>
 
-          {!isProcessing && !results && (
-            <FileUpload
-              onFilesSelected={handleFileUpload}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Step 2: Upload CSV File</Label>
+            <Input
+              type="file"
               accept=".csv"
-              multiple={false}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0];
+                if (selectedFile) {
+                  setFile(selectedFile);
+                  setResults(null);
+                }
+              }}
             />
-          )}
+            {file && (
+              <p className="text-sm text-green-600">
+                Selected: {file.name} ({Math.round(file.size / 1024)} KB)
+              </p>
+            )}
+          </div>
 
-          {isProcessing && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Processing issues upload...</p>
-              </div>
+          {isUploading && (
+            <div className="space-y-2">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-center text-muted-foreground">
-                {progress.toFixed(0)}% complete
+              <p className="text-sm text-muted-foreground">
+                Processing... {progress}%
               </p>
             </div>
           )}
 
           {results && (
             <div className="space-y-4">
-              <Alert className={results.errorCount === 0 ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
-                <AlertCircle className="h-4 w-4" />
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="font-medium">{results.successCount} issues uploaded successfully</span>
-                    </div>
-                    {results.errorCount > 0 && (
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-orange-600" />
-                        <span className="font-medium">{results.errorCount} errors found</span>
-                      </div>
-                    )}
-                  </div>
+                  <strong>Upload Complete:</strong> {results.success} issue entries processed successfully
+                  {results.errors.length > 0 && `, ${results.errors.length} errors`}
                 </AlertDescription>
               </Alert>
 
               {results.errors.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Errors:</h4>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {results.errors.map((error, index) => (
-                      <div key={index} className="text-sm p-2 bg-red-50 border border-red-200 rounded">
-                        <span className="font-medium">Row {error.rowNumber}:</span> {error.reason}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <strong>Errors found:</strong>
+                      {results.errors.slice(0, 5).map((error, index) => (
+                        <div key={index} className="text-xs">
+                          Row {error.row}: {error.message}
+                        </div>
+                      ))}
+                      {results.errors.length > 5 && (
+                        <div className="text-xs">
+                          ... and {results.errors.length - 5} more errors
+                        </div>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => {
-                    setResults(null);
-                    setProgress(0);
-                  }}
-                  variant="outline"
-                >
-                  Upload Another File
-                </Button>
-                <Button onClick={() => onOpenChange(false)}>
-                  Close
-                </Button>
-              </div>
             </div>
           )}
+
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={resetForm}>
+              Reset
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!file || isUploading}
+              className="min-w-[120px]"
+            >
+              {isUploading ? (
+                <>Processing...</>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Issues
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

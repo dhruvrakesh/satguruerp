@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Edit, Plus, Search, Download, Upload, Eye, FileText, History, CheckCircle, Clock } from "lucide-react";
+import { Trash2, Edit, Plus, Search, Download, Upload, Eye, FileText, History, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,7 @@ interface CustomerSpecification {
   upload_date: string;
   version: number;
   status: string;
-  item_master?: {
+  satguru_item_master?: {
     item_name: string;
     customer_name: string;
     dimensions: string;
@@ -62,7 +62,7 @@ export default function SpecificationMaster() {
           upload_date,
           version,
           status,
-          item_master (
+          satguru_item_master (
             item_name,
             customer_name,
             dimensions
@@ -76,7 +76,7 @@ export default function SpecificationMaster() {
       if (selectedCustomer) {
         query = query.eq('customer_code', selectedCustomer);
       }
-      if (selectedStatus) {
+      if (selectedStatus && selectedStatus !== 'all') {
         query = query.eq('status', selectedStatus);
       }
 
@@ -86,12 +86,12 @@ export default function SpecificationMaster() {
     }
   });
 
-  // Fetch item master for dropdowns
+  // Fetch satguru_item_master for FG items only
   const { data: itemMaster } = useQuery({
-    queryKey: ['item-master-fg'],
+    queryKey: ['satguru-item-master-fg'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('item_code, item_name')
         .eq('usage_type', 'FINISHED_GOOD')
         .order('item_code');
@@ -112,10 +112,32 @@ export default function SpecificationMaster() {
     };
   }, [specifications]);
 
+  // Check for duplicate item codes before upload
+  const checkDuplicateItemCode = async (itemCode: string, customerCode: string): Promise<string | null> => {
+    const { data: existing } = await supabase
+      .from('customer_specifications')
+      .select('item_code, customer_code, version')
+      .eq('item_code', itemCode)
+      .eq('customer_code', customerCode)
+      .order('version', { ascending: false })
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return `Specification already exists for item ${itemCode} and customer ${customerCode}. This will create version ${existing[0].version + 1}.`;
+    }
+    return null;
+  };
+
   // Upload specification file
   const uploadSpecification = useMutation({
     mutationFn: async () => {
       if (!newSpecification.file) throw new Error('No file selected');
+
+      // Check for duplicates and warn user
+      const duplicateWarning = await checkDuplicateItemCode(
+        newSpecification.item_code, 
+        newSpecification.customer_code
+      );
 
       // Check for existing version
       const { data: existingSpecs } = await supabase
@@ -128,9 +150,10 @@ export default function SpecificationMaster() {
 
       const nextVersion = existingSpecs && existingSpecs.length > 0 ? existingSpecs[0].version + 1 : 1;
 
-      // Upload file to Supabase Storage
+      // Create unique filename to prevent conflicts: itemcode_customer_version_timestamp
       const fileExt = newSpecification.file.name.split('.').pop();
-      const fileName = `${newSpecification.item_code}_${newSpecification.customer_code}_v${nextVersion}.${fileExt}`;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `${newSpecification.item_code}_${newSpecification.customer_code}_v${nextVersion}_${timestamp}.${fileExt}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('customer-specifications')
@@ -153,9 +176,9 @@ export default function SpecificationMaster() {
         .select();
 
       if (error) throw error;
-      return data;
+      return { data, duplicateWarning };
     },
-    onSuccess: () => {
+    onSuccess: ({ duplicateWarning }) => {
       queryClient.invalidateQueries({ queryKey: ['customer-specifications'] });
       setNewSpecification({
         item_code: '',
@@ -165,7 +188,80 @@ export default function SpecificationMaster() {
       });
       toast({
         title: "Success",
-        description: "Specification uploaded successfully",
+        description: duplicateWarning 
+          ? `Specification uploaded successfully. ${duplicateWarning}`
+          : "Specification uploaded successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete specification
+  const deleteSpecification = useMutation({
+    mutationFn: async (specId: string) => {
+      // Get file path first
+      const { data: spec } = await supabase
+        .from('customer_specifications')
+        .select('file_path')
+        .eq('id', specId)
+        .single();
+
+      if (spec?.file_path) {
+        // Delete file from storage
+        await supabase.storage
+          .from('customer-specifications')
+          .remove([spec.file_path]);
+      }
+
+      // Delete record
+      const { error } = await supabase
+        .from('customer_specifications')
+        .delete()
+        .eq('id', specId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-specifications'] });
+      toast({
+        title: "Success",
+        description: "Specification deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update specification status
+  const updateSpecificationStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase
+        .from('customer_specifications')
+        .update({ 
+          status, 
+          approved_at: status === 'APPROVED' ? new Date().toISOString() : null,
+          approved_by: status === 'APPROVED' ? (await supabase.auth.getUser()).data.user?.id : null
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-specifications'] });
+      toast({
+        title: "Success",
+        description: "Specification status updated successfully",
       });
     },
     onError: (error: any) => {
@@ -190,10 +286,10 @@ export default function SpecificationMaster() {
 
     const csvData = specifications.map(spec => ({
       item_code: spec.item_code,
-      item_name: spec.item_master?.item_name || '',
+      item_name: spec.satguru_item_master?.item_name || '',
       customer_code: spec.customer_code,
-      customer_name: spec.item_master?.customer_name || '',
-      dimensions: spec.item_master?.dimensions || '',
+      customer_name: spec.satguru_item_master?.customer_name || '',
+      dimensions: spec.satguru_item_master?.dimensions || '',
       specification_name: spec.specification_name,
       version: spec.version,
       status: spec.status,
@@ -271,7 +367,7 @@ export default function SpecificationMaster() {
                 <p className="text-sm text-muted-foreground">Rejected</p>
                 <p className="text-2xl font-bold text-red-600">{specStats.rejected}</p>
               </div>
-              <History className="h-8 w-8 text-red-600" />
+              <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -300,10 +396,10 @@ export default function SpecificationMaster() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Item Code</Label>
+                        <Label>Item Code (FG Only)</Label>
                         <Select value={newSpecification.item_code} onValueChange={(value) => setNewSpecification({...newSpecification, item_code: value})}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select item code" />
+                            <SelectValue placeholder="Select FG item code" />
                           </SelectTrigger>
                           <SelectContent>
                             {itemMaster?.map((item) => (
@@ -327,6 +423,7 @@ export default function SpecificationMaster() {
                             <SelectItem value="ITC">ITC Limited</SelectItem>
                             <SelectItem value="PATANJALI">Patanjali</SelectItem>
                             <SelectItem value="ANCHOR">Anchor</SelectItem>
+                            <SelectItem value="OTHERS">Others</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -345,7 +442,7 @@ export default function SpecificationMaster() {
                       <Label>Upload File</Label>
                       <FileUpload
                         onFilesSelected={(files) => setNewSpecification({...newSpecification, file: files[0]})}
-                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                         multiple={false}
                       />
                       {newSpecification.file && (
@@ -397,6 +494,7 @@ export default function SpecificationMaster() {
                   <SelectItem value="ITC">ITC Limited</SelectItem>
                   <SelectItem value="PATANJALI">Patanjali</SelectItem>
                   <SelectItem value="ANCHOR">Anchor</SelectItem>
+                  <SelectItem value="OTHERS">Others</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -407,7 +505,7 @@ export default function SpecificationMaster() {
                   <SelectValue placeholder="All status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All status</SelectItem>
+                  <SelectItem value="all">All status</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="REJECTED">Rejected</SelectItem>
@@ -440,20 +538,27 @@ export default function SpecificationMaster() {
                 {filteredSpecs.map((spec) => (
                   <TableRow key={spec.id}>
                     <TableCell className="font-medium">{spec.item_code}</TableCell>
-                    <TableCell>{spec.item_master?.item_name || '-'}</TableCell>
+                    <TableCell>{spec.satguru_item_master?.item_name || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{spec.customer_code}</Badge>
                     </TableCell>
                     <TableCell>{spec.specification_name}</TableCell>
-                    <TableCell>{spec.item_master?.dimensions || '-'}</TableCell>
+                    <TableCell>{spec.satguru_item_master?.dimensions || '-'}</TableCell>
                     <TableCell>v{spec.version}</TableCell>
                     <TableCell>
-                      <Badge variant={
-                        spec.status === 'APPROVED' ? 'default' : 
-                        spec.status === 'REJECTED' ? 'destructive' : 'secondary'
-                      }>
-                        {spec.status}
-                      </Badge>
+                      <Select 
+                        value={spec.status} 
+                        onValueChange={(status) => updateSpecificationStatus.mutate({ id: spec.id, status })}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PENDING">Pending</SelectItem>
+                          <SelectItem value="APPROVED">Approved</SelectItem>
+                          <SelectItem value="REJECTED">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>{new Date(spec.upload_date).toLocaleDateString()}</TableCell>
                     <TableCell>{Math.round(spec.file_size / 1024)} KB</TableCell>
@@ -464,10 +569,11 @@ export default function SpecificationMaster() {
                             <Eye className="h-4 w-4" />
                           </Button>
                         </SpecificationPreviewDialog>
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => deleteSpecification.mutate(spec.id)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

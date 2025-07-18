@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -9,7 +10,7 @@ export const useItemsForSelection = () => {
     queryKey: ["items-for-selection"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("item_master")
+        .from("satguru_item_master")
         .select("item_code, item_name, customer_name, uom, status, usage_type")
         .eq("is_active", true)
         .order("item_name");
@@ -47,10 +48,10 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
   return useQuery({
     queryKey: ['itemMaster', page, pageSize, filters, sort],
     queryFn: async () => {
-      console.log('Fetching item master with options:', { page, pageSize, filters, sort });
+      console.log('Fetching satguru item master with options:', { page, pageSize, filters, sort });
       
       let query = supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select(`
           *,
           categories (
@@ -100,11 +101,11 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       const { data, error, count } = await query;
       
       if (error) {
-        console.error('Error fetching item master:', error);
+        console.error('Error fetching satguru item master:', error);
         throw error;
       }
 
-      console.log('Item master fetched:', data?.length || 0, 'total:', count);
+      console.log('Satguru item master fetched:', data?.length || 0, 'total:', count);
       console.log('Sample item with category:', data?.[0]);
       
       return {
@@ -122,7 +123,7 @@ export function useItemMasterMutations() {
   const createItem = useMutation({
     mutationFn: async (item: ItemMasterFormData) => {
       const { data, error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .insert([item as any])
         .select()
         .single();
@@ -147,7 +148,7 @@ export function useItemMasterMutations() {
   const updateItem = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Record<string, any> }) => {
       const { data, error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .update(updates)
         .eq('id', id)
         .select()
@@ -173,7 +174,7 @@ export function useItemMasterMutations() {
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .delete()
         .eq('id', id);
       
@@ -196,7 +197,7 @@ export function useItemMasterMutations() {
   const deleteMultipleItems = useMutation({
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .delete()
         .in('id', ids);
       
