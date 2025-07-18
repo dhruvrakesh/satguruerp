@@ -1,6 +1,8 @@
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ArtworkItem {
   item_code: string;
@@ -20,15 +22,42 @@ interface ArtworkItem {
 export function useArtworkImport() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user, profile, refreshProfile } = useAuth();
 
   const importArtworkItems = useMutation({
     mutationFn: async () => {
+      console.log('🚀 Starting artwork import process...');
+      console.log('Current user:', user?.id);
+      console.log('Current profile:', profile);
+
+      if (!user) {
+        throw new Error('User not authenticated. Please sign in first.');
+      }
+
+      if (!profile) {
+        console.log('Profile not found, attempting to refresh...');
+        await refreshProfile();
+        throw new Error('User profile not found. Please try again or contact support.');
+      }
+
+      if (!profile.is_approved) {
+        throw new Error('User account not approved. Please contact administrator.');
+      }
+
+      console.log('✅ Authentication checks passed');
+
       // First, get all artwork items from staging table
+      console.log('📦 Fetching artwork items from staging...');
       const { data: artworkItems, error: fetchError } = await supabase
         .from('_artworks_revised_staging')
         .select('*');
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('❌ Failed to fetch artwork items:', fetchError);
+        throw fetchError;
+      }
+
+      console.log(`📊 Found ${artworkItems.length} artwork items to import`);
 
       // Get or create default categories
       const categoryMap = new Map();
@@ -40,6 +69,7 @@ export function useArtworkImport() {
         { category_name: 'LABELS', description: 'Label products' }
       ];
 
+      console.log('🏷️ Setting up categories...');
       for (const cat of defaultCategories) {
         const { data: existing } = await supabase
           .from('categories')
@@ -48,6 +78,7 @@ export function useArtworkImport() {
           .single();
 
         if (!existing) {
+          console.log(`Creating category: ${cat.category_name}`);
           const { data: newCat, error } = await supabase
             .from('categories')
             .insert(cat)
@@ -63,71 +94,102 @@ export function useArtworkImport() {
       }
 
       const defaultCategoryId = categoryMap.get('FINISHED_GOODS');
+      console.log('✅ Categories set up, default category ID:', defaultCategoryId);
 
-      // Process and import artwork items
-      const importPromises = artworkItems.map(async (artwork: ArtworkItem) => {
-        // Determine category based on dimensions or customer
-        let categoryId = defaultCategoryId;
-        if (artwork.dimensions?.includes('LABEL') || artwork.item_name?.includes('LABEL')) {
-          categoryId = categoryMap.get('LABELS') || defaultCategoryId;
-        } else if (artwork.dimensions?.includes('FILM') || artwork.customer_name?.includes('PACK')) {
-          categoryId = categoryMap.get('PACKAGING_FILMS') || defaultCategoryId;
-        }
+      // Process and import artwork items in batches
+      console.log('🔄 Processing artwork items...');
+      let successCount = 0;
+      let errorCount = 0;
+      const batchSize = 50;
+      
+      for (let i = 0; i < artworkItems.length; i += batchSize) {
+        const batch = artworkItems.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1} (${batch.length} items)`);
+        
+        const batchPromises = batch.map(async (artwork: ArtworkItem) => {
+          try {
+            // Determine category based on dimensions or customer
+            let categoryId = defaultCategoryId;
+            if (artwork.dimensions?.includes('LABEL') || artwork.item_name?.includes('LABEL')) {
+              categoryId = categoryMap.get('LABELS') || defaultCategoryId;
+            } else if (artwork.dimensions?.includes('FILM') || artwork.customer_name?.includes('PACK')) {
+              categoryId = categoryMap.get('PACKAGING_FILMS') || defaultCategoryId;
+            }
 
-        // Create item master entry
-        const itemData = {
-          item_code: artwork.item_code,
-          item_name: artwork.item_name || `Product ${artwork.item_code}`,
-          category_id: categoryId,
-          qualifier: artwork.customer_name?.substring(0, 50),
-          size_mm: artwork.dimensions,
-          uom: 'PCS' as const,
-          usage_type: 'FINISHED_GOOD' as const,
-          status: 'active' as const,
-          specifications: {
-            customer_name: artwork.customer_name,
-            dimensions: artwork.dimensions,
-            colours: artwork.no_of_colours,
-            circumference: artwork.circum,
-            ups: artwork.ups,
-            length: artwork.length,
-            coil_size: artwork.coil_size,
-            cut_length: artwork.cut_length,
-            location: artwork.location,
-            remarks: artwork.remarks
+            // Create item master entry with all required fields
+            const itemData = {
+              item_code: artwork.item_code,
+              item_name: artwork.item_name || `Product ${artwork.item_code}`,
+              category_id: categoryId,
+              qualifier: artwork.customer_name?.substring(0, 50),
+              size_mm: artwork.dimensions,
+              gsm: artwork.circum, // Using circum as GSM equivalent
+              uom: 'PCS' as const,
+              usage_type: 'FINISHED_GOOD' as const,
+              status: 'active' as const,
+              specifications: {
+                customer_name: artwork.customer_name,
+                dimensions: artwork.dimensions,
+                colours: artwork.no_of_colours,
+                circumference: artwork.circum,
+                ups: artwork.ups,
+                length: artwork.length,
+                coil_size: artwork.coil_size,
+                cut_length: artwork.cut_length,
+                location: artwork.location,
+                remarks: artwork.remarks
+              }
+            };
+
+            // Check if item already exists
+            const { data: existing } = await supabase
+              .from('item_master')
+              .select('id')
+              .eq('item_code', artwork.item_code)
+              .single();
+
+            if (!existing) {
+              const { error } = await supabase
+                .from('item_master')
+                .insert(itemData);
+              
+              if (error) {
+                console.error(`❌ Failed to import ${artwork.item_code}:`, error);
+                errorCount++;
+                throw error;
+              } else {
+                successCount++;
+              }
+            } else {
+              console.log(`⚠️ Item ${artwork.item_code} already exists, skipping`);
+            }
+          } catch (error) {
+            console.error(`❌ Error processing item ${artwork.item_code}:`, error);
+            errorCount++;
           }
-        };
+        });
 
-        // Check if item already exists
-        const { data: existing } = await supabase
-          .from('item_master')
-          .select('id')
-          .eq('item_code', artwork.item_code)
-          .single();
-
-        if (!existing) {
-          const { error } = await supabase
-            .from('item_master')
-            .insert(itemData);
-          
-          if (error && !error.message.includes('duplicate')) {
-            console.error(`Failed to import ${artwork.item_code}:`, error);
-            throw error;
-          }
+        await Promise.all(batchPromises);
+        
+        // Small delay between batches to avoid overwhelming the database
+        if (i + batchSize < artworkItems.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-      });
+      }
 
-      await Promise.all(importPromises);
-      return artworkItems.length;
+      console.log(`✅ Import completed: ${successCount} successful, ${errorCount} errors`);
+      return { successCount, errorCount, totalItems: artworkItems.length };
     },
-    onSuccess: (count) => {
+    onSuccess: (result) => {
+      console.log('🎉 Import successful:', result);
       toast({
-        title: "Artwork Import Successful",
-        description: `Successfully imported ${count} finished goods from artwork database.`
+        title: "Artwork Import Successful!",
+        description: `Successfully imported ${result.successCount} finished goods from artwork database. ${result.errorCount > 0 ? `${result.errorCount} items had errors.` : 'All items imported successfully!'}`
       });
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('💥 Import failed:', error);
       toast({
         title: "Import Failed",
         description: `Failed to import artwork items: ${error.message}`,

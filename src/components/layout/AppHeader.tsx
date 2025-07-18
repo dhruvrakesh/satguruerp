@@ -1,4 +1,5 @@
-import { Bell, Search, User, LogOut, Settings, Shield } from "lucide-react";
+
+import { Bell, Search, User, LogOut, Settings, Shield, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -50,6 +51,14 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Authentication Status Indicator */}
+          {profile?.is_approved && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs border border-green-200">
+              <CheckCircle className="w-3 h-3" />
+              <span>Authenticated</span>
+            </div>
+          )}
+
           <Button variant="ghost" size="sm" className="relative">
             <Bell className="w-5 h-5" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full text-xs flex items-center justify-center text-accent-foreground">
@@ -80,12 +89,18 @@ export function AppHeader() {
                         Admin
                       </Badge>
                     )}
+                    {profile?.is_approved && (
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Verified
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs leading-none text-muted-foreground">
                     {user?.email}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    Role: {profile?.role || 'Unknown'}
+                    Role: {profile?.role || 'Unknown'} • DKEGL
                   </p>
                 </div>
               </DropdownMenuLabel>

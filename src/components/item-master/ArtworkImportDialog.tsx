@@ -1,19 +1,24 @@
+
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileImage, Download, CheckCircle } from "lucide-react";
+import { FileImage, Download, CheckCircle, AlertCircle, User, Shield } from "lucide-react";
 import { useArtworkImport } from "@/hooks/useArtworkImport";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function ArtworkImportDialog() {
   const [open, setOpen] = useState(false);
   const { importArtworkItems, isImporting } = useArtworkImport();
+  const { user, profile } = useAuth();
 
   const handleImport = async () => {
     await importArtworkItems.mutateAsync();
     setOpen(false);
   };
+
+  const canImport = user && profile && profile.is_approved;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -29,6 +34,40 @@ export function ArtworkImportDialog() {
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* Authentication Status */}
+          <Card className={`border-2 ${canImport ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                {canImport ? <CheckCircle className="h-4 w-4 text-green-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
+                Authentication Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>User:</span>
+                  <span className="font-medium">{user?.email || 'Not signed in'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Profile:</span>
+                  <span className={`font-medium ${profile ? 'text-green-600' : 'text-red-600'}`}>
+                    {profile ? 'Found' : 'Missing'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Approval:</span>
+                  <span className={`font-medium ${profile?.is_approved ? 'text-green-600' : 'text-amber-600'}`}>
+                    {profile?.is_approved ? 'Approved' : 'Pending'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Organization:</span>
+                  <span className="font-medium">DKEGL</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -93,7 +132,7 @@ export function ArtworkImportDialog() {
           <div className="flex gap-3">
             <Button 
               onClick={handleImport} 
-              disabled={isImporting}
+              disabled={isImporting || !canImport}
               className="flex-1 gap-2"
             >
               <Download className="h-4 w-4" />
@@ -103,6 +142,17 @@ export function ArtworkImportDialog() {
               Cancel
             </Button>
           </div>
+
+          {!canImport && (
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+              <p className="text-sm text-amber-800">
+                {!user ? "Please sign in to import artwork items." :
+                 !profile ? "Profile setup required. Please refresh the page." :
+                 !profile.is_approved ? "Account approval required to import data." :
+                 "Authentication required to proceed."}
+              </p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
