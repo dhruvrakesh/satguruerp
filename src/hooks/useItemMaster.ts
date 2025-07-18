@@ -47,6 +47,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       }
       
       if (filters.category_id) {
+        console.log('Applying category filter:', filters.category_id);
         query = query.eq('category_id', filters.category_id);
       }
       
@@ -82,6 +83,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       }
 
       console.log('Item master fetched:', data?.length || 0, 'total:', count);
+      console.log('Sample item:', data?.[0]);
       
       return {
         data: data || [],
@@ -108,6 +110,7 @@ export function useItemMasterMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
+      queryClient.invalidateQueries({ queryKey: ['categoriesWithStats'] });
       toast({ title: "Success", description: "Item created successfully" });
     },
     onError: (error: any) => {
@@ -133,6 +136,7 @@ export function useItemMasterMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
+      queryClient.invalidateQueries({ queryKey: ['categoriesWithStats'] });
       toast({ title: "Success", description: "Item updated successfully" });
     },
     onError: (error: any) => {
@@ -155,6 +159,7 @@ export function useItemMasterMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
+      queryClient.invalidateQueries({ queryKey: ['categoriesWithStats'] });
       toast({ title: "Success", description: "Item deleted successfully" });
     },
     onError: (error: any) => {
@@ -177,6 +182,7 @@ export function useItemMasterMutations() {
     },
     onSuccess: (_, ids) => {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
+      queryClient.invalidateQueries({ queryKey: ['categoriesWithStats'] });
       toast({ title: "Success", description: `${ids.length} items deleted successfully` });
     },
     onError: (error: any) => {

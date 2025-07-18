@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Upload, ArrowUpDown } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, ArrowUpDown, Loader2 } from "lucide-react";
 import { useItemMaster, useItemMasterMutations, ItemMasterFilters, ItemMasterSort } from "@/hooks/useItemMaster";
 import { ItemMasterForm } from "./ItemMasterForm";
 import { ItemMasterFilters as FiltersComponent } from "./ItemMasterFilters";
@@ -60,6 +59,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   const totalPages = data?.totalPages || 0;
 
   const handleFiltersChange = (newFilters: ItemMasterFilters) => {
+    console.log('Filters changed:', newFilters);
     setFilters(newFilters);
     setPage(1); // Reset to first page when filters change
   };
@@ -121,6 +121,17 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
     );
   }
 
+  const getFilterSummary = () => {
+    const parts = [];
+    if (filters.search) parts.push(`search: "${filters.search}"`);
+    if (filters.category_id) parts.push('category filtered');
+    if (filters.status) parts.push(`status: ${filters.status}`);
+    if (filters.uom) parts.push(`UOM: ${filters.uom}`);
+    if (filters.usage_type) parts.push(`type: ${filters.usage_type}`);
+    
+    return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Actions */}
@@ -134,8 +145,14 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                 {data?.data?.length || 0} items displayed
               </Badge>
               <Badge variant="default" className="text-xs">
-                {data?.count || 0} total items
+                {data?.count || 0} total items{getFilterSummary()}
               </Badge>
+              {isLoading && (
+                <Badge variant="secondary" className="text-xs">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Loading...
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -173,7 +190,14 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Items ({data?.count || 0})</CardTitle>
+            <CardTitle>
+              Items ({data?.count || 0})
+              {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  - Filtered Results
+                </span>
+              )}
+            </CardTitle>
             <div className="flex items-center gap-4">
               {selectedItems.length > 0 && (
                 <Button variant="destructive" onClick={handleDeleteSelected} size="sm">
@@ -192,6 +216,25 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
             <div className="flex items-center justify-center py-8">
               <LoadingSpinner />
               <span className="ml-2">Loading items...</span>
+            </div>
+          ) : data?.data?.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">
+                {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) 
+                  ? "No items match your current filters." 
+                  : "No items found."
+                }
+              </p>
+              {Object.keys(filters).some(key => filters[key as keyof ItemMasterFilters]) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => setFilters({})}
+                >
+                  Clear Filters
+                </Button>
+              )}
             </div>
           ) : (
             <>
@@ -238,7 +281,11 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                       </TableCell>
                       <TableCell className="font-mono text-sm">{item.item_code}</TableCell>
                       <TableCell className="font-medium">{item.item_name}</TableCell>
-                      <TableCell>{item.categories?.category_name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {item.categories?.category_name || 'No Category'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">{item.uom}</Badge>
                       </TableCell>
@@ -286,14 +333,14 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                   <Button
                     variant="outline"
                     onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                    disabled={page === 1}
+                    disabled={page === 1 || isLoading}
                   >
                     Previous
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={page === totalPages}
+                    disabled={page === totalPages || isLoading}
                   >
                     Next
                   </Button>
