@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Plus, Search, Filter, Calendar, Package, User, AlertCircle } from "lucide-react";
@@ -6,17 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedOrderCreationDialog } from "@/components/manufacturing/EnhancedOrderCreationDialog";
-import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
+import { useManufacturingOrders, useUpdateOrderStatus } from "@/hooks/useManufacturingOrders";
+import { useCustomerNamesForOrders } from "@/hooks/useCustomerNamesForOrders";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 export default function OrderPunching() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [processingOrders, setProcessingOrders] = useState<Set<string>>(new Set());
   
+  const { toast } = useToast();
   const { data: orders = [] } = useManufacturingOrders({
     search: searchTerm,
     status: statusFilter,
   });
+
+  const updateOrderStatus = useUpdateOrderStatus();
 
   // Filter orders relevant to order punching stage
   const pendingOrders = orders.filter(order => order.status === "PENDING");
@@ -25,6 +32,45 @@ export default function OrderPunching() {
     const today = new Date().toDateString();
     return order.order_date && new Date(order.order_date).toDateString() === today;
   });
+
+  // Get customer names for orders
+  const { data: customerData = [], isLoading: isLoadingCustomers } = useCustomerNamesForOrders(recentOrders);
+  const { data: pendingCustomerData = [], isLoading: isLoadingPendingCustomers } = useCustomerNamesForOrders(pendingOrders);
+
+  const getCustomerName = (uiorn: string, originalName: string, isPending = false) => {
+    const dataSource = isPending ? pendingCustomerData : customerData;
+    const customerInfo = dataSource.find(c => c.uiorn === uiorn);
+    return customerInfo?.customer_name || originalName;
+  };
+
+  const handleStartProcessing = async (uiorn: string) => {
+    setProcessingOrders(prev => new Set(prev).add(uiorn));
+    
+    try {
+      await updateOrderStatus.mutateAsync({
+        uiorn,
+        status: "IN_PROGRESS"
+      });
+      
+      toast({
+        title: "Processing Started",
+        description: `Order ${uiorn} has been moved to IN_PROGRESS status.`,
+      });
+    } catch (error) {
+      console.error("Failed to start processing:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start processing. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingOrders(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(uiorn);
+        return newSet;
+      });
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
@@ -152,35 +198,43 @@ export default function OrderPunching() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentOrders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <h3 className="font-semibold">{order.uiorn}</h3>
-                        <p className="text-sm text-muted-foreground">{order.customer_name}</p>
+              {isLoadingCustomers ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading customer information...
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentOrders.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <h3 className="font-semibold">{order.uiorn}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {getCustomerName(order.uiorn, order.customer_name)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm">{order.product_description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Qty: {order.order_quantity} {order.unit_of_measure}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm">{order.product_description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Qty: {order.order_quantity} {order.unit_of_measure}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        {order.priority_level && (
+                          <div className={`w-3 h-3 rounded-full ${getPriorityColor(order.priority_level)}`} />
+                        )}
+                        <Badge className={getStatusColor(order.status)}>
+                          {order.status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {order.order_date && format(new Date(order.order_date), 'MMM dd')}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {order.priority_level && (
-                        <div className={`w-3 h-3 rounded-full ${getPriorityColor(order.priority_level)}`} />
-                      )}
-                      <Badge className={getStatusColor(order.status)}>
-                        {order.status}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {order.order_date && format(new Date(order.order_date), 'MMM dd')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -194,36 +248,49 @@ export default function OrderPunching() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {pendingOrders.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No pending orders found
-                  </div>
-                ) : (
-                  pendingOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-                      <div className="flex items-center gap-4">
-                        <User className="w-5 h-5 text-muted-foreground" />
-                        <div>
-                          <h3 className="font-semibold">{order.uiorn}</h3>
-                          <p className="text-sm text-muted-foreground">{order.customer_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm">{order.product_description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Delivery: {order.delivery_date && format(new Date(order.delivery_date), 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Button size="sm" variant="outline">
-                          Start Processing
-                        </Button>
-                      </div>
+              {isLoadingPendingCustomers ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading pending orders...
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingOrders.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No pending orders found
                     </div>
-                  ))
-                )}
-              </div>
+                  ) : (
+                    pendingOrders.map((order) => (
+                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                        <div className="flex items-center gap-4">
+                          <User className="w-5 h-5 text-muted-foreground" />
+                          <div>
+                            <h3 className="font-semibold">{order.uiorn}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {getCustomerName(order.uiorn, order.customer_name, true)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm">{order.product_description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Delivery: {order.delivery_date && format(new Date(order.delivery_date), 'MMM dd, yyyy')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleStartProcessing(order.uiorn)}
+                            disabled={processingOrders.has(order.uiorn) || updateOrderStatus.isPending}
+                          >
+                            {processingOrders.has(order.uiorn) ? "Starting..." : "Start Processing"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
