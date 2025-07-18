@@ -11,7 +11,7 @@ export const useItemsForSelection = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("satguru_item_master")
-        .select("item_code, item_name, customer_name, uom, status, usage_type")
+        .select("item_code, item_name, uom, status, usage_type")
         .eq("is_active", true)
         .order("item_name");
       
@@ -54,7 +54,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
         .from('satguru_item_master')
         .select(`
           *,
-          categories (
+          categories!satguru_item_master_category_id_fkey (
             id,
             category_name
           )

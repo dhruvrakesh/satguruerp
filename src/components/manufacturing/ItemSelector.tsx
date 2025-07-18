@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,6 @@ import { useItemsForSelection } from "@/hooks/useItemMaster";
 interface Item {
   item_code: string;
   item_name: string;
-  customer_name: string;
   uom: string;
   status: string;
   usage_type: string;
@@ -70,7 +70,7 @@ export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
               {items.map((item) => (
                 <CommandItem
                   key={item.item_code}
-                  value={`${item.item_code} ${item.item_name} ${item.customer_name}`}
+                  value={`${item.item_code} ${item.item_name}`}
                   onSelect={() => {
                     onSelect(item);
                     setOpen(false);
@@ -88,7 +88,7 @@ export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm">{item.item_code}</span>
                       <Badge variant="secondary" className="text-xs">
-                        {item.customer_name || "No Customer"}
+                        {item.usage_type}
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground truncate">

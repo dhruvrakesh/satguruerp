@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
 import { ItemMasterFilters } from "./ItemMasterFilters";
@@ -174,7 +175,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                   <TableHead>Item Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Usage Type</TableHead>
-                  <TableHead>Customer</TableHead>
+                  <TableHead>UOM</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -203,11 +204,11 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                       </TableCell>
                       <TableCell className="font-medium">{item.item_code}</TableCell>
                       <TableCell>{item.item_name}</TableCell>
-                      <TableCell>{item.categories?.category_name}</TableCell>
+                      <TableCell>{item.categories?.category_name || '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{item.usage_type}</Badge>
                       </TableCell>
-                      <TableCell>{item.customer_name || '-'}</TableCell>
+                      <TableCell>{item.uom || '-'}</TableCell>
                       <TableCell>
                         <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
                           {item.status}

@@ -27,8 +27,7 @@ interface CustomerSpecification {
   status: string;
   satguru_item_master?: {
     item_name: string;
-    customer_name: string;
-    dimensions: string;
+    dimensions?: string;
   };
 }
 
@@ -63,9 +62,7 @@ export default function SpecificationMaster() {
           version,
           status,
           satguru_item_master (
-            item_name,
-            customer_name,
-            dimensions
+            item_name
           )
         `)
         .order('upload_date', { ascending: false });
@@ -139,7 +136,7 @@ export default function SpecificationMaster() {
         newSpecification.customer_code
       );
 
-      // Check for existing version
+      // Check for existing version - preserve existing item codes for foreign key relationships
       const { data: existingSpecs } = await supabase
         .from('customer_specifications')
         .select('version')
@@ -288,8 +285,6 @@ export default function SpecificationMaster() {
       item_code: spec.item_code,
       item_name: spec.satguru_item_master?.item_name || '',
       customer_code: spec.customer_code,
-      customer_name: spec.satguru_item_master?.customer_name || '',
-      dimensions: spec.satguru_item_master?.dimensions || '',
       specification_name: spec.specification_name,
       version: spec.version,
       status: spec.status,
@@ -526,7 +521,6 @@ export default function SpecificationMaster() {
                   <TableHead>Item Name</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Specification Name</TableHead>
-                  <TableHead>Dimensions</TableHead>
                   <TableHead>Version</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Upload Date</TableHead>
@@ -543,7 +537,6 @@ export default function SpecificationMaster() {
                       <Badge variant="outline">{spec.customer_code}</Badge>
                     </TableCell>
                     <TableCell>{spec.specification_name}</TableCell>
-                    <TableCell>{spec.satguru_item_master?.dimensions || '-'}</TableCell>
                     <TableCell>v{spec.version}</TableCell>
                     <TableCell>
                       <Select 
