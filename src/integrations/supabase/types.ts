@@ -2782,6 +2782,54 @@ export type Database = {
         }
         Relationships: []
       }
+      machines: {
+        Row: {
+          capacity_per_hour: number | null
+          created_at: string | null
+          current_order_uiorn: string | null
+          id: string
+          last_maintenance: string | null
+          location: string | null
+          machine_id: string
+          machine_name: string
+          machine_type: string
+          next_maintenance: string | null
+          operator_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          capacity_per_hour?: number | null
+          created_at?: string | null
+          current_order_uiorn?: string | null
+          id?: string
+          last_maintenance?: string | null
+          location?: string | null
+          machine_id: string
+          machine_name: string
+          machine_type: string
+          next_maintenance?: string | null
+          operator_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          capacity_per_hour?: number | null
+          created_at?: string | null
+          current_order_uiorn?: string | null
+          id?: string
+          last_maintenance?: string | null
+          location?: string | null
+          machine_id?: string
+          machine_name?: string
+          machine_type?: string
+          next_maintenance?: string | null
+          operator_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       master_data_artworks_dkpkl: {
         Row: {
           customer_name: string | null
@@ -2988,6 +3036,63 @@ export type Database = {
         }
         Relationships: []
       }
+      material_consumption: {
+        Row: {
+          consumption_date: string | null
+          cost_per_unit: number | null
+          id: string
+          material_type: string
+          operator_id: string | null
+          quantity_consumed: number | null
+          stage: string
+          total_cost: number | null
+          uiorn: string
+          unit: string | null
+          waste_quantity: number | null
+        }
+        Insert: {
+          consumption_date?: string | null
+          cost_per_unit?: number | null
+          id?: string
+          material_type: string
+          operator_id?: string | null
+          quantity_consumed?: number | null
+          stage: string
+          total_cost?: number | null
+          uiorn: string
+          unit?: string | null
+          waste_quantity?: number | null
+        }
+        Update: {
+          consumption_date?: string | null
+          cost_per_unit?: number | null
+          id?: string
+          material_type?: string
+          operator_id?: string | null
+          quantity_consumed?: number | null
+          stage?: string
+          total_cost?: number | null
+          uiorn?: string
+          unit?: string | null
+          waste_quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_consumption_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "order_punching"
+            referencedColumns: ["uiorn"]
+          },
+        ]
+      }
       material_selection: {
         Row: {
           alternative_materials: Json | null
@@ -3178,6 +3283,92 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      operators: {
+        Row: {
+          created_at: string | null
+          current_machine_id: string | null
+          current_order_uiorn: string | null
+          id: string
+          is_active: boolean | null
+          operator_code: string
+          operator_name: string
+          shift: string | null
+          skills: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_machine_id?: string | null
+          current_order_uiorn?: string | null
+          id?: string
+          is_active?: boolean | null
+          operator_code: string
+          operator_name: string
+          shift?: string | null
+          skills?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_machine_id?: string | null
+          current_order_uiorn?: string | null
+          id?: string
+          is_active?: boolean | null
+          operator_code?: string
+          operator_name?: string
+          shift?: string | null
+          skills?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      order_progress: {
+        Row: {
+          actual_completion: string | null
+          current_stage: string
+          estimated_completion: string | null
+          id: string
+          progress_percentage: number | null
+          stage_notes: string | null
+          stage_status: string | null
+          started_at: string | null
+          uiorn: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_completion?: string | null
+          current_stage: string
+          estimated_completion?: string | null
+          id?: string
+          progress_percentage?: number | null
+          stage_notes?: string | null
+          stage_status?: string | null
+          started_at?: string | null
+          uiorn: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_completion?: string | null
+          current_stage?: string
+          estimated_completion?: string | null
+          id?: string
+          progress_percentage?: number | null
+          stage_notes?: string | null
+          stage_status?: string | null
+          started_at?: string | null
+          uiorn?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_progress_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "order_punching"
+            referencedColumns: ["uiorn"]
           },
         ]
       }
@@ -3682,6 +3873,69 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      packaging_operations: {
+        Row: {
+          batch_numbers: string[] | null
+          created_at: string | null
+          id: string
+          labeling_complete: boolean | null
+          operator_id: string | null
+          packaging_date: string | null
+          packaging_specifications: Json | null
+          packaging_type: string
+          quality_check_passed: boolean | null
+          quantity_packaged: number | null
+          shipping_ready: boolean | null
+          uiorn: string
+          updated_at: string | null
+        }
+        Insert: {
+          batch_numbers?: string[] | null
+          created_at?: string | null
+          id?: string
+          labeling_complete?: boolean | null
+          operator_id?: string | null
+          packaging_date?: string | null
+          packaging_specifications?: Json | null
+          packaging_type: string
+          quality_check_passed?: boolean | null
+          quantity_packaged?: number | null
+          shipping_ready?: boolean | null
+          uiorn: string
+          updated_at?: string | null
+        }
+        Update: {
+          batch_numbers?: string[] | null
+          created_at?: string | null
+          id?: string
+          labeling_complete?: boolean | null
+          operator_id?: string | null
+          packaging_date?: string | null
+          packaging_specifications?: Json | null
+          packaging_type?: string
+          quality_check_passed?: boolean | null
+          quantity_packaged?: number | null
+          shipping_ready?: boolean | null
+          uiorn?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packaging_operations_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packaging_operations_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "order_punching"
+            referencedColumns: ["uiorn"]
+          },
+        ]
       }
       packaging_projects: {
         Row: {
@@ -4343,6 +4597,63 @@ export type Database = {
           year?: number | null
         }
         Relationships: []
+      }
+      quality_checkpoints: {
+        Row: {
+          checkpoint_name: string
+          created_at: string | null
+          id: string
+          inspector_id: string | null
+          passed: boolean | null
+          remarks: string | null
+          stage: string
+          test_parameters: Json | null
+          test_results: Json | null
+          tested_at: string | null
+          uiorn: string
+        }
+        Insert: {
+          checkpoint_name: string
+          created_at?: string | null
+          id?: string
+          inspector_id?: string | null
+          passed?: boolean | null
+          remarks?: string | null
+          stage: string
+          test_parameters?: Json | null
+          test_results?: Json | null
+          tested_at?: string | null
+          uiorn: string
+        }
+        Update: {
+          checkpoint_name?: string
+          created_at?: string | null
+          id?: string
+          inspector_id?: string | null
+          passed?: boolean | null
+          remarks?: string | null
+          stage?: string
+          test_parameters?: Json | null
+          test_results?: Json | null
+          tested_at?: string | null
+          uiorn?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_checkpoints_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_checkpoints_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "order_punching"
+            referencedColumns: ["uiorn"]
+          },
+        ]
       }
       quarterly_results: {
         Row: {
@@ -5025,6 +5336,82 @@ export type Database = {
           },
         ]
       }
+      slitting_operations: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          machine_id: string | null
+          number_of_slits: number | null
+          operator_id: string | null
+          parent_roll_width: number | null
+          quality_parameters: Json | null
+          slitting_speed: number | null
+          started_at: string | null
+          status: string | null
+          target_widths: number[] | null
+          uiorn: string
+          updated_at: string | null
+          waste_percentage: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          machine_id?: string | null
+          number_of_slits?: number | null
+          operator_id?: string | null
+          parent_roll_width?: number | null
+          quality_parameters?: Json | null
+          slitting_speed?: number | null
+          started_at?: string | null
+          status?: string | null
+          target_widths?: number[] | null
+          uiorn: string
+          updated_at?: string | null
+          waste_percentage?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          machine_id?: string | null
+          number_of_slits?: number | null
+          operator_id?: string | null
+          parent_roll_width?: number | null
+          quality_parameters?: Json | null
+          slitting_speed?: number | null
+          started_at?: string | null
+          status?: string | null
+          target_widths?: number[] | null
+          uiorn?: string
+          updated_at?: string | null
+          waste_percentage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slitting_operations_machine_id_fkey"
+            columns: ["machine_id"]
+            isOneToOne: false
+            referencedRelation: "machines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slitting_operations_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slitting_operations_uiorn_fkey"
+            columns: ["uiorn"]
+            isOneToOne: false
+            referencedRelation: "order_punching"
+            referencedColumns: ["uiorn"]
+          },
+        ]
+      }
       smeta_points: {
         Row: {
           description: string
@@ -5326,6 +5713,51 @@ export type Database = {
           },
         ]
       }
+      substrate_catalog: {
+        Row: {
+          color: string | null
+          cost_per_unit: number | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          length_m: number | null
+          substrate_name: string
+          substrate_type: string
+          supplier: string | null
+          thickness_micron: number | null
+          updated_at: string | null
+          width_mm: number | null
+        }
+        Insert: {
+          color?: string | null
+          cost_per_unit?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          length_m?: number | null
+          substrate_name: string
+          substrate_type: string
+          supplier?: string | null
+          thickness_micron?: number | null
+          updated_at?: string | null
+          width_mm?: number | null
+        }
+        Update: {
+          color?: string | null
+          cost_per_unit?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          length_m?: number | null
+          substrate_name?: string
+          substrate_type?: string
+          supplier?: string | null
+          thickness_micron?: number | null
+          updated_at?: string | null
+          width_mm?: number | null
+        }
+        Relationships: []
+      }
       substrate_master_dkpkl: {
         Row: {
           gsm: number | null
@@ -5606,6 +6038,18 @@ export type Database = {
       }
     }
     Views: {
+      manufacturing_analytics: {
+        Row: {
+          active_orders: number | null
+          avg_quantity: number | null
+          completed_orders: number | null
+          date: string | null
+          pending_orders: number | null
+          total_orders: number | null
+          urgent_orders: number | null
+        }
+        Relationships: []
+      }
       panchkula_payroll_calculation: {
         Row: {
           base_salary: number | null
@@ -5791,6 +6235,15 @@ export type Database = {
         Args: { data: string }
         Returns: string
       }
+      calculate_order_progress: {
+        Args: { p_uiorn: string }
+        Returns: {
+          uiorn: string
+          progress_percentage: number
+          current_stage: string
+          estimated_completion: string
+        }[]
+      }
       calculate_panchkula_salary: {
         Args: {
           p_employee_id: string
@@ -5949,6 +6402,15 @@ export type Database = {
           created_at: string
           updated_at: string
           prompt_data: Json
+        }[]
+      }
+      get_workflow_bottlenecks: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          stage: string
+          pending_orders: number
+          avg_processing_time: number
+          bottleneck_score: number
         }[]
       }
       gtrgm_compress: {
