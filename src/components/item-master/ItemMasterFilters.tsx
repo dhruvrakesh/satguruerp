@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, X, Loader2 } from "lucide-react";
-import { useCategoriesWithStats } from "@/hooks/useCategories";
+import { useCategoriesWithStats, CategoryWithStats } from "@/hooks/useCategories";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ItemMasterFilters as FilterType } from "@/hooks/useItemMaster";
 
@@ -50,31 +50,31 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
 
   const activeFiltersCount = Object.values(filters).filter(value => value && value !== "").length;
 
-  // Get selected category for display
-  const selectedCategory = categoriesWithStats?.find(c => c.id === filters.category_id);
+  // Get selected category for display - with proper type checking
+  const selectedCategory = (categoriesWithStats || []).find((c: CategoryWithStats) => c.id === filters.category_id);
 
   // Process categories - ensure unique categories with proper counts
-  const getProcessedCategories = () => {
-    if (!categoriesWithStats) {
-      console.log('No categories data available');
+  const getProcessedCategories = (): CategoryWithStats[] => {
+    if (!categoriesWithStats || !Array.isArray(categoriesWithStats)) {
+      console.log('No categories data available or not an array');
       return [];
     }
     
-    console.log('Raw categories data:', categoriesWithStats.map(c => ({
+    console.log('Raw categories data:', categoriesWithStats.map((c: CategoryWithStats) => ({
       id: c.id,
       name: c.category_name,
       total: c.total_items
     })));
     
     // Filter categories to only show those with items and ensure uniqueness
-    const uniqueCategories = new Map();
+    const uniqueCategories = new Map<string, CategoryWithStats>();
     
-    categoriesWithStats.forEach(category => {
+    categoriesWithStats.forEach((category: CategoryWithStats) => {
       const key = category.category_name.toLowerCase().trim();
       if (category.total_items > 0) {
         // If we already have this category name, sum the totals
         if (uniqueCategories.has(key)) {
-          const existing = uniqueCategories.get(key);
+          const existing = uniqueCategories.get(key)!;
           existing.total_items += category.total_items;
           existing.active_items += category.active_items;
           existing.fg_items += category.fg_items;
@@ -90,7 +90,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
     const processedCategories = Array.from(uniqueCategories.values())
       .sort((a, b) => a.category_name.localeCompare(b.category_name));
     
-    console.log('Processed unique categories with items:', processedCategories.map(c => ({
+    console.log('Processed unique categories with items:', processedCategories.map((c: CategoryWithStats) => ({
       id: c.id,
       name: c.category_name,
       total: c.total_items
@@ -143,7 +143,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__ALL__">All Categories</SelectItem>
-              {processedCategories.map((category) => (
+              {processedCategories.map((category: CategoryWithStats) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.category_name} ({category.total_items} items)
                 </SelectItem>

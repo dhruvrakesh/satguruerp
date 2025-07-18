@@ -23,7 +23,7 @@ export interface CategoryWithStats extends Category {
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Category[]> => {
       console.log('Fetching categories from categories table...');
       const { data, error } = await supabase
         .from('categories')
@@ -45,84 +45,71 @@ export function useCategories() {
 export function useCategoriesWithStats() {
   return useQuery({
     queryKey: ['categoriesWithStats'],
-    queryFn: async () => {
-      console.log('Fetching categories with stats using optimized aggregation query...');
+    queryFn: async (): Promise<CategoryWithStats[]> => {
+      console.log('Fetching categories with stats using manual aggregation...');
       
-      // Single optimized query with proper aggregation using PostgreSQL functions
-      const { data, error } = await supabase
-        .rpc('get_categories_with_item_stats');
+      // Get all categories
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('categories')
+        .select(`
+          id,
+          category_name,
+          description,
+          created_at,
+          updated_at
+        `)
+        .eq('is_active', true)
+        .order('category_name');
       
-      if (error) {
-        console.error('Error fetching categories with stats:', error);
-        console.log('Falling back to manual aggregation...');
+      if (categoryError) {
+        console.error('Error fetching categories:', categoryError);
+        throw categoryError;
+      }
+
+      const categories = categoryData || [];
+      const categoriesWithStats: CategoryWithStats[] = [];
+      
+      // Get item counts for each category
+      for (const category of categories) {
+        const { data: itemData, error: itemError } = await supabase
+          .from('item_master')
+          .select('status, usage_type')
+          .eq('category_id', category.id);
         
-        // Fallback to manual aggregation if RPC doesn't exist
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('categories')
-          .select(`
-            id,
-            category_name,
-            description,
-            created_at,
-            updated_at
-          `)
-          .eq('is_active', true)
-          .order('category_name');
-        
-        if (categoryError) {
-          console.error('Error fetching categories in fallback:', categoryError);
-          throw categoryError;
+        if (itemError) {
+          console.error(`Error fetching items for category ${category.category_name}:`, itemError);
+          continue;
         }
 
-        // Get item counts for each category
-        const categoriesWithStats: CategoryWithStats[] = [];
-        
-        for (const category of categoryData || []) {
-          const { data: itemData, error: itemError } = await supabase
-            .from('item_master')
-            .select('status, usage_type')
-            .eq('category_id', category.id);
-          
-          if (itemError) {
-            console.error(`Error fetching items for category ${category.category_name}:`, itemError);
-            continue;
-          }
+        const items = itemData || [];
+        const total_items = items.length;
+        const active_items = items.filter(item => item.status === 'active').length;
+        const fg_items = items.filter(item => item.usage_type === 'FINISHED_GOOD').length;
+        const rm_items = items.filter(item => item.usage_type === 'RAW_MATERIAL').length;
+        const packaging_items = items.filter(item => item.usage_type === 'PACKAGING').length;
+        const consumable_items = items.filter(item => item.usage_type === 'CONSUMABLE').length;
 
-          const items = itemData || [];
-          const total_items = items.length;
-          const active_items = items.filter(item => item.status === 'active').length;
-          const fg_items = items.filter(item => item.usage_type === 'FINISHED_GOOD').length;
-          const rm_items = items.filter(item => item.usage_type === 'RAW_MATERIAL').length;
-          const packaging_items = items.filter(item => item.usage_type === 'PACKAGING').length;
-          const consumable_items = items.filter(item => item.usage_type === 'CONSUMABLE').length;
-
-          categoriesWithStats.push({
-            id: category.id,
-            category_name: category.category_name,
-            description: category.description,
-            created_at: category.created_at,
-            updated_at: category.updated_at,
-            total_items,
-            active_items,
-            fg_items,
-            rm_items,
-            packaging_items,
-            consumable_items
-          });
-        }
-        
-        console.log('Categories with stats (fallback):', categoriesWithStats.length);
+        categoriesWithStats.push({
+          id: category.id,
+          category_name: category.category_name,
+          description: category.description,
+          created_at: category.created_at,
+          updated_at: category.updated_at,
+          total_items,
+          active_items,
+          fg_items,
+          rm_items,
+          packaging_items,
+          consumable_items
+        });
+      }
+      
+      console.log('Categories with stats (manual aggregation):', categoriesWithStats.length);
+      if (categoriesWithStats.length > 0) {
         console.log('Sample category stats:', categoriesWithStats[0]);
-        
-        return categoriesWithStats;
       }
       
-      console.log('Categories with stats processed via RPC:', data?.length || 0);
-      if (data && data.length > 0) {
-        console.log('Sample category stats:', data[0]);
-      }
-      
-      return data || [];
+      return categoriesWithStats;
     },
   });
 }
