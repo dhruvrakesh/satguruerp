@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
-import { AlertTriangle, Download, Upload, Trash2, CheckCircle, Database } from "lucide-react";
+import { AlertTriangle, Download, Upload, Trash2, CheckCircle, Database, FileText } from "lucide-react";
 import { useBulkUpload } from "@/hooks/useBulkUpload";
 
 interface ReplacementStats {
@@ -23,6 +23,7 @@ export function SafeDataReplacement() {
   const [replacementStep, setReplacementStep] = useState<'backup' | 'upload' | 'complete'>('backup');
   const [backupData, setBackupData] = useState<any[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
   const { uploadMutation, isProcessing, progress } = useBulkUpload();
 
@@ -45,6 +46,23 @@ export function SafeDataReplacement() {
       };
     }
   });
+
+  // Validate CSV file
+  const validateCSVFile = (file: File): string | null => {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      return 'Please select a CSV file (.csv extension required)';
+    }
+    
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      return 'File size too large. Please keep CSV files under 50MB';
+    }
+    
+    if (file.size === 0) {
+      return 'The selected file appears to be empty';
+    }
+    
+    return null;
+  };
 
   // Create backup of current data
   const createBackup = useMutation({
@@ -84,8 +102,8 @@ export function SafeDataReplacement() {
     },
     onSuccess: () => {
       toast({
-        title: "Backup Created",
-        description: "Current item master data has been backed up and downloaded",
+        title: "Backup Created Successfully",
+        description: "Current item master data has been backed up and downloaded. You can now upload your new CSV file.",
       });
     },
     onError: (error: any) => {
@@ -123,25 +141,37 @@ export function SafeDataReplacement() {
     }
   });
 
-  const handleFileUpload = async (files: File[]) => {
+  const handleFileSelect = (files: File[]) => {
     if (files.length === 0) return;
     
     const file = files[0];
-    if (!file.name.endsWith('.csv')) {
+    const validationError = validateCSVFile(file);
+    
+    if (validationError) {
       toast({
-        title: "Invalid file",
-        description: "Please upload a CSV file",
+        title: "Invalid File",
+        description: validationError,
         variant: "destructive"
       });
       return;
     }
+
+    setSelectedFile(file);
+    toast({
+      title: "File Selected",
+      description: `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) is ready for upload`,
+    });
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
 
     try {
       // First clear existing data
       await clearExistingData.mutateAsync();
       
       // Then upload new data
-      const result = await uploadMutation.mutateAsync(file);
+      const result = await uploadMutation.mutateAsync(selectedFile);
       
       if (result.successCount > 0) {
         setReplacementStep('complete');
@@ -153,7 +183,7 @@ export function SafeDataReplacement() {
     } catch (error) {
       toast({
         title: "Replacement Failed",
-        description: "Failed to replace item master data",
+        description: "Failed to replace item master data. Your backup is safe.",
         variant: "destructive"
       });
     }
@@ -173,7 +203,8 @@ export function SafeDataReplacement() {
 
     const sampleData = [
       'BOPP Film 20 Micron,Raw Materials,Premium,20,1000mm,KG,RAW_MATERIAL,High clarity BOPP film',
-      'PE Wrapper Film,Raw Materials,Standard,80,,MTR,RAW_MATERIAL,Low density polyethylene wrapper'
+      'PE Wrapper Film,Raw Materials,Standard,80,,MTR,RAW_MATERIAL,Low density polyethylene wrapper',
+      'Lamination Adhesive,Chemicals,Industrial,,5L,LTR,CONSUMABLE,Two-component polyurethane adhesive'
     ];
 
     const csvContent = [headers.join(','), ...sampleData].join('\n');
@@ -219,10 +250,10 @@ export function SafeDataReplacement() {
                 <div className="mt-3 p-3 bg-white rounded border">
                   <h4 className="font-medium mb-2">Safety Checks:</h4>
                   <ul className="text-xs space-y-1">
-                    <li>✅ No active BOM relationships will be broken</li>
-                    <li>✅ Customer specifications can be re-linked</li>
+                    <li>✅ Automatic backup will be created</li>
+                    <li>✅ BOM relationships can be re-linked</li>
                     <li>✅ Stock data will remain intact</li>
-                    <li>✅ Backup will be created automatically</li>
+                    <li>✅ Process can be rolled back if needed</li>
                   </ul>
                 </div>
               </div>
@@ -284,7 +315,7 @@ export function SafeDataReplacement() {
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Ready to safely replace item master data. A backup will be created automatically.
+                    Ready to safely replace item master data. A backup will be created automatically before any changes.
                   </AlertDescription>
                 </Alert>
 
@@ -317,12 +348,42 @@ export function SafeDataReplacement() {
                   </AlertDescription>
                 </Alert>
 
-                {!isProcessing && (
+                {!selectedFile && !isProcessing && (
                   <FileUpload
-                    onFilesSelected={handleFileUpload}
-                    accept=".csv"
+                    onFilesSelected={handleFileSelect}
+                    accept="text/csv"
                     multiple={false}
                   />
+                )}
+
+                {selectedFile && !isProcessing && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-900">{selectedFile.name}</p>
+                        <p className="text-sm text-blue-700">
+                          Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => setSelectedFile(null)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Change File
+                      </Button>
+                    </div>
+
+                    <Button 
+                      onClick={handleFileUpload}
+                      className="w-full"
+                      size="lg"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Replace All Item Master Data
+                    </Button>
+                  </div>
                 )}
 
                 {isProcessing && (

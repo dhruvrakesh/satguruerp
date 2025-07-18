@@ -23,9 +23,16 @@ export function FileUpload({
     onFilesSelected(acceptedFiles);
   }, [onFilesSelected]);
 
+  // Convert accept string to proper MIME type format
+  const acceptOptions = accept ? {
+    'text/csv': ['.csv'],
+    'application/vnd.ms-excel': ['.csv'],
+    'application/csv': ['.csv']
+  } : undefined;
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: accept ? { [accept]: [] } : undefined,
+    accept: acceptOptions,
     multiple,
     disabled
   });
@@ -52,7 +59,7 @@ export function FileUpload({
           </p>
           {accept && (
             <p className="text-xs text-muted-foreground/75">
-              Accepted formats: {accept}
+              Accepted formats: CSV files
             </p>
           )}
         </div>

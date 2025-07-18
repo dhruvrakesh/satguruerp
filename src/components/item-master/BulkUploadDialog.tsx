@@ -41,18 +41,45 @@ Corrugated Box,Packaging,,"235","235PCS",BOX,Packaging,Corrugated boxes for ship
     window.URL.revokeObjectURL(url);
   };
 
+  const validateFile = (selectedFile: File): boolean => {
+    if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a CSV file",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (selectedFile.size > 50 * 1024 * 1024) { // 50MB limit
+      toast({
+        title: "File too large",
+        description: "Please select a file smaller than 50MB",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (selectedFile.size === 0) {
+      toast({
+        title: "Empty file",
+        description: "The selected file appears to be empty",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.type !== 'text/csv' && !selectedFile.name.endsWith('.csv')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select a CSV file",
-          variant: "destructive"
-        });
-        return;
-      }
+    if (selectedFile && validateFile(selectedFile)) {
       setFile(selectedFile);
+      toast({
+        title: "File selected",
+        description: `${selectedFile.name} is ready for upload`,
+      });
     }
   };
 
@@ -160,14 +187,14 @@ Corrugated Box,Packaging,,"235","235PCS",BOX,Packaging,Corrugated boxes for ship
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                Step 2: Upload Your File
+                Step 2: Upload Your CSV File
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,text/csv,application/csv"
                   onChange={handleFileSelect}
                   disabled={isProcessing}
                 />
