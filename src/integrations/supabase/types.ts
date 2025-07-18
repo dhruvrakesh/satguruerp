@@ -1134,6 +1134,8 @@ export type Database = {
       }
       bill_of_materials: {
         Row: {
+          bom_group_id: string | null
+          consumption_rate: number | null
           created_at: string | null
           fg_item_code: string
           id: string
@@ -1142,8 +1144,11 @@ export type Database = {
           specifications: Json | null
           unit_of_measure: string
           updated_at: string | null
+          wastage_percentage: number | null
         }
         Insert: {
+          bom_group_id?: string | null
+          consumption_rate?: number | null
           created_at?: string | null
           fg_item_code: string
           id?: string
@@ -1152,8 +1157,11 @@ export type Database = {
           specifications?: Json | null
           unit_of_measure?: string
           updated_at?: string | null
+          wastage_percentage?: number | null
         }
         Update: {
+          bom_group_id?: string | null
+          consumption_rate?: number | null
           created_at?: string | null
           fg_item_code?: string
           id?: string
@@ -1162,8 +1170,17 @@ export type Database = {
           specifications?: Json | null
           unit_of_measure?: string
           updated_at?: string | null
+          wastage_percentage?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bill_of_materials_bom_group_id_fkey"
+            columns: ["bom_group_id"]
+            isOneToOne: false
+            referencedRelation: "bom_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       blog_posts: {
         Row: {
@@ -1206,6 +1223,132 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      bom_groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          group_code: string
+          group_name: string
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          group_code: string
+          group_name: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          group_code?: string
+          group_name?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bulk_leave_applications: {
+        Row: {
+          applied_by: string | null
+          approved_at: string | null
+          approved_by: string | null
+          batch_id: string
+          created_at: string | null
+          days_requested: number
+          employee_id: string
+          end_date: string
+          id: string
+          leave_type: string
+          reason: string | null
+          remarks: string | null
+          start_date: string
+          status: string
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          applied_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          batch_id?: string
+          created_at?: string | null
+          days_requested: number
+          employee_id: string
+          end_date: string
+          id?: string
+          leave_type: string
+          reason?: string | null
+          remarks?: string | null
+          start_date: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          applied_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          batch_id?: string
+          created_at?: string | null
+          days_requested?: number
+          employee_id?: string
+          end_date?: string
+          id?: string
+          leave_type?: string
+          reason?: string | null
+          remarks?: string | null
+          start_date?: string
+          status?: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_leave_applications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_leave_applications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "panchkula_payroll_calculation"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "bulk_leave_applications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "bulk_leave_applications_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_leave_applications_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["unit_id"]
+          },
+        ]
       }
       bulk_payroll_jobs: {
         Row: {
@@ -2202,6 +2345,45 @@ export type Database = {
           is_active?: boolean
           section_type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      formula_performance_metrics: {
+        Row: {
+          avg_execution_time_ms: number
+          created_at: string | null
+          error_count: number
+          execution_count: number
+          formula_name: string
+          id: string
+          last_executed: string | null
+          status: string
+          success_rate: number
+          updated_at: string | null
+        }
+        Insert: {
+          avg_execution_time_ms?: number
+          created_at?: string | null
+          error_count?: number
+          execution_count?: number
+          formula_name: string
+          id?: string
+          last_executed?: string | null
+          status?: string
+          success_rate?: number
+          updated_at?: string | null
+        }
+        Update: {
+          avg_execution_time_ms?: number
+          created_at?: string | null
+          error_count?: number
+          execution_count?: number
+          formula_name?: string
+          id?: string
+          last_executed?: string | null
+          status?: string
+          success_rate?: number
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -4107,6 +4289,42 @@ export type Database = {
         }
         Relationships: []
       }
+      overtime_validation_log: {
+        Row: {
+          created_at: string | null
+          discrepancies: number
+          employee_count: number
+          id: string
+          total_ot_hours: number
+          validated_by: string | null
+          validation_date: string
+          validation_details: Json | null
+          validation_status: string
+        }
+        Insert: {
+          created_at?: string | null
+          discrepancies?: number
+          employee_count?: number
+          id?: string
+          total_ot_hours?: number
+          validated_by?: string | null
+          validation_date: string
+          validation_details?: Json | null
+          validation_status?: string
+        }
+        Update: {
+          created_at?: string | null
+          discrepancies?: number
+          employee_count?: number
+          id?: string
+          total_ot_hours?: number
+          validated_by?: string | null
+          validation_date?: string
+          validation_details?: Json | null
+          validation_status?: string
+        }
+        Relationships: []
+      }
       packaging_operations: {
         Row: {
           batch_numbers: string[] | null
@@ -5247,6 +5465,68 @@ export type Database = {
         }
         Relationships: []
       }
+      satguru_cylinders: {
+        Row: {
+          colour: string
+          created_at: string | null
+          cylinder_code: string
+          cylinder_name: string
+          cylinder_size: number | null
+          id: string
+          is_active: boolean | null
+          item_code: string
+          last_run: string | null
+          location: string | null
+          manufacturer: string | null
+          mileage_m: number | null
+          remarks: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          colour: string
+          created_at?: string | null
+          cylinder_code: string
+          cylinder_name: string
+          cylinder_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code: string
+          last_run?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          mileage_m?: number | null
+          remarks?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          colour?: string
+          created_at?: string | null
+          cylinder_code?: string
+          cylinder_name?: string
+          cylinder_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code?: string
+          last_run?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          mileage_m?: number | null
+          remarks?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_satguru_cylinders_item_code"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "_artworks_revised_staging"
+            referencedColumns: ["item_code"]
+          },
+        ]
+      }
       satguru_daily_stock_summary: {
         Row: {
           category_name: string | null
@@ -6208,6 +6488,51 @@ export type Database = {
         }
         Relationships: []
       }
+      uiorn_material_consumption: {
+        Row: {
+          actual_quantity: number | null
+          consumed_at: string | null
+          id: string
+          notes: string | null
+          planned_quantity: number
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          recorded_by: string | null
+          rm_item_code: string
+          total_cost: number | null
+          uiorn: string
+          unit_cost: number | null
+          wastage_quantity: number | null
+        }
+        Insert: {
+          actual_quantity?: number | null
+          consumed_at?: string | null
+          id?: string
+          notes?: string | null
+          planned_quantity: number
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          recorded_by?: string | null
+          rm_item_code: string
+          total_cost?: number | null
+          uiorn: string
+          unit_cost?: number | null
+          wastage_quantity?: number | null
+        }
+        Update: {
+          actual_quantity?: number | null
+          consumed_at?: string | null
+          id?: string
+          notes?: string | null
+          planned_quantity?: number
+          process_stage?: Database["public"]["Enums"]["process_stage"]
+          recorded_by?: string | null
+          rm_item_code?: string
+          total_cost?: number | null
+          uiorn?: string
+          unit_cost?: number | null
+          wastage_quantity?: number | null
+        }
+        Relationships: []
+      }
       units: {
         Row: {
           created_at: string | null
@@ -6303,6 +6628,53 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_off_rules: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          day_of_week: number
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          unit_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          day_of_week: number
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          unit_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          day_of_week?: number
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          unit_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_off_rules_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["unit_id"]
           },
         ]
       }
@@ -7139,6 +7511,14 @@ export type Database = {
         Args: { rows: Json; update_reason: string }
         Returns: Json
       }
+      update_formula_metrics: {
+        Args: {
+          p_formula_name: string
+          p_execution_time_ms: number
+          p_success?: boolean
+        }
+        Returns: undefined
+      }
       update_job_status: {
         Args: {
           p_job_id: string
@@ -7215,6 +7595,7 @@ export type Database = {
         | "ADHESIVE_COATING"
         | "SLITTING"
         | "DISPATCH"
+        | "GRAVURE_PRINTING"
       process_status:
         | "PENDING"
         | "STARTED"
@@ -7387,6 +7768,7 @@ export const Constants = {
         "ADHESIVE_COATING",
         "SLITTING",
         "DISPATCH",
+        "GRAVURE_PRINTING",
       ],
       process_status: [
         "PENDING",

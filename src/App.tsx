@@ -10,7 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppHeader } from "@/components/layout/AppHeader";
 import Index from "./pages/Index";
-import AuthPage from "./pages/AuthPage";
+import { AuthPage } from "./pages/AuthPage";
 import ItemMaster from "./pages/ItemMaster";
 import StockOperations from "./pages/StockOperations";
 import StockSummary from "./pages/StockSummary";

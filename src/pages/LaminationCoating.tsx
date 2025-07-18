@@ -120,6 +120,7 @@ export default function LaminationCoating() {
     
     try {
       // Log process initiation
+      const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase
         .from('process_logs_se')
         .insert({
@@ -127,7 +128,7 @@ export default function LaminationCoating() {
           stage: 'LAMINATION',
           metric: 'process_start',
           txt_value: 'Process initiated from UI',
-          captured_by: supabase.auth.getUser().then(u => u.data.user?.id)
+          captured_by: user?.id
         });
 
       if (error) throw error;

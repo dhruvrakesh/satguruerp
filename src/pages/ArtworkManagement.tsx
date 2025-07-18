@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { CylinderData } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -35,14 +36,6 @@ interface ArtworkItem {
   remarks?: string;
 }
 
-interface CylinderData {
-  id: string;
-  item_code: string;
-  cylinder_name: string;
-  customer_name: string;
-  cylinder_size: string;
-  created_at: string;
-}
 
 export default function ArtworkManagement() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,7 +80,22 @@ export default function ArtworkManagement() {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as CylinderData[];
+      return data.map((item: any) => ({
+        id: item.id || crypto.randomUUID(),
+        cylinder_code: item.cylinder_code || '',
+        cylinder_name: item.cylinder_name || item.cylinder_code || '',
+        colour: item.colour || '',
+        cylinder_size: item.cylinder_size || 0,
+        type: item.type || 'GRAVURE',
+        manufacturer: item.manufacturer || '',
+        location: item.location || '',
+        mileage_m: item.mileage_m || 0,
+        last_run: item.last_run || '',
+        remarks: item.remarks || '',
+        item_code: item.item_code || '',
+        customer_name: item.customer_name || '',
+        created_at: item.created_at || ''
+      })) as CylinderData[];
     },
   });
 
