@@ -19,6 +19,7 @@ export default function OrderPunching() {
   const [statusFilter, setStatusFilter] = useState("");
   const [processingOrders, setProcessingOrders] = useState<Set<string>>(new Set());
   const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<any>(null);
+  const [isOrderCreationOpen, setIsOrderCreationOpen] = useState(false);
   
   const { toast } = useToast();
   const { data: orders = [] } = useManufacturingOrders({
@@ -104,7 +105,10 @@ export default function OrderPunching() {
           <p className="text-muted-foreground">Order creation, specifications, and initial processing</p>
         </div>
         <div className="flex gap-2">
-          <EnhancedOrderCreationDialog />
+          <Button onClick={() => setIsOrderCreationOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Order
+          </Button>
           <Button variant="outline">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule
@@ -215,7 +219,7 @@ export default function OrderPunching() {
                         <div>
                           <h3 className="font-semibold">{order.uiorn}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {getCustomerName(order.uiorn, order.customer_name)}
+                            {getCustomerName(order.uiorn, order.customer_name || '')}
                           </p>
                         </div>
                         <div>
@@ -271,7 +275,7 @@ export default function OrderPunching() {
                           <div>
                             <h3 className="font-semibold">{order.uiorn}</h3>
                             <p className="text-sm text-muted-foreground">
-                              {getCustomerName(order.uiorn, order.customer_name, true)}
+                              {getCustomerName(order.uiorn, order.customer_name || '', true)}
                             </p>
                           </div>
                           <div>
@@ -322,7 +326,7 @@ export default function OrderPunching() {
                     <div>
                       <h3 className="text-lg font-semibold">Order: {selectedOrderForTracking.uiorn}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name)}
+                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name || '')}
                       </p>
                     </div>
                     <Button variant="outline" onClick={() => setSelectedOrderForTracking(null)}>
@@ -360,7 +364,7 @@ export default function OrderPunching() {
                     <div>
                       <h3 className="text-lg font-semibold">Order: {selectedOrderForTracking.uiorn}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name)}
+                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name || '')}
                       </p>
                     </div>
                     <Button variant="outline" onClick={() => setSelectedOrderForTracking(null)}>
@@ -401,6 +405,11 @@ export default function OrderPunching() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <EnhancedOrderCreationDialog
+        open={isOrderCreationOpen}
+        onOpenChange={setIsOrderCreationOpen}
+      />
     </div>
   );
 }

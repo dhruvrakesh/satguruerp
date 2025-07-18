@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -50,66 +49,83 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
     queryFn: async () => {
       console.log('Fetching satguru item master with options:', { page, pageSize, filters, sort });
       
-      let query = supabase
+      // First get the items
+      let itemQuery = supabase
         .from('satguru_item_master')
-        .select(`
-          *,
-          category:categories(
-            id,
-            category_name
-          )
-        `, { count: 'exact' });
+        .select('*', { count: 'exact' });
 
       // Apply filters
       if (filters.search) {
         console.log('Applying search filter:', filters.search);
-        query = query.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
+        itemQuery = itemQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
       }
       
       if (filters.category_id) {
         console.log('Applying category filter:', filters.category_id);
-        query = query.eq('category_id', filters.category_id);
+        itemQuery = itemQuery.eq('category_id', filters.category_id);
       }
       
       if (filters.status) {
         console.log('Applying status filter:', filters.status);
-        query = query.eq('status', filters.status);
+        itemQuery = itemQuery.eq('status', filters.status);
       }
       
       if (filters.uom) {
         console.log('Applying UOM filter:', filters.uom);
-        query = query.eq('uom', filters.uom);
+        itemQuery = itemQuery.eq('uom', filters.uom);
       }
       
       if (filters.usage_type) {
         console.log('Applying usage type filter:', filters.usage_type);
-        query = query.eq('usage_type', filters.usage_type);
+        itemQuery = itemQuery.eq('usage_type', filters.usage_type);
       }
 
       // Apply sorting
       if (sort) {
-        query = query.order(sort.column, { ascending: sort.direction === 'asc' });
+        itemQuery = itemQuery.order(sort.column, { ascending: sort.direction === 'asc' });
       } else {
-        query = query.order('created_at', { ascending: false });
+        itemQuery = itemQuery.order('created_at', { ascending: false });
       }
 
       // Apply pagination
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      query = query.range(from, to);
+      itemQuery = itemQuery.range(from, to);
 
-      const { data, error, count } = await query;
+      const { data: items, error: itemError, count } = await itemQuery;
       
-      if (error) {
-        console.error('Error fetching satguru item master:', error);
-        throw error;
+      if (itemError) {
+        console.error('Error fetching satguru item master:', itemError);
+        throw itemError;
       }
 
-      console.log('Satguru item master fetched:', data?.length || 0, 'total:', count);
-      console.log('Sample item with category:', data?.[0]);
+      // Now get categories separately for the items that have category_id
+      const categoryIds = items?.filter(item => item.category_id).map(item => item.category_id) || [];
+      let categories: any[] = [];
+      
+      if (categoryIds.length > 0) {
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('categories')
+          .select('id, category_name')
+          .in('id', categoryIds);
+        
+        if (!categoryError) {
+          categories = categoryData || [];
+        }
+      }
+
+      // Merge category data with items
+      const itemsWithCategories = items?.map(item => ({
+        ...item,
+        category: item.category_id 
+          ? categories.find(cat => cat.id === item.category_id) 
+          : null
+      })) || [];
+
+      console.log('Satguru item master fetched:', itemsWithCategories?.length || 0, 'total:', count);
       
       return {
-        data: data || [],
+        data: itemsWithCategories,
         count: count || 0,
         totalPages: Math.ceil((count || 0) / pageSize)
       };

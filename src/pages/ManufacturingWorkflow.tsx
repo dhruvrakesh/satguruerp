@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Workflow, Filter, Search, TrendingUp, Clock, Package, AlertTriangle, History } from "lucide-react";
@@ -16,6 +17,7 @@ export default function ManufacturingWorkflow() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
+  const [isOrderCreationOpen, setIsOrderCreationOpen] = useState(false);
   
   const { data: orders = [] } = useManufacturingOrders({
     search: searchTerm,
@@ -42,7 +44,9 @@ export default function ManufacturingWorkflow() {
           <p className="text-muted-foreground">Real-time production tracking and order management</p>
         </div>
         <div className="flex gap-2">
-          <EnhancedOrderCreationDialog />
+          <Button onClick={() => setIsOrderCreationOpen(true)}>
+            Create New Order
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -178,6 +182,11 @@ export default function ManufacturingWorkflow() {
           <ProcessHistoryViewer />
         </TabsContent>
       </Tabs>
+
+      <EnhancedOrderCreationDialog
+        open={isOrderCreationOpen}
+        onOpenChange={setIsOrderCreationOpen}
+      />
 
       <OrderDetailModal
         order={selectedOrder}

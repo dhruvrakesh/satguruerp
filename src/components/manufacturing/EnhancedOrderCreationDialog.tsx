@@ -38,8 +38,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
   const { toast } = useToast();
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [orderData, setOrderData] = useState({
-    customer_name: "",
-    customer_code: "",
     product_description: "",
     order_type: "PRINTING",
     priority: "MEDIUM",
@@ -108,15 +106,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       return;
     }
 
-    if (!orderData.customer_name.trim()) {
-      toast({
-        title: "Customer name required",
-        description: "Please enter the customer name",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -124,8 +113,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       const { data: order, error: orderError } = await supabase
         .from('orders_dashboard_se')
         .insert({
-          customer_name: orderData.customer_name,
-          customer_code: orderData.customer_code || null,
           product_description: orderData.product_description,
           order_type: orderData.order_type,
           priority: orderData.priority,
@@ -141,22 +128,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const orderItems = selectedItems.map(item => ({
-        uiorn: order.uiorn,
-        item_code: item.item_code,
-        item_name: item.item_name,
-        quantity: item.quantity,
-        uom: item.uom,
-        usage_type: item.usage_type
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items_se')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
       toast({
         title: "Order created successfully",
         description: `Order ${order.uiorn} has been created with ${selectedItems.length} items`
@@ -165,8 +136,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       // Reset form
       setSelectedItems([]);
       setOrderData({
-        customer_name: "",
-        customer_code: "",
         product_description: "",
         order_type: "PRINTING",
         priority: "MEDIUM",
@@ -208,27 +177,6 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
               <CardTitle className="text-lg">Order Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="customer_name">Customer Name *</Label>
-                  <Input
-                    id="customer_name"
-                    value={orderData.customer_name}
-                    onChange={(e) => setOrderData(prev => ({ ...prev, customer_name: e.target.value }))}
-                    placeholder="Enter customer name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customer_code">Customer Code</Label>
-                  <Input
-                    id="customer_code"
-                    value={orderData.customer_code}
-                    onChange={(e) => setOrderData(prev => ({ ...prev, customer_code: e.target.value }))}
-                    placeholder="Optional customer code"
-                  />
-                </div>
-              </div>
-
               <div>
                 <Label htmlFor="product_description">Product Description</Label>
                 <Textarea
