@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -23,12 +24,19 @@ export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
+      console.log('Fetching categories from categories table...');
       const { data, error } = await supabase
-        .from('satguru_categories')
+        .from('categories')
         .select('id, category_name, description, created_at, updated_at')
+        .eq('is_active', true)
         .order('category_name');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching categories:', error);
+        throw error;
+      }
+      
+      console.log('Categories fetched:', data?.length || 0);
       return data || [];
     },
   });
@@ -38,13 +46,37 @@ export function useCategoryStats() {
   return useQuery({
     queryKey: ['categoryStats'],
     queryFn: async () => {
+      console.log('Fetching category stats...');
       const { data, error } = await supabase
-        .from('satguru_category_stats')
-        .select('*')
+        .from('categories')
+        .select(`
+          id,
+          category_name,
+          description,
+          created_at,
+          updated_at
+        `)
+        .eq('is_active', true)
         .order('category_name');
       
-      if (error) throw error;
-      return data as CategoryStats[] || [];
+      if (error) {
+        console.error('Error fetching category stats:', error);
+        throw error;
+      }
+      
+      // For now, return basic stats - can be enhanced later with actual counts
+      const statsData = data?.map(cat => ({
+        ...cat,
+        total_items: 0,
+        fg_items: 0,
+        rm_items: 0,
+        packaging_items: 0,
+        consumable_items: 0,
+        active_items: 0
+      })) || [];
+      
+      console.log('Category stats processed:', statsData.length);
+      return statsData as CategoryStats[];
     },
   });
 }
@@ -55,7 +87,7 @@ export function useCategoryMutations() {
   const createCategory = useMutation({
     mutationFn: async (category: { category_name: string; description?: string }) => {
       const { data, error } = await supabase
-        .from('satguru_categories')
+        .from('categories')
         .insert([category])
         .select()
         .single();
@@ -80,7 +112,7 @@ export function useCategoryMutations() {
   const updateCategory = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Category> }) => {
       const { data, error } = await supabase
-        .from('satguru_categories')
+        .from('categories')
         .update(updates)
         .eq('id', id)
         .select()
@@ -106,7 +138,7 @@ export function useCategoryMutations() {
   const deleteCategory = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('satguru_categories')
+        .from('categories')
         .delete()
         .eq('id', id);
       

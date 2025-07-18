@@ -29,6 +29,8 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
   return useQuery({
     queryKey: ['itemMaster', page, pageSize, filters, sort],
     queryFn: async () => {
+      console.log('Fetching item master with options:', { page, pageSize, filters, sort });
+      
       let query = supabase
         .from('item_master')
         .select(`
@@ -74,7 +76,12 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
 
       const { data, error, count } = await query;
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching item master:', error);
+        throw error;
+      }
+
+      console.log('Item master fetched:', data?.length || 0, 'total:', count);
       
       return {
         data: data || [],
