@@ -10,7 +10,7 @@ export const itemMasterSchema = z.object({
   uom: z.enum(["PCS", "KG", "MTR", "SQM", "LTR", "BOX", "ROLL"], {
     errorMap: () => ({ message: "Please select a valid unit of measure" })
   }),
-  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "PACKAGING", "CONSUMABLE"]).optional(),
+  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "PACKAGING", "CONSUMABLE"]).default("FINISHED_GOOD"),
   status: z.enum(["active", "inactive"]).default("active")
 });
 

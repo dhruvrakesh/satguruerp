@@ -5185,6 +5185,13 @@ export type Database = {
             referencedRelation: "satguru_categories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "satguru_item_master_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
         ]
       }
       satguru_stock: {
@@ -6164,6 +6171,22 @@ export type Database = {
           },
         ]
       }
+      satguru_category_stats: {
+        Row: {
+          active_items: number | null
+          category_name: string | null
+          consumable_items: number | null
+          created_at: string | null
+          description: string | null
+          fg_items: number | null
+          id: string | null
+          packaging_items: number | null
+          rm_items: number | null
+          total_items: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       satguru_stock_summary: {
         Row: {
           category_name: string | null
@@ -6196,6 +6219,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "satguru_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satguru_item_master_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
             referencedColumns: ["id"]
           },
           {
@@ -6647,6 +6677,16 @@ export type Database = {
           reorder_level: number
           status: string
         }[]
+      }
+      satguru_generate_enhanced_item_code: {
+        Args: {
+          category_name: string
+          usage_type?: string
+          qualifier?: string
+          size_mm?: string
+          gsm?: number
+        }
+        Returns: string
       }
       satguru_generate_item_code: {
         Args: {

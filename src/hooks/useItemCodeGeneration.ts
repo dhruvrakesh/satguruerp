@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ItemCodeParams {
   categoryName?: string;
+  usageType?: 'RAW_MATERIAL' | 'FINISHED_GOOD' | 'PACKAGING' | 'CONSUMABLE';
   qualifier?: string;
   size?: string;
   gsm?: number;
@@ -18,8 +19,9 @@ export function useItemCodeGeneration() {
     mutationFn: async (params: ItemCodeParams) => {
       if (!params.categoryName) return "";
       
-      const { data, error } = await supabase.rpc('satguru_generate_item_code', {
+      const { data, error } = await supabase.rpc('satguru_generate_enhanced_item_code', {
         category_name: params.categoryName,
+        usage_type: params.usageType || 'FINISHED_GOOD',
         qualifier: params.qualifier || '',
         size_mm: params.size || '',
         gsm: params.gsm || null
