@@ -113,15 +113,10 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       const { data: order, error: orderError } = await supabase
         .from('orders_dashboard_se')
         .insert({
-          product_description: orderData.product_description,
-          order_type: orderData.order_type,
-          priority: orderData.priority,
-          expected_delivery: orderData.expected_delivery || null,
-          special_instructions: orderData.special_instructions || null,
-          total_quantity: orderData.total_quantity,
-          unit_price: orderData.unit_price,
-          total_value: orderData.total_value,
-          status: 'PENDING'
+          item_name: orderData.product_description,
+          substrate: orderData.product_description,
+          po_number: `PO-${Date.now()}`,
+          created_by: 'system'
         })
         .select()
         .single();

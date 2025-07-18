@@ -8,14 +8,9 @@ export const useItemsForSelection = () => {
   return useQuery({
     queryKey: ["items-for-selection"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("satguru_item_master")
-        .select("item_code, item_name, uom, status, usage_type")
-        .eq("is_active", true)
-        .order("item_name");
-      
+      const { data, error } = await supabase.rpc('get_active_items_for_selection');
       if (error) throw error;
-      return data;
+      return data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -49,85 +44,62 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
     queryFn: async () => {
       console.log('Fetching satguru item master with options:', { page, pageSize, filters, sort });
       
-      // First get the items
-      let itemQuery = supabase
-        .from('satguru_item_master')
-        .select('*', { count: 'exact' });
+      // Build query step by step to avoid type issues
+      const query = supabase.from('satguru_item_master');
+      let selectQuery = query.select('*', { count: 'exact' });
 
       // Apply filters
       if (filters.search) {
         console.log('Applying search filter:', filters.search);
-        itemQuery = itemQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
+        selectQuery = selectQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
       }
       
       if (filters.category_id) {
         console.log('Applying category filter:', filters.category_id);
-        itemQuery = itemQuery.eq('category_id', filters.category_id);
+        selectQuery = selectQuery.eq('category_id', filters.category_id);
       }
       
       if (filters.status) {
         console.log('Applying status filter:', filters.status);
-        itemQuery = itemQuery.eq('status', filters.status);
+        selectQuery = selectQuery.eq('status', filters.status);
       }
       
       if (filters.uom) {
         console.log('Applying UOM filter:', filters.uom);
-        itemQuery = itemQuery.eq('uom', filters.uom);
+        selectQuery = selectQuery.eq('uom', filters.uom);
       }
       
       if (filters.usage_type) {
         console.log('Applying usage type filter:', filters.usage_type);
-        itemQuery = itemQuery.eq('usage_type', filters.usage_type);
+        selectQuery = selectQuery.eq('usage_type', filters.usage_type);
       }
 
       // Apply sorting
       if (sort) {
-        itemQuery = itemQuery.order(sort.column, { ascending: sort.direction === 'asc' });
+        selectQuery = selectQuery.order(sort.column, { ascending: sort.direction === 'asc' });
       } else {
-        itemQuery = itemQuery.order('created_at', { ascending: false });
+        selectQuery = selectQuery.order('created_at', { ascending: false });
       }
 
       // Apply pagination
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      itemQuery = itemQuery.range(from, to);
+      selectQuery = selectQuery.range(from, to);
 
-      const { data: items, error: itemError, count } = await itemQuery;
+      const result = await selectQuery;
       
-      if (itemError) {
-        console.error('Error fetching satguru item master:', itemError);
-        throw itemError;
+      if (result.error) {
+        console.error('Error fetching satguru item master:', result.error);
+        throw result.error;
       }
 
-      // Now get categories separately for the items that have category_id
-      const categoryIds = items?.filter(item => item.category_id).map(item => item.category_id) || [];
-      let categories: any[] = [];
-      
-      if (categoryIds.length > 0) {
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('categories')
-          .select('id, category_name')
-          .in('id', categoryIds);
-        
-        if (!categoryError) {
-          categories = categoryData || [];
-        }
-      }
-
-      // Merge category data with items
-      const itemsWithCategories = items?.map(item => ({
-        ...item,
-        category: item.category_id 
-          ? categories.find(cat => cat.id === item.category_id) 
-          : null
-      })) || [];
-
-      console.log('Satguru item master fetched:', itemsWithCategories?.length || 0, 'total:', count);
+      const items = result.data || [];
+      console.log('Satguru item master fetched:', items.length, 'total:', result.count);
       
       return {
-        data: itemsWithCategories,
-        count: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize)
+        data: items,
+        count: result.count || 0,
+        totalPages: Math.ceil((result.count || 0) / pageSize)
       };
     },
   });
@@ -137,10 +109,10 @@ export function useItemMasterMutations() {
   const queryClient = useQueryClient();
 
   const createItem = useMutation({
-    mutationFn: async (item: ItemMasterFormData) => {
+    mutationFn: async (item: any) => {
       const { data, error } = await supabase
         .from('satguru_item_master')
-        .insert([item as any])
+        .insert(item)
         .select()
         .single();
       
