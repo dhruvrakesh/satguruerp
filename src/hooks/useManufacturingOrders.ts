@@ -39,8 +39,9 @@ export const useOrderProgress = () => {
   return useQuery({
     queryKey: ["order-progress"],
     queryFn: async () => {
-      // Temporarily return mock data until function is available
-      return [] as OrderProgress[];
+      const { data, error } = await supabase.rpc('calculate_order_progress');
+      if (error) throw error;
+      return data as OrderProgress[];
     },
   });
 };
@@ -49,11 +50,13 @@ export const useWorkflowBottlenecks = () => {
   return useQuery({
     queryKey: ["workflow-bottlenecks"],
     queryFn: async () => {
-      // Temporarily return mock data until function is available
-      return [] as WorkflowBottleneck[];
+      const { data, error } = await supabase.rpc('get_workflow_bottlenecks');
+      if (error) throw error;
+      return data as WorkflowBottleneck[];
     },
   });
 };
+
 
 export const useCreateOrder = () => {
   const queryClient = useQueryClient();
