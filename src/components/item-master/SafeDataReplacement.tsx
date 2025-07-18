@@ -23,7 +23,9 @@ export function SafeDataReplacement() {
   const [replacementStep, setReplacementStep] = useState<'backup' | 'upload' | 'complete'>('backup');
   const [backupData, setBackupData] = useState<any[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showDependencyDialog, setShowDependencyDialog] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [dependencyStats, setDependencyStats] = useState<ReplacementStats | null>(null);
   const queryClient = useQueryClient();
   const { uploadMutation, isProcessing, progress } = useBulkUpload();
 
@@ -115,40 +117,67 @@ export function SafeDataReplacement() {
     }
   });
 
-  // Clear all existing data with proper foreign key handling
+  // Clear dependent data (BOM and stock records)
+  const clearDependentData = useMutation({
+    mutationFn: async () => {
+      console.log('🧹 Clearing dependent data...');
+      
+      // Clear BOM references first
+      const { error: bomError } = await supabase
+        .from('bill_of_materials')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (bomError) {
+        console.error('BOM deletion error:', bomError);
+        throw new Error(`Failed to clear BOM data: ${bomError.message}`);
+      }
+
+      // Clear stock records
+      const { error: stockError } = await supabase
+        .from('satguru_stock')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (stockError) {
+        console.error('Stock deletion error:', stockError);
+        throw new Error(`Failed to clear stock data: ${stockError.message}`);
+      }
+
+      console.log('✅ Dependent data cleared successfully');
+    },
+    onSuccess: () => {
+      toast({
+        title: "Dependencies Cleared",
+        description: "BOM and stock data have been cleared to allow item master replacement",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Clear dependent data error:', error);
+      toast({
+        title: "Failed to Clear Dependencies", 
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Clear all existing item master data
   const clearExistingData = useMutation({
     mutationFn: async () => {
-      // First, check for foreign key dependencies
-      const { data: bomRefs } = await supabase
-        .from('bill_of_materials')
-        .select('fg_item_code')
-        .limit(1);
+      console.log('🗑️ Clearing item master data...');
       
-      const { data: stockRefs } = await supabase
-        .from('satguru_stock')
-        .select('item_code')
-        .limit(1);
-
-      if (bomRefs && bomRefs.length > 0) {
-        throw new Error("Cannot delete items with BOM references. Please clear BOM data first or use the migration approach.");
-      }
-
-      if (stockRefs && stockRefs.length > 0) {
-        throw new Error("Cannot delete items with stock records. Please clear stock data first or use the migration approach.");
-      }
-
-      // If no dependencies, proceed with deletion
       const { error } = await supabase
         .from('item_master')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000');
       
       if (error) {
-        if (error.code === '23503') { // Foreign key violation
-          throw new Error("Cannot delete items due to existing references. Please use the migration approach or clear dependent data first.");
-        }
-        throw error;
+        console.error('Item master deletion error:', error);
+        throw new Error(`Failed to clear item master data: ${error.message}`);
       }
+
+      console.log('✅ Item master data cleared successfully');
     },
     onSuccess: () => {
       toast({
@@ -189,18 +218,29 @@ export function SafeDataReplacement() {
     });
   };
 
-  const handleFileUpload = async () => {
+  const checkDependencies = async () => {
+    if (!stats) return;
+    
+    setDependencyStats(stats);
+    
+    if (stats.bomReferences > 0 || stats.stockReferences > 0) {
+      setShowDependencyDialog(true);
+    } else {
+      // No dependencies, proceed directly
+      handleDirectReplacement();
+    }
+  };
+
+  const handleDirectReplacement = async () => {
     if (!selectedFile) return;
 
     try {
-      console.log('🚀 Starting item master replacement process...');
+      console.log('🚀 Starting direct item master replacement...');
       
-      // First clear existing data
-      console.log('🗑️ Clearing existing data...');
+      // Clear existing data
       await clearExistingData.mutateAsync();
-      console.log('✅ Existing data cleared successfully');
       
-      // Then upload new data
+      // Upload new data
       console.log('📤 Uploading new data...');
       const result = await uploadMutation.mutateAsync(selectedFile);
       console.log('📊 Upload result:', result);
@@ -215,23 +255,47 @@ export function SafeDataReplacement() {
         throw new Error(`No items were successfully uploaded. ${result.errorCount} errors occurred.`);
       }
     } catch (error: any) {
-      console.error('💥 Replacement process failed:', error);
-      
-      let errorMessage = "Failed to replace item master data. Your backup is safe.";
-      
-      if (error.message.includes("BOM references")) {
-        errorMessage = "Cannot replace data: BOM references exist. Please clear BOM data first or contact administrator.";
-      } else if (error.message.includes("stock records")) {
-        errorMessage = "Cannot replace data: Stock records exist. Please clear stock data first or contact administrator.";
-      } else if (error.message.includes("foreign key")) {
-        errorMessage = "Cannot replace data: Related records exist. Please contact administrator for migration assistance.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
+      console.error('💥 Direct replacement failed:', error);
       toast({
         title: "Replacement Failed",
-        description: errorMessage,
+        description: error.message || "Failed to replace item master data. Your backup is safe.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleReplacementWithCleanup = async () => {
+    if (!selectedFile) return;
+
+    try {
+      console.log('🚀 Starting item master replacement with dependency cleanup...');
+      
+      // First clear dependent data
+      await clearDependentData.mutateAsync();
+      
+      // Then clear existing item master data
+      await clearExistingData.mutateAsync();
+      
+      // Finally upload new data
+      console.log('📤 Uploading new data...');
+      const result = await uploadMutation.mutateAsync(selectedFile);
+      console.log('📊 Upload result:', result);
+      
+      if (result.successCount > 0) {
+        setReplacementStep('complete');
+        setShowDependencyDialog(false);
+        toast({
+          title: "Replacement Complete",
+          description: `Successfully replaced ${stats?.currentItems || 0} items with ${result.successCount} new items. BOM and stock data cleared.`,
+        });
+      } else {
+        throw new Error(`No items were successfully uploaded. ${result.errorCount} errors occurred.`);
+      }
+    } catch (error: any) {
+      console.error('💥 Replacement with cleanup failed:', error);
+      toast({
+        title: "Replacement Failed",
+        description: error.message || "Failed to replace item master data. Your backup is safe.",
         variant: "destructive"
       });
     }
@@ -267,6 +331,63 @@ export function SafeDataReplacement() {
 
   return (
     <>
+      {/* Dependency Warning Dialog */}
+      <Dialog open={showDependencyDialog} onOpenChange={setShowDependencyDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Dependencies Found - Choose Action
+            </DialogTitle>
+          </DialogHeader>
+
+          <Alert className="border-orange-200 bg-orange-50">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertDescription>
+              <div className="space-y-3">
+                <p className="font-medium text-orange-800">Your item master has dependent data that will prevent replacement:</p>
+                
+                {dependencyStats && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <p><strong>BOM References:</strong> {dependencyStats.bomReferences}</p>
+                      <p><strong>Stock Records:</strong> {dependencyStats.stockReferences}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p><strong>Specifications:</strong> {dependencyStats.specReferences}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 p-3 bg-white rounded border">
+                  <h4 className="font-medium mb-2">Choose how to proceed:</h4>
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Option 1:</strong> Clear all dependent data and proceed (Recommended)</p>
+                    <p className="text-xs text-gray-600">• BOM and stock data will be deleted</p>
+                    <p className="text-xs text-gray-600">• You can repopulate BOM data later</p>
+                    <p className="text-xs text-gray-600">• Your backup includes current item master data</p>
+                  </div>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setShowDependencyDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleReplacementWithCleanup}
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Processing...' : 'Clear Dependencies & Replace'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Original Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -299,8 +420,8 @@ export function SafeDataReplacement() {
                   <h4 className="font-medium mb-2">Safety Checks:</h4>
                   <ul className="text-xs space-y-1">
                     <li>✅ Automatic backup will be created</li>
-                    <li>✅ BOM relationships can be re-linked</li>
-                    <li>✅ Stock data will remain intact</li>
+                    <li>✅ Dependencies will be handled automatically</li>
+                    <li>✅ BOM data can be repopulated later</li>
                     <li>✅ Process can be rolled back if needed</li>
                   </ul>
                 </div>
@@ -424,7 +545,7 @@ export function SafeDataReplacement() {
                     </div>
 
                     <Button 
-                      onClick={handleFileUpload}
+                      onClick={checkDependencies}
                       className="w-full"
                       size="lg"
                     >
@@ -455,7 +576,7 @@ export function SafeDataReplacement() {
                   <div className="space-y-2">
                     <p className="font-medium text-green-800">Data replacement completed successfully!</p>
                     <p className="text-green-700">Item master has been updated with new data.</p>
-                    <p className="text-sm text-green-600">All systems are ready for normal operation.</p>
+                    <p className="text-sm text-green-600">You can now repopulate BOM data as needed.</p>
                   </div>
                 </AlertDescription>
               </Alert>
