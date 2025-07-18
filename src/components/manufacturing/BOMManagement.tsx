@@ -97,13 +97,22 @@ export const BOMManagement: React.FC = () => {
         if (error) throw error;
         
         // Transform data to match our simple interface
-        return (data || []).map(item => ({
-          ...item,
+        return (data || []).map((item: any) => ({
+          id: item.id,
+          fg_item_code: item.fg_item_code,
+          rm_item_code: item.rm_item_code,
+          quantity_required: item.quantity_required,
+          unit_of_measure: item.unit_of_measure,
+          bom_group_id: item.bom_group_id,
+          consumption_rate: item.consumption_rate,
+          wastage_percentage: item.wastage_percentage,
           gsm_contribution: item.gsm_contribution || 0,
           percentage_contribution: item.percentage_contribution || 0,
+          customer_code: item.customer_code,
           bom_version: item.bom_version || 1,
-          is_active: item.is_active !== false
-        })) as SimpleBOMItem[];
+          is_active: item.is_active !== false,
+          bom_groups: item.bom_groups
+        }));
       } catch (error) {
         console.error('Error fetching BOM data:', error);
         throw error;

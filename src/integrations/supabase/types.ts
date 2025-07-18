@@ -1135,10 +1135,15 @@ export type Database = {
       bill_of_materials: {
         Row: {
           bom_group_id: string | null
+          bom_version: number | null
           consumption_rate: number | null
           created_at: string | null
+          customer_code: string | null
           fg_item_code: string
+          gsm_contribution: number | null
           id: string
+          is_active: boolean | null
+          percentage_contribution: number | null
           quantity_required: number
           rm_item_code: string
           specifications: Json | null
@@ -1148,10 +1153,15 @@ export type Database = {
         }
         Insert: {
           bom_group_id?: string | null
+          bom_version?: number | null
           consumption_rate?: number | null
           created_at?: string | null
+          customer_code?: string | null
           fg_item_code: string
+          gsm_contribution?: number | null
           id?: string
+          is_active?: boolean | null
+          percentage_contribution?: number | null
           quantity_required?: number
           rm_item_code: string
           specifications?: Json | null
@@ -1161,10 +1171,15 @@ export type Database = {
         }
         Update: {
           bom_group_id?: string | null
+          bom_version?: number | null
           consumption_rate?: number | null
           created_at?: string | null
+          customer_code?: string | null
           fg_item_code?: string
+          gsm_contribution?: number | null
           id?: string
+          is_active?: boolean | null
+          percentage_contribution?: number | null
           quantity_required?: number
           rm_item_code?: string
           specifications?: Json | null
