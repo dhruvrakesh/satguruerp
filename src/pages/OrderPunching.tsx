@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedOrderCreationDialog } from "@/components/manufacturing/EnhancedOrderCreationDialog";
+import { MaterialFlowTracker } from "@/components/manufacturing/MaterialFlowTracker";
+import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
 import { useManufacturingOrders, useUpdateOrderStatus } from "@/hooks/useManufacturingOrders";
 import { useCustomerNamesForOrders } from "@/hooks/useCustomerNamesForOrders";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +18,7 @@ export default function OrderPunching() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [processingOrders, setProcessingOrders] = useState<Set<string>>(new Set());
+  const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<any>(null);
   
   const { toast } = useToast();
   const { data: orders = [] } = useManufacturingOrders({
@@ -183,9 +186,11 @@ export default function OrderPunching() {
       </div>
 
       <Tabs defaultValue="orders" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="orders">All Orders</TabsTrigger>
           <TabsTrigger value="pending">Pending ({pendingOrders.length})</TabsTrigger>
+          <TabsTrigger value="material-tracking">Material Tracking</TabsTrigger>
+          <TabsTrigger value="rm-consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="specifications">Specifications</TabsTrigger>
         </TabsList>
 
@@ -280,6 +285,13 @@ export default function OrderPunching() {
                           <Button 
                             size="sm" 
                             variant="outline"
+                            onClick={() => setSelectedOrderForTracking(order)}
+                          >
+                            Track Materials
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
                             onClick={() => handleStartProcessing(order.uiorn)}
                             disabled={processingOrders.has(order.uiorn) || updateOrderStatus.isPending}
                           >
@@ -289,6 +301,82 @@ export default function OrderPunching() {
                       </div>
                     ))
                   )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="material-tracking">
+          <Card>
+            <CardHeader>
+              <CardTitle>Material Flow Tracking</CardTitle>
+              <CardDescription>
+                Track initial material allocation for orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selectedOrderForTracking ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Order: {selectedOrderForTracking.uiorn}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name)}
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={() => setSelectedOrderForTracking(null)}>
+                      Clear Selection
+                    </Button>
+                  </div>
+                  <MaterialFlowTracker
+                    uiorn={selectedOrderForTracking.uiorn}
+                    processStage="ORDER_INITIATION"
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Select an order from the pending list to track materials</p>
+                  <p className="text-sm">Use the "Track Materials" button in the pending orders tab</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="rm-consumption">
+          <Card>
+            <CardHeader>
+              <CardTitle>Raw Material Consumption</CardTitle>
+              <CardDescription>
+                Track initial raw material requirements and consumption
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selectedOrderForTracking ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Order: {selectedOrderForTracking.uiorn}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Customer: {getCustomerName(selectedOrderForTracking.uiorn, selectedOrderForTracking.customer_name)}
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={() => setSelectedOrderForTracking(null)}>
+                      Clear Selection
+                    </Button>
+                  </div>
+                  <RMConsumptionTracker
+                    uiorn={selectedOrderForTracking.uiorn}
+                    processStage="ORDER_INITIATION"
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Select an order from the pending list to track raw materials</p>
+                  <p className="text-sm">Use the "Track Materials" button in the pending orders tab</p>
                 </div>
               )}
             </CardContent>

@@ -9,6 +9,9 @@ import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
+import { MaterialFlowTracker } from "@/components/manufacturing/MaterialFlowTracker";
+import { ProcessTransferTracker } from "@/components/manufacturing/ProcessTransferTracker";
+import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -303,11 +306,13 @@ export default function LaminationCoating() {
       </div>
 
       <Tabs defaultValue="lamination" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="lamination">Lamination Control</TabsTrigger>
           <TabsTrigger value="coating">Coating Control</TabsTrigger>
+          <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
+          <TabsTrigger value="transfers">Process Transfers</TabsTrigger>
+          <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
-          <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
         </TabsList>
 
@@ -482,6 +487,76 @@ export default function LaminationCoating() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="material-flow" className="space-y-6">
+          <div className="space-y-6">
+            {selectedOrder ? (
+              <>
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <MaterialFlowTracker
+                    uiorn={selectedOrder.uiorn}
+                    processStage="LAMINATION"
+                    previousProcessStage="GRAVURE_PRINTING"
+                  />
+                  <MaterialFlowTracker
+                    uiorn={selectedOrder.uiorn}
+                    processStage="ADHESIVE_COATING"
+                    previousProcessStage="GRAVURE_PRINTING"
+                  />
+                </div>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <p className="text-muted-foreground">Please select an order to track material flow</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="transfers" className="space-y-6">
+          {selectedOrder ? (
+            <ProcessTransferTracker
+              uiorn={selectedOrder.uiorn}
+              currentProcess="LAMINATION"
+              availableProcesses={["GRAVURE_PRINTING", "LAMINATION", "ADHESIVE_COATING", "SLITTING", "PACKAGING"]}
+            />
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">Please select an order to manage process transfers</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="consumption" className="space-y-6">
+          {selectedOrder ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Lamination Raw Materials</h3>
+                <RMConsumptionTracker
+                  uiorn={selectedOrder.uiorn}
+                  processStage="LAMINATION"
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Coating Raw Materials</h3>
+                <RMConsumptionTracker
+                  uiorn={selectedOrder.uiorn}
+                  processStage="ADHESIVE_COATING"
+                />
+              </div>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">Please select an order to track raw material consumption</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="artwork" className="space-y-6">
