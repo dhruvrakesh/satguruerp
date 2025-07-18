@@ -1645,6 +1645,60 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_specifications: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          customer_code: string
+          file_path: string
+          file_size: number
+          id: string
+          item_code: string
+          notes: string | null
+          specification_name: string
+          status: string | null
+          updated_at: string | null
+          upload_date: string | null
+          uploaded_by: string | null
+          version: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          customer_code: string
+          file_path: string
+          file_size?: number
+          id?: string
+          item_code: string
+          notes?: string | null
+          specification_name: string
+          status?: string | null
+          updated_at?: string | null
+          upload_date?: string | null
+          uploaded_by?: string | null
+          version?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          customer_code?: string
+          file_path?: string
+          file_size?: number
+          id?: string
+          item_code?: string
+          notes?: string | null
+          specification_name?: string
+          status?: string | null
+          updated_at?: string | null
+          upload_date?: string | null
+          uploaded_by?: string | null
+          version?: number | null
+        }
+        Relationships: []
+      }
       daily_stock_snapshots: {
         Row: {
           created_at: string | null
@@ -1709,6 +1763,13 @@ export type Database = {
             columns: ["item_code"]
             isOneToOne: false
             referencedRelation: "item_master"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "daily_stock_summary_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "item_specification_summary"
             referencedColumns: ["item_code"]
           },
           {
@@ -2573,6 +2634,13 @@ export type Database = {
             foreignKeyName: "grn_log_item_code_fkey"
             columns: ["item_code"]
             isOneToOne: false
+            referencedRelation: "item_specification_summary"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "grn_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
             referencedRelation: "stock_summary"
             referencedColumns: ["item_code"]
           },
@@ -2705,6 +2773,13 @@ export type Database = {
             foreignKeyName: "issue_log_item_code_fkey"
             columns: ["item_code"]
             isOneToOne: false
+            referencedRelation: "item_specification_summary"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "issue_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
             referencedRelation: "stock_summary"
             referencedColumns: ["item_code"]
           },
@@ -2753,9 +2828,11 @@ export type Database = {
           is_active: boolean | null
           item_code: string
           item_name: string
+          last_specification_update: string | null
           no_of_colours: string | null
           qualifier: string | null
           size_mm: string | null
+          specification_status: string | null
           specifications: Json | null
           status: string | null
           uom: string | null
@@ -2774,9 +2851,11 @@ export type Database = {
           is_active?: boolean | null
           item_code: string
           item_name: string
+          last_specification_update?: string | null
           no_of_colours?: string | null
           qualifier?: string | null
           size_mm?: string | null
+          specification_status?: string | null
           specifications?: Json | null
           status?: string | null
           uom?: string | null
@@ -2795,9 +2874,11 @@ export type Database = {
           is_active?: boolean | null
           item_code?: string
           item_name?: string
+          last_specification_update?: string | null
           no_of_colours?: string | null
           qualifier?: string | null
           size_mm?: string | null
+          specification_status?: string | null
           specifications?: Json | null
           status?: string | null
           uom?: string | null
@@ -6352,6 +6433,13 @@ export type Database = {
             foreignKeyName: "stock_item_code_fkey"
             columns: ["item_code"]
             isOneToOne: true
+            referencedRelation: "item_specification_summary"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "stock_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: true
             referencedRelation: "stock_summary"
             referencedColumns: ["item_code"]
           },
@@ -6839,6 +6927,18 @@ export type Database = {
           unit_name: string | null
           updated_at: string | null
           years_of_service: number | null
+        }
+        Relationships: []
+      }
+      item_specification_summary: {
+        Row: {
+          active_specifications: number | null
+          item_code: string | null
+          item_name: string | null
+          last_specification_update: string | null
+          latest_specification_date: string | null
+          specification_status: string | null
+          total_specifications: number | null
         }
         Relationships: []
       }

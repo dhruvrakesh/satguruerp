@@ -12,9 +12,8 @@ import ItemMaster from "./pages/ItemMaster";
 import SpecificationMaster from "./pages/SpecificationMaster";
 import StockOperations from "./pages/StockOperations";
 import StockSummary from "./pages/StockSummary";
-import Categories from "./pages/Categories";
+import CategoriesManagement from "./pages/CategoriesManagement";
 import Settings from "./pages/Settings";
-import UserManagement from "./pages/UserManagement";
 import ManufacturingWorkflow from "./pages/ManufacturingWorkflow";
 import OrderPunching from "./pages/OrderPunching";
 import ArtworkManagement from "./pages/ArtworkManagement";
@@ -22,10 +21,9 @@ import GravurePrinting from "./pages/GravurePrinting";
 import LaminationCoating from "./pages/LaminationCoating";
 import SlittingPackaging from "./pages/SlittingPackaging";
 import StockAnalytics from "./pages/StockAnalytics";
-import ProductionReports from "./pages/ProductionReports";
-import WorkflowAnalytics from "./pages/WorkflowAnalytics";
-import Login from "./pages/Login";
 import { Navigate } from "react-router-dom";
+import NotFound from "./pages/NotFound";
+import { AuthPage } from "./pages/AuthPage";
 
 const queryClient = new QueryClient();
 
@@ -80,7 +78,7 @@ function App() {
                         path="/categories"
                         element={
                           <ProtectedRoute>
-                            <Categories />
+                            <CategoriesManagement />
                           </ProtectedRoute>
                         }
                       />
@@ -89,14 +87,6 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <Settings />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/user-management"
-                        element={
-                          <ProtectedRoute>
-                            <UserManagement />
                           </ProtectedRoute>
                         }
                       />
@@ -156,23 +146,7 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
-                      <Route
-                        path="/production-reports"
-                        element={
-                          <ProtectedRoute>
-                            <ProductionReports />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/workflow-analytics"
-                        element={
-                          <ProtectedRoute>
-                            <WorkflowAnalytics />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route path="/login" element={<Login />} />
+                      <Route path="/auth" element={<AuthPage />} />
                       <Route
                         path="*"
                         element={<Navigate to="/" replace />}

@@ -55,7 +55,7 @@ export const useItemMasterExport = () => {
         gsm: item.gsm || '',
         uom: item.uom || '',
         status: item.status || '',
-        current_cost: item.current_cost || '',
+        current_cost: (item as any).current_cost || '',
         specifications: item.specifications ? JSON.stringify(item.specifications) : '',
         file_id: item.file_id || '',
         file_hyperlink: item.file_hyperlink || '',

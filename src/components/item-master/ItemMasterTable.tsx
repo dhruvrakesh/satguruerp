@@ -129,7 +129,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ItemMasterFilters onFiltersChange={setFilters} />
+          <ItemMasterFilters filters={{}} onFiltersChange={setFilters} />
           
           <div className="rounded-md border mt-6">
             <Table>
