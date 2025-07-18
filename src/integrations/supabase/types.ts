@@ -6819,6 +6819,14 @@ export type Database = {
         }
         Returns: string
       }
+      satguru_update_item_code: {
+        Args: {
+          p_old_item_code: string
+          p_new_item_code: string
+          p_reason?: string
+        }
+        Returns: boolean
+      }
       satguru_validate_item_code_format: {
         Args: { p_item_code: string; p_usage_type: string }
         Returns: boolean
