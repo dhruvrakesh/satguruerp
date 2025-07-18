@@ -15,8 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BOMBulkUploadDialog } from "./BOMBulkUploadDialog";
 
-// Simplified types to avoid TypeScript recursion
-interface BOMItem {
+// Simplified types to fix TypeScript depth issues
+interface SimpleBOMItem {
   id: string;
   fg_item_code: string;
   rm_item_code: string;
@@ -36,12 +36,12 @@ interface BOMItem {
   };
 }
 
-interface ItemMaster {
+interface SimpleItemMaster {
   item_code: string;
   item_name: string;
 }
 
-interface BOMGroup {
+interface SimpleBOMGroup {
   id: string;
   group_name: string;
   group_code: string;
@@ -70,74 +70,86 @@ export const BOMManagement: React.FC = () => {
   const [bomExplosionData, setBomExplosionData] = useState<any[]>([]);
   const [explosionQuantity, setExplosionQuantity] = useState('1000');
 
-  // Simplified BOM data query with explicit typing
+  // Simplified BOM data query with explicit return types
   const { data: bomData, isLoading } = useQuery({
     queryKey: ['bom-data', searchQuery, selectedFGItem, selectedCustomer],
-    queryFn: async (): Promise<BOMItem[]> => {
-      const { data, error } = await supabase
-        .from('bill_of_materials')
-        .select(`
-          id,
-          fg_item_code,
-          rm_item_code,
-          quantity_required,
-          unit_of_measure,
-          bom_group_id,
-          consumption_rate,
-          wastage_percentage,
-          gsm_contribution,
-          percentage_contribution,
-          customer_code,
-          bom_version,
-          is_active,
-          bom_groups!inner(group_name, group_code)
-        `)
-        .order('fg_item_code');
+    queryFn: async (): Promise<SimpleBOMItem[]> => {
+      try {
+        const { data, error } = await supabase
+          .from('bill_of_materials')
+          .select(`
+            id,
+            fg_item_code,
+            rm_item_code,
+            quantity_required,
+            unit_of_measure,
+            bom_group_id,
+            consumption_rate,
+            wastage_percentage,
+            gsm_contribution,
+            percentage_contribution,
+            customer_code,
+            bom_version,
+            is_active
+          `)
+          .order('fg_item_code');
 
-      if (error) throw error;
-      return (data as any[]) || [];
+        if (error) throw error;
+        
+        // Transform data to match our simple interface
+        return (data || []).map(item => ({
+          ...item,
+          gsm_contribution: item.gsm_contribution || 0,
+          percentage_contribution: item.percentage_contribution || 0,
+          bom_version: item.bom_version || 1,
+          is_active: item.is_active !== false
+        })) as SimpleBOMItem[];
+      } catch (error) {
+        console.error('Error fetching BOM data:', error);
+        throw error;
+      }
     }
   });
 
   // Simplified finished goods query
   const { data: finishedGoods } = useQuery({
     queryKey: ['finished-goods'],
-    queryFn: async (): Promise<ItemMaster[]> => {
+    queryFn: async (): Promise<SimpleItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
         .eq('usage_type', 'FINISHED_GOOD')
         .order('item_code');
       if (error) throw error;
-      return (data as ItemMaster[]) || [];
+      return (data || []) as SimpleItemMaster[];
     }
   });
 
   // Simplified raw materials query
   const { data: rawMaterials } = useQuery({
     queryKey: ['raw-materials'],
-    queryFn: async (): Promise<ItemMaster[]> => {
+    queryFn: async (): Promise<SimpleItemMaster[]> => {
       const { data, error } = await supabase
         .from('item_master')
         .select('item_code, item_name')
         .in('usage_type', ['RAW_MATERIAL', 'PACKAGING', 'CONSUMABLE'])
         .order('item_code');
       if (error) throw error;
-      return (data as ItemMaster[]) || [];
+      return (data || []) as SimpleItemMaster[];
     }
   });
 
   // Simplified BOM groups query
   const { data: bomGroups } = useQuery({
     queryKey: ['bom-groups'],
-    queryFn: async (): Promise<BOMGroup[]> => {
+    queryFn: async (): Promise<SimpleBOMGroup[]> => {
       const { data, error } = await supabase
         .from('bom_groups')
         .select('id, group_name, group_code')
         .eq('is_active', true)
         .order('group_name');
       if (error) throw error;
-      return (data as BOMGroup[]) || [];
+      return (data || []) as SimpleBOMGroup[];
     }
   });
 
@@ -158,7 +170,6 @@ export const BOMManagement: React.FC = () => {
           percentage_contribution: parseFloat(newBOMItem.percentage_contribution) || 0,
           customer_code: newBOMItem.customer_code || null,
           bom_version: 1,
-          effective_date: new Date().toISOString().split('T')[0],
           is_active: true,
           specifications: newBOMItem.specifications ? JSON.parse(newBOMItem.specifications) : null
         })
@@ -259,7 +270,7 @@ export const BOMManagement: React.FC = () => {
     }
   };
 
-  const filteredBOMData = bomData?.filter((item: BOMItem) =>
+  const filteredBOMData = bomData?.filter((item: SimpleBOMItem) =>
     item.fg_item_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.rm_item_code.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];

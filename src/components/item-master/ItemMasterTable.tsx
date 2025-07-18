@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
 import { ItemMasterFilters } from "./ItemMasterFilters";
 import { ItemMasterForm } from "./ItemMasterForm";
+import { SafeDataReplacement } from "./SafeDataReplacement";
 import { useItemMasterExport } from "@/hooks/useItemMasterExport";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trash2, Edit, Plus, Upload, Download, ExternalLink } from "lucide-react";
+import { Trash2, Edit, Plus, Upload, Download, ExternalLink, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
@@ -105,6 +106,20 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
                 <Upload className="h-4 w-4 mr-2" />
                 Bulk Upload
               </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Database className="h-4 w-4 mr-2" />
+                    Replace Data
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Safe Data Replacement</DialogTitle>
+                  </DialogHeader>
+                  <SafeDataReplacement />
+                </DialogContent>
+              </Dialog>
               {selectedItems.length > 0 && (
                 <Button variant="destructive" onClick={handleBulkDelete}>
                   <Trash2 className="h-4 w-4 mr-2" />
