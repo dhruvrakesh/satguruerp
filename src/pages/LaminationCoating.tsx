@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
+import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings, Brain, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,13 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
+import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 
 export default function LaminationCoating() {
   const [laminationLogs, setLaminationLogs] = useState([]);
   const [coatingLogs, setCoatingLogs] = useState([]);
   const [activeProcesses, setActiveProcesses] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [laminationParams, setLaminationParams] = useState({
     speed: '',
     temperature: '',
@@ -38,6 +41,25 @@ export default function LaminationCoating() {
   const { data: coatingParameters = [] } = useProcessParameters("ADHESIVE_COATING");
   const { data: laminationAlerts = [] } = useProcessQualityAlerts("LAMINATION");
   const { data: coatingAlerts = [] } = useProcessQualityAlerts("ADHESIVE_COATING");
+
+  // Fetch artwork data for selected order
+  const { data: artworkData = null } = useQuery({
+    queryKey: ["artwork-for-order", selectedOrder?.product_description],
+    queryFn: async () => {
+      if (!selectedOrder?.product_description) return null;
+      
+      const { data, error } = await supabase
+        .from("_artworks_revised_staging")
+        .select("item_code, customer_name, item_name, dimensions, no_of_colours, file_hyperlink, ups, circum")
+        .or(`item_name.ilike.%${selectedOrder.product_description}%,customer_name.ilike.%${selectedOrder.customer_name}%`)
+        .limit(1)
+        .single();
+      
+      if (error) return null;
+      return data;
+    },
+    enabled: !!selectedOrder
+  });
 
   useEffect(() => {
     // Fetch lamination and coating process logs
@@ -206,16 +228,143 @@ export default function LaminationCoating() {
         </Card>
       </div>
 
-      <Tabs defaultValue="active" className="space-y-6">
+      <Tabs defaultValue="lamination" className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="active">Active Processes</TabsTrigger>
+          <TabsTrigger value="lamination">Lamination Control</TabsTrigger>
+          <TabsTrigger value="coating">Coating Control</TabsTrigger>
+          <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
+          <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
-          <TabsTrigger value="parameters">Process Parameters</TabsTrigger>
-          <TabsTrigger value="quality">Quality Control</TabsTrigger>
-          <TabsTrigger value="history">Process History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active">
+        <TabsContent value="lamination" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Orders</CardTitle>
+                <CardDescription>Select an order to start lamination process</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <Card 
+                      key={order.uiorn} 
+                      className={`p-4 cursor-pointer transition-colors ${
+                        selectedOrder?.uiorn === order.uiorn ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{order.customer_name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {order.product_description}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <Badge variant="outline">{order.uiorn}</Badge>
+                            <Badge 
+                              variant={order.priority_level === 'URGENT' ? 'destructive' : 'default'}
+                            >
+                              {order.priority_level}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant={selectedOrder?.uiorn === order.uiorn ? "default" : "outline"}
+                          >
+                            {selectedOrder?.uiorn === order.uiorn ? "Selected" : "Select"}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="coating" className="space-y-6">
+        </TabsContent>
+
+        <TabsContent value="artwork" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    Selected Order Artwork
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {selectedOrder ? (
+                    <ArtworkProcessDisplay
+                      uiorn={selectedOrder.uiorn}
+                      itemCode={selectedOrder.product_description}
+                      artworkData={artworkData}
+                      processType="lamination"
+                    />
+                  ) : (
+                    <div className="text-center p-8 text-muted-foreground">
+                      Select an order to view artwork specifications
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Smart Parameter Loading
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {artworkData ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <h4 className="font-medium text-green-800 mb-2">Auto-Configured Parameters</h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="font-medium">Substrate Width:</span>
+                            <div className="text-green-700">{artworkData.dimensions}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Color Layers:</span>
+                            <div className="text-green-700">{artworkData.no_of_colours}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Roll Setup:</span>
+                            <div className="text-green-700">{artworkData.circum}mm circum</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Units/Sheet:</span>
+                            <div className="text-green-700">{artworkData.ups}</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button className="w-full">
+                        Apply Artwork Parameters to Process
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">
+                      Artwork parameters will appear here when order is selected
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="monitoring">
           <Card>
             <CardHeader>
               <CardTitle>Active Lamination & Coating Operations</CardTitle>
@@ -294,119 +443,6 @@ export default function LaminationCoating() {
               stage="ADHESIVE_COATING"
               onApplyRecommendations={(params) => applyRecommendations(params, 'coating')}
             />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="parameters">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Lamination Parameters</CardTitle>
-                <CardDescription>Configure substrate bonding settings</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Lamination Speed (m/min)</label>
-                    <Input 
-                      type="number" 
-                      value={laminationParams.speed}
-                      onChange={(e) => setLaminationParams(prev => ({ ...prev, speed: e.target.value }))}
-                      placeholder="85" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Temperature (°C)</label>
-                    <Input 
-                      type="number" 
-                      value={laminationParams.temperature}
-                      onChange={(e) => setLaminationParams(prev => ({ ...prev, temperature: e.target.value }))}
-                      placeholder="145" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Pressure (N/cm)</label>
-                    <Input 
-                      type="number" 
-                      value={laminationParams.pressure}
-                      onChange={(e) => setLaminationParams(prev => ({ ...prev, pressure: e.target.value }))}
-                      placeholder="25" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Adhesive Type</label>
-                    <Input 
-                      value={laminationParams.adhesive}
-                      onChange={(e) => setLaminationParams(prev => ({ ...prev, adhesive: e.target.value }))}
-                      placeholder="Polyurethane" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Solvent Mix Ratio</label>
-                    <Input 
-                      value={laminationParams.solventRatio}
-                      onChange={(e) => setLaminationParams(prev => ({ ...prev, solventRatio: e.target.value }))}
-                      placeholder="60:40" 
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Coating Parameters</CardTitle>
-                <CardDescription>Configure coating application settings</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Coating Speed (m/min)</label>
-                    <Input 
-                      type="number" 
-                      value={coatingParams.speed}
-                      onChange={(e) => setCoatingParams(prev => ({ ...prev, speed: e.target.value }))}
-                      placeholder="120" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Drying Temperature (°C)</label>
-                    <Input 
-                      type="number" 
-                      value={coatingParams.temperature}
-                      onChange={(e) => setCoatingParams(prev => ({ ...prev, temperature: e.target.value }))}
-                      placeholder="165" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Coat Weight (gsm)</label>
-                    <Input 
-                      type="number" 
-                      value={coatingParams.coatWeight}
-                      onChange={(e) => setCoatingParams(prev => ({ ...prev, coatWeight: e.target.value }))}
-                      placeholder="3.5" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Coating Material</label>
-                    <Input 
-                      value={coatingParams.material}
-                      onChange={(e) => setCoatingParams(prev => ({ ...prev, material: e.target.value }))}
-                      placeholder="Acrylic" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Viscosity (cPs)</label>
-                    <Input 
-                      type="number" 
-                      value={coatingParams.viscosity}
-                      onChange={(e) => setCoatingParams(prev => ({ ...prev, viscosity: e.target.value }))}
-                      placeholder="45" 
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
 

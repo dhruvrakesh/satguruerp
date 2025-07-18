@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,11 +32,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCreateOrder } from "@/hooks/useManufacturingOrders";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Upload, Package, Settings } from "lucide-react";
+import { Plus, Upload, Package, Settings, Palette, Layers } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ArtworkItemSelector } from "./ArtworkItemSelector";
 
 const orderSchema = z.object({
+  item_code: z.string().min(1, "Item code selection is required"),
   customer_name: z.string().min(1, "Customer name is required"),
   product_description: z.string().min(1, "Product description is required"),
   order_quantity: z.number().min(1, "Quantity must be at least 1"),
@@ -48,6 +50,9 @@ const orderSchema = z.object({
     width_mm: z.number().optional(),
     colors: z.number().optional(),
     finish: z.string().optional(),
+    dimensions: z.string().optional(),
+    ups: z.number().optional(),
+    circum: z.number().optional(),
   }).optional(),
 });
 
@@ -61,15 +66,28 @@ interface Substrate {
   supplier: string;
 }
 
+interface ArtworkItem {
+  item_code: string;
+  customer_name: string;
+  item_name: string;
+  dimensions: string;
+  no_of_colours: string;
+  file_hyperlink: string;
+  ups: number;
+  circum: number;
+}
+
 export function EnhancedOrderCreationDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [selectedArtwork, setSelectedArtwork] = useState<ArtworkItem | null>(null);
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { toast } = useToast();
 
   const form = useForm<OrderFormData>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
+      item_code: "",
       customer_name: "",
       product_description: "",
       order_quantity: 1,
@@ -81,9 +99,36 @@ export function EnhancedOrderCreationDialog() {
         width_mm: 1000,
         colors: 4,
         finish: "GLOSSY",
+        dimensions: "",
+        ups: 0,
+        circum: 0,
       },
     },
   });
+
+  // Auto-populate form when artwork is selected
+  useEffect(() => {
+    if (selectedArtwork) {
+      const colorCount = selectedArtwork.no_of_colours ? 
+        parseInt(selectedArtwork.no_of_colours.replace(/[^0-9]/g, '')) || 4 : 4;
+      
+      const [width, height] = selectedArtwork.dimensions
+        ?.split('x')
+        .map(d => parseInt(d.replace(/[^0-9]/g, ''))) || [0, 0];
+
+      form.setValue("item_code", selectedArtwork.item_code);
+      form.setValue("customer_name", selectedArtwork.customer_name);
+      form.setValue("product_description", selectedArtwork.item_name);
+      form.setValue("specifications", {
+        width_mm: width,
+        colors: colorCount,
+        finish: "GLOSSY",
+        dimensions: selectedArtwork.dimensions,
+        ups: selectedArtwork.ups,
+        circum: selectedArtwork.circum,
+      });
+    }
+  }, [selectedArtwork, form]);
 
   // Fetch substrates
   const { data: substrates = [] } = useQuery({
@@ -174,107 +219,147 @@ export function EnhancedOrderCreationDialog() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {currentStep === 1 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="customer_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Customer Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter customer name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="priority_level"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Priority Level</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Palette className="h-5 w-5" />
+                      Artwork Selection
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FormField
+                      control={form.control}
+                      name="item_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Select Item Code</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select priority" />
-                            </SelectTrigger>
+                            <ArtworkItemSelector
+                              onSelect={(item) => {
+                                setSelectedArtwork(item);
+                                field.onChange(item.item_code);
+                              }}
+                              selectedItem={selectedArtwork}
+                            />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="LOW">
-                              <Badge variant="secondary">Low</Badge>
-                            </SelectItem>
-                            <SelectItem value="NORMAL">
-                              <Badge variant="outline">Normal</Badge>
-                            </SelectItem>
-                            <SelectItem value="HIGH">
-                              <Badge variant="default">High</Badge>
-                            </SelectItem>
-                            <SelectItem value="URGENT">
-                              <Badge variant="destructive">Urgent</Badge>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
 
-                <FormField
-                  control={form.control}
-                  name="product_description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Detailed product description"
-                          className="h-20"
-                          {...field}
+                {selectedArtwork && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Layers className="h-5 w-5" />
+                        Auto-Populated Specifications
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="customer_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Customer Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} readOnly className="bg-muted" />
+                              </FormControl>
+                            </FormItem>
+                          )}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="order_quantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantity (Meters)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="1000"
-                            {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        <FormField
+                          control={form.control}
+                          name="priority_level"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Priority Level</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select priority" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="LOW">
+                                    <Badge variant="secondary">Low</Badge>
+                                  </SelectItem>
+                                  <SelectItem value="NORMAL">
+                                    <Badge variant="outline">Normal</Badge>
+                                  </SelectItem>
+                                  <SelectItem value="HIGH">
+                                    <Badge variant="default">High</Badge>
+                                  </SelectItem>
+                                  <SelectItem value="URGENT">
+                                    <Badge variant="destructive">Urgent</Badge>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                  <FormField
-                    control={form.control}
-                    name="delivery_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Delivery Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                      <FormField
+                        control={form.control}
+                        name="product_description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Product Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                className="h-20 bg-muted"
+                                readOnly
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="order_quantity"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quantity (Meters)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="1000"
+                                  {...field}
+                                  onChange={(e) => field.onChange(Number(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="delivery_date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Delivery Date</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -352,6 +437,8 @@ export function EnhancedOrderCreationDialog() {
                                 placeholder="1000"
                                 {...field}
                                 onChange={(e) => field.onChange(Number(e.target.value))}
+                                className={selectedArtwork ? "bg-muted" : ""}
+                                readOnly={!!selectedArtwork}
                               />
                             </FormControl>
                             <FormMessage />
@@ -371,6 +458,8 @@ export function EnhancedOrderCreationDialog() {
                                 placeholder="4"
                                 {...field}
                                 onChange={(e) => field.onChange(Number(e.target.value))}
+                                className={selectedArtwork ? "bg-muted" : ""}
+                                readOnly={!!selectedArtwork}
                               />
                             </FormControl>
                             <FormMessage />
@@ -401,6 +490,29 @@ export function EnhancedOrderCreationDialog() {
                         )}
                       />
                     </div>
+
+                    {selectedArtwork && (
+                      <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                        <div>
+                          <FormLabel>Dimensions</FormLabel>
+                          <div className="p-2 bg-muted rounded text-sm">
+                            {selectedArtwork.dimensions}
+                          </div>
+                        </div>
+                        <div>
+                          <FormLabel>UPS (Units Per Sheet)</FormLabel>
+                          <div className="p-2 bg-muted rounded text-sm">
+                            {selectedArtwork.ups}
+                          </div>
+                        </div>
+                        <div>
+                          <FormLabel>Circumference</FormLabel>
+                          <div className="p-2 bg-muted rounded text-sm">
+                            {selectedArtwork.circum}mm
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
