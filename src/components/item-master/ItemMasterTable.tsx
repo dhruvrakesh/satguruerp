@@ -27,6 +27,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item?: ItemMasterItem; multiple?: boolean }>({ open: false });
+  const [usageTypeFilter, setUsageTypeFilter] = useState<string>("all");
 
 interface ItemMasterItem {
   id: string;
@@ -42,7 +43,15 @@ interface ItemMasterItem {
   };
 }
 
-  const { data, isLoading, error } = useItemMaster({ page, filters: { ...filters, search: searchQuery }, sort });
+  const { data, isLoading, error } = useItemMaster({ 
+    page, 
+    filters: { 
+      ...filters, 
+      search: searchQuery,
+      usage_type: usageTypeFilter !== "all" ? usageTypeFilter : undefined
+    }, 
+    sort 
+  });
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
 
   const pageSize = 50;
@@ -97,7 +106,22 @@ interface ItemMasterItem {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Item Master</h2>
-          <p className="text-muted-foreground">Manage your inventory catalog</p>
+          <div className="flex items-center gap-4">
+            <p className="text-muted-foreground">Manage your inventory catalog</p>
+            <div className="flex gap-2">
+              <Badge variant="outline" className="text-xs">
+                {data?.data?.length || 0} items displayed
+              </Badge>
+              <Badge variant={data?.count === 128 ? "destructive" : "default"} className="text-xs">
+                {data?.count || 0} total items
+              </Badge>
+              {data?.count === 128 && (
+                <Badge variant="secondary" className="text-xs text-orange-600">
+                  359 FG items ready to import
+                </Badge>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           <ArtworkImportDialog />
@@ -160,6 +184,18 @@ interface ItemMasterItem {
                 <SelectItem value="LTR">LTR</SelectItem>
                 <SelectItem value="BOX">BOX</SelectItem>
                 <SelectItem value="ROLL">ROLL</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={usageTypeFilter} onValueChange={setUsageTypeFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Item Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Items</SelectItem>
+                <SelectItem value="FG">🎨 Finished Goods (FG)</SelectItem>
+                <SelectItem value="RM">📦 Raw Materials (RM)</SelectItem>
+                <SelectItem value="WIP">⚙️ Work in Progress (WIP)</SelectItem>
               </SelectContent>
             </Select>
 

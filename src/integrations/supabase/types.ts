@@ -292,6 +292,13 @@ export type Database = {
             foreignKeyName: "advances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "advances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "panchkula_payroll_calculation"
             referencedColumns: ["employee_id"]
           },
@@ -945,6 +952,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "attendance_employee_id_fkey"
             columns: ["employee_id"]
@@ -1612,6 +1626,36 @@ export type Database = {
           },
         ]
       }
+      departments: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_requirements: {
         Row: {
           document_id: string
@@ -1850,6 +1894,13 @@ export type Database = {
             foreignKeyName: "employee_leave_balances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_leave_balances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "panchkula_payroll_calculation"
             referencedColumns: ["employee_id"]
           },
@@ -1898,6 +1949,13 @@ export type Database = {
           variable_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "employee_variable_overrides_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "employee_variable_overrides_employee_id_fkey"
             columns: ["employee_id"]
@@ -2736,6 +2794,13 @@ export type Database = {
           leave_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "leave_balance_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leave_balance_history_employee_id_fkey"
             columns: ["employee_id"]
@@ -4244,6 +4309,13 @@ export type Database = {
             foreignKeyName: "payroll_calculation_audit_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_calculation_audit_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "panchkula_payroll_calculation"
             referencedColumns: ["employee_id"]
           },
@@ -4269,9 +4341,12 @@ export type Database = {
           active: boolean | null
           base_salary: number
           created_at: string | null
+          date_of_birth: string | null
+          department_id: string | null
           employee_code: string | null
           hra_amount: number | null
           id: string
+          id_proof_file_path: string | null
           joining_date: string
           name: string
           other_conv_amount: number | null
@@ -4285,9 +4360,12 @@ export type Database = {
           active?: boolean | null
           base_salary: number
           created_at?: string | null
+          date_of_birth?: string | null
+          department_id?: string | null
           employee_code?: string | null
           hra_amount?: number | null
           id?: string
+          id_proof_file_path?: string | null
           joining_date: string
           name: string
           other_conv_amount?: number | null
@@ -4301,9 +4379,12 @@ export type Database = {
           active?: boolean | null
           base_salary?: number
           created_at?: string | null
+          date_of_birth?: string | null
+          department_id?: string | null
           employee_code?: string | null
           hra_amount?: number | null
           id?: string
+          id_proof_file_path?: string | null
           joining_date?: string
           name?: string
           other_conv_amount?: number | null
@@ -4313,6 +4394,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_employees_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payroll_employees_unit_id_fkey"
             columns: ["unit_id"]
@@ -4952,6 +5040,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "salary_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salary_disbursement_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
             referencedColumns: ["id"]
           },
           {
@@ -6111,6 +6206,33 @@ export type Database = {
       }
     }
     Views: {
+      employee_details_enhanced: {
+        Row: {
+          aadhaar_number: string | null
+          active: boolean | null
+          age_years: number | null
+          base_salary: number | null
+          created_at: string | null
+          date_of_birth: string | null
+          department_code: string | null
+          department_name: string | null
+          employee_code: string | null
+          hra_amount: number | null
+          id: string | null
+          id_proof_file_path: string | null
+          joining_date: string | null
+          name: string | null
+          other_conv_amount: number | null
+          pan_number: string | null
+          plant_location: string | null
+          uan_number: string | null
+          unit_code: string | null
+          unit_name: string | null
+          updated_at: string | null
+          years_of_service: number | null
+        }
+        Relationships: []
+      }
       manufacturing_analytics: {
         Row: {
           active_orders: number | null
@@ -6489,6 +6611,24 @@ export type Database = {
           active: boolean
         }[]
       }
+      export_employee_master_enhanced: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          employee_code: string
+          employee_name: string
+          uan_number: string
+          unit_code: string
+          unit_name: string
+          plant_location: string
+          department_name: string
+          joining_date: string
+          date_of_birth: string
+          years_of_service: number
+          age_years: number
+          base_salary: number
+          active: boolean
+        }[]
+      }
       generate_asset_code: {
         Args: { p_location_code: string; p_category_code: string }
         Returns: string
@@ -6842,6 +6982,40 @@ export type Database = {
       satguru_validate_unique_item_code: {
         Args: { p_item_code: string; p_exclude_id?: string }
         Returns: boolean
+      }
+      search_employees: {
+        Args: {
+          p_search_term?: string
+          p_department_ids?: string[]
+          p_unit_ids?: string[]
+          p_min_years_service?: number
+          p_max_years_service?: number
+          p_plant_location?: string
+        }
+        Returns: {
+          aadhaar_number: string | null
+          active: boolean | null
+          age_years: number | null
+          base_salary: number | null
+          created_at: string | null
+          date_of_birth: string | null
+          department_code: string | null
+          department_name: string | null
+          employee_code: string | null
+          hra_amount: number | null
+          id: string | null
+          id_proof_file_path: string | null
+          joining_date: string | null
+          name: string | null
+          other_conv_amount: number | null
+          pan_number: string | null
+          plant_location: string | null
+          uan_number: string | null
+          unit_code: string | null
+          unit_name: string | null
+          updated_at: string | null
+          years_of_service: number | null
+        }[]
       }
       set_limit: {
         Args: { "": number }
