@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { validateBulkUploadData, type CsvItemData } from "@/schemas/itemMasterSc
 import { ParsedRecord, UpsertSummary, UpsertProgress } from "@/types/itemMasterUpsert";
 import { CategoryResolver } from "@/utils/categoryResolver";
 import { ItemMasterProcessor } from "@/utils/itemMasterProcessor";
+import { ValidationDiagnostics } from "./ValidationDiagnostics";
 import * as XLSX from "xlsx";
 
 export function ItemMasterUpsert() {
@@ -21,7 +23,9 @@ export function ItemMasterUpsert() {
   const [parsedData, setParsedData] = useState<ParsedRecord[]>([]);
   const [summary, setSummary] = useState<UpsertSummary | null>(null);
   const [progress, setProgress] = useState<UpsertProgress>({ current: 0, total: 0, stage: 'analyzing' });
-  const [validationErrors, setValidationErrors] = useState<any[]>([]);
+  const [validationResults, setValidationResults] = useState<{ valid: any[], invalid: any[] } | null>(null);
+  const [rawCsvData, setRawCsvData] = useState<CsvItemData[]>([]);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const parseCSVFile = async (file: File): Promise<CsvItemData[]> => {
     return new Promise((resolve, reject) => {
@@ -47,15 +51,19 @@ export function ItemMasterUpsert() {
     try {
       setIsProcessing(true);
       setProgress({ current: 0, total: csvData.length, stage: 'analyzing' });
+      setRawCsvData(csvData);
+      setShowDiagnostics(true);
       
-      // Validate CSV data
+      // Basic validation first
       const { valid, invalid } = validateBulkUploadData(csvData);
-      setValidationErrors(invalid);
+      setValidationResults({ valid, invalid });
+      
+      console.log(`Initial validation: ${valid.length} valid, ${invalid.length} invalid out of ${csvData.length} total`);
       
       if (invalid.length > 0) {
         toast({
           title: "Validation Issues Found",
-          description: `${invalid.length} rows have validation errors. Enhanced validation now supports: BOXES→BOX, NOS→PCS, numeric size_mm values, and more UOM variations.`,
+          description: `${invalid.length} rows have validation errors. Use Validation Diagnostics for detailed analysis.`,
           variant: "destructive"
         });
       }
@@ -71,7 +79,7 @@ export function ItemMasterUpsert() {
       if (unmappedCategories.length > 0) {
         toast({
           title: "Unknown Categories",
-          description: `Categories not found: ${unmappedCategories.join(', ')}. Please check category names.`,
+          description: `Categories not found: ${unmappedCategories.join(', ')}. Use Validation Diagnostics for details.`,
           variant: "destructive"
         });
       }
@@ -123,7 +131,7 @@ export function ItemMasterUpsert() {
       
       setSummary(summary);
       
-      if (invalid.length === 0) {
+      if (invalid.length === 0 && unmappedCategories.length === 0) {
         toast({
           title: "Validation Successful",
           description: `All ${analyzed.length} rows validated successfully. Ready to process ${processableRecords.length} records.`
@@ -131,6 +139,7 @@ export function ItemMasterUpsert() {
       }
       
     } catch (error: any) {
+      console.error('Analysis error:', error);
       toast({
         title: "Analysis Error",
         description: error.message,
@@ -186,6 +195,7 @@ export function ItemMasterUpsert() {
       }
       
     } catch (error: any) {
+      console.error('Upsert error:', error);
       toast({
         title: "Upsert Error",
         description: error.message,
@@ -213,6 +223,7 @@ export function ItemMasterUpsert() {
       const csvData = await parseCSVFile(file);
       await analyzeData(csvData);
     } catch (error: any) {
+      console.error('File parse error:', error);
       toast({
         title: "File Parse Error",
         description: error.message,
@@ -225,12 +236,19 @@ export function ItemMasterUpsert() {
     setParsedData([]);
     setSummary(null);
     setProgress({ current: 0, total: 0, stage: 'analyzing' });
-    setValidationErrors([]);
+    setValidationResults(null);
+    setRawCsvData([]);
+    setShowDiagnostics(false);
   };
 
   const getProgressPercentage = () => {
     if (progress.total === 0) return 0;
     return (progress.current / progress.total) * 100;
+  };
+
+  const handleValidationComplete = (results: { valid: any[], invalid: any[] }) => {
+    setValidationResults(results);
+    console.log('Validation complete:', results);
   };
 
   return (
@@ -243,7 +261,7 @@ export function ItemMasterUpsert() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!parsedData.length ? (
+          {!rawCsvData.length ? (
             <div className="space-y-4">
               <Alert>
                 <FileText className="h-4 w-4" />
@@ -255,6 +273,7 @@ export function ItemMasterUpsert() {
                       <li>• Size MM: Accepts both numbers and text (auto-converted)</li>
                       <li>• Category Mapping: Automatic validation against existing categories</li>
                       <li>• Item Code Generation: Smart generation for new items</li>
+                      <li>• Export Limit Fixed: Now exports ALL items (no 1000 row limit)</li>
                     </ul>
                   </div>
                 </AlertDescription>
@@ -275,6 +294,14 @@ export function ItemMasterUpsert() {
                   Upload Different File
                 </Button>
               </div>
+
+              {/* Show diagnostics if we have raw data */}
+              {showDiagnostics && rawCsvData.length > 0 && (
+                <ValidationDiagnostics 
+                  csvData={rawCsvData} 
+                  onValidationComplete={handleValidationComplete}
+                />
+              )}
               
               {summary && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -338,34 +365,6 @@ export function ItemMasterUpsert() {
                     </CardContent>
                   </Card>
                 </div>
-              )}
-
-              {(validationErrors.length > 0 || (summary && summary.category_errors > 0)) && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-2">
-                      <p className="font-semibold">Issues Found:</p>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
-                        {validationErrors.slice(0, 10).map((error, index) => (
-                          <p key={index} className="text-sm">
-                            Row {error.row}: {error.errors.join(", ")}
-                          </p>
-                        ))}
-                        {parsedData.filter(r => !r.can_process).slice(0, 5).map((record, index) => (
-                          <p key={`category-${index}`} className="text-sm">
-                            Row {record.row_number}: {record.validation_errors?.join(", ")}
-                          </p>
-                        ))}
-                        {(validationErrors.length + (summary?.category_errors || 0)) > 10 && (
-                          <p className="text-sm text-muted-foreground">
-                            ... and {(validationErrors.length + (summary?.category_errors || 0)) - 10} more errors
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </AlertDescription>
-                </Alert>
               )}
 
               {isProcessing && (

@@ -10,32 +10,31 @@ export const useItemMasterExport = () => {
     usage_type?: string;
   }) => {
     try {
-      // Fetch all item master data with related information
-      let query = supabase
+      console.log('Starting export with filters:', filters);
+      
+      // First, get the total count
+      let countQuery = supabase
         .from('item_master')
-        .select(`
-          *,
-          categories (
-            category_name
-          )
-        `);
+        .select('*', { count: 'exact', head: true });
 
-      // Apply filters if provided
+      // Apply same filters to count query
       if (filters?.category_id) {
-        query = query.eq('category_id', filters.category_id);
+        countQuery = countQuery.eq('category_id', filters.category_id);
       }
       if (filters?.status) {
-        query = query.eq('status', filters.status);
+        countQuery = countQuery.eq('status', filters.status);
       }
       if (filters?.usage_type) {
-        query = query.eq('usage_type', filters.usage_type);
+        countQuery = countQuery.eq('usage_type', filters.usage_type);
       }
 
-      const { data: itemMasterData, error } = await query.order('item_code');
-
-      if (error) throw error;
-
-      if (!itemMasterData || itemMasterData.length === 0) {
+      const { count, error: countError } = await countQuery;
+      
+      if (countError) throw countError;
+      
+      console.log(`Total items to export: ${count}`);
+      
+      if (!count || count === 0) {
         toast({
           title: "No Data",
           description: "No items found to export",
@@ -44,8 +43,59 @@ export const useItemMasterExport = () => {
         return;
       }
 
+      // Fetch all data in batches to overcome the 1000 limit
+      const batchSize = 1000;
+      const totalBatches = Math.ceil(count / batchSize);
+      let allItems: any[] = [];
+
+      toast({
+        title: "Export in Progress",
+        description: `Fetching ${count} items in ${totalBatches} batch(es)...`,
+      });
+
+      for (let batch = 0; batch < totalBatches; batch++) {
+        const from = batch * batchSize;
+        const to = from + batchSize - 1;
+        
+        console.log(`Fetching batch ${batch + 1}/${totalBatches}: rows ${from}-${to}`);
+
+        let batchQuery = supabase
+          .from('item_master')
+          .select(`
+            *,
+            categories (
+              category_name
+            )
+          `)
+          .range(from, to)
+          .order('item_code');
+
+        // Apply filters to each batch
+        if (filters?.category_id) {
+          batchQuery = batchQuery.eq('category_id', filters.category_id);
+        }
+        if (filters?.status) {
+          batchQuery = batchQuery.eq('status', filters.status);
+        }
+        if (filters?.usage_type) {
+          batchQuery = batchQuery.eq('usage_type', filters.usage_type);
+        }
+
+        const { data: batchData, error: batchError } = await batchQuery;
+        
+        if (batchError) {
+          console.error(`Error in batch ${batch + 1}:`, batchError);
+          throw batchError;
+        }
+        
+        allItems = [...allItems, ...(batchData || [])];
+        console.log(`Batch ${batch + 1} completed. Total items so far: ${allItems.length}`);
+      }
+
+      console.log(`Successfully fetched all ${allItems.length} items`);
+
       // Prepare CSV data with all relevant fields
-      const csvData = itemMasterData.map(item => ({
+      const csvData = allItems.map(item => ({
         item_code: item.item_code || '',
         item_name: item.item_name || '',
         category: item.categories?.category_name || '',
@@ -107,7 +157,7 @@ export const useItemMasterExport = () => {
 
       toast({
         title: "Export Successful",
-        description: `${itemMasterData.length} items exported to CSV`,
+        description: `${allItems.length} items exported to CSV (fetched in ${totalBatches} batch(es))`,
       });
 
     } catch (error) {
