@@ -115,15 +115,40 @@ export function SafeDataReplacement() {
     }
   });
 
-  // Clear all existing data
+  // Clear all existing data with proper foreign key handling
   const clearExistingData = useMutation({
     mutationFn: async () => {
+      // First, check for foreign key dependencies
+      const { data: bomRefs } = await supabase
+        .from('bill_of_materials')
+        .select('fg_item_code')
+        .limit(1);
+      
+      const { data: stockRefs } = await supabase
+        .from('satguru_stock')
+        .select('item_code')
+        .limit(1);
+
+      if (bomRefs && bomRefs.length > 0) {
+        throw new Error("Cannot delete items with BOM references. Please clear BOM data first or use the migration approach.");
+      }
+
+      if (stockRefs && stockRefs.length > 0) {
+        throw new Error("Cannot delete items with stock records. Please clear stock data first or use the migration approach.");
+      }
+
+      // If no dependencies, proceed with deletion
       const { error } = await supabase
         .from('item_master')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+        .neq('id', '00000000-0000-0000-0000-000000000000');
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503') { // Foreign key violation
+          throw new Error("Cannot delete items due to existing references. Please use the migration approach or clear dependent data first.");
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -133,6 +158,7 @@ export function SafeDataReplacement() {
       queryClient.invalidateQueries({ queryKey: ['itemMaster'] });
     },
     onError: (error: any) => {
+      console.error('Clear data error:', error);
       toast({
         title: "Clear Failed",
         description: error.message,
@@ -167,11 +193,17 @@ export function SafeDataReplacement() {
     if (!selectedFile) return;
 
     try {
+      console.log('🚀 Starting item master replacement process...');
+      
       // First clear existing data
+      console.log('🗑️ Clearing existing data...');
       await clearExistingData.mutateAsync();
+      console.log('✅ Existing data cleared successfully');
       
       // Then upload new data
+      console.log('📤 Uploading new data...');
       const result = await uploadMutation.mutateAsync(selectedFile);
+      console.log('📊 Upload result:', result);
       
       if (result.successCount > 0) {
         setReplacementStep('complete');
@@ -179,11 +211,27 @@ export function SafeDataReplacement() {
           title: "Replacement Complete",
           description: `Successfully replaced ${stats?.currentItems || 0} items with ${result.successCount} new items`,
         });
+      } else {
+        throw new Error(`No items were successfully uploaded. ${result.errorCount} errors occurred.`);
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('💥 Replacement process failed:', error);
+      
+      let errorMessage = "Failed to replace item master data. Your backup is safe.";
+      
+      if (error.message.includes("BOM references")) {
+        errorMessage = "Cannot replace data: BOM references exist. Please clear BOM data first or contact administrator.";
+      } else if (error.message.includes("stock records")) {
+        errorMessage = "Cannot replace data: Stock records exist. Please clear stock data first or contact administrator.";
+      } else if (error.message.includes("foreign key")) {
+        errorMessage = "Cannot replace data: Related records exist. Please contact administrator for migration assistance.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Replacement Failed",
-        description: "Failed to replace item master data. Your backup is safe.",
+        description: errorMessage,
         variant: "destructive"
       });
     }
