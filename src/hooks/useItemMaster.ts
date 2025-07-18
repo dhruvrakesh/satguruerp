@@ -43,6 +43,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
 
       // Apply filters
       if (filters.search) {
+        console.log('Applying search filter:', filters.search);
         query = query.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
       }
       
@@ -52,14 +53,17 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       }
       
       if (filters.status) {
+        console.log('Applying status filter:', filters.status);
         query = query.eq('status', filters.status);
       }
       
       if (filters.uom) {
+        console.log('Applying UOM filter:', filters.uom);
         query = query.eq('uom', filters.uom);
       }
       
       if (filters.usage_type) {
+        console.log('Applying usage type filter:', filters.usage_type);
         query = query.eq('usage_type', filters.usage_type);
       }
 
@@ -83,7 +87,7 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       }
 
       console.log('Item master fetched:', data?.length || 0, 'total:', count);
-      console.log('Sample item:', data?.[0]);
+      console.log('Sample item with category:', data?.[0]);
       
       return {
         data: data || [],

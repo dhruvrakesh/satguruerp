@@ -50,6 +50,16 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
   // Get selected category for display
   const selectedCategory = categoriesWithStats?.find(c => c.id === filters.category_id);
 
+  // Filter categories based on current filters (exclude category filter itself)
+  const getFilteredCategories = () => {
+    if (!categoriesWithStats) return [];
+    
+    // Show all categories with their total counts
+    return categoriesWithStats.filter(category => category.total_items > 0);
+  };
+
+  const filteredCategories = getFilteredCategories();
+
   if (categoriesError) {
     console.error('Categories loading error:', categoriesError);
   }
@@ -86,7 +96,7 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__ALL__">All Categories</SelectItem>
-              {categoriesWithStats?.map((category) => (
+              {filteredCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.category_name} ({category.total_items} items)
                 </SelectItem>
@@ -97,6 +107,11 @@ export function ItemMasterFilters({ filters, onFiltersChange, isLoading }: ItemM
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Loading categories...
                   </div>
+                </SelectItem>
+              )}
+              {!categoriesLoading && filteredCategories.length === 0 && (
+                <SelectItem value="__EMPTY__" disabled>
+                  No categories with items found
                 </SelectItem>
               )}
             </SelectContent>

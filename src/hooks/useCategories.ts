@@ -14,6 +14,10 @@ export interface Category {
 export interface CategoryWithStats extends Category {
   total_items: number;
   active_items: number;
+  fg_items: number;
+  rm_items: number;
+  packaging_items: number;
+  consumable_items: number;
 }
 
 export function useCategories() {
@@ -42,7 +46,7 @@ export function useCategoriesWithStats() {
   return useQuery({
     queryKey: ['categoriesWithStats'],
     queryFn: async () => {
-      console.log('Fetching categories with item counts...');
+      console.log('Fetching categories with detailed item stats...');
       
       // First get all categories
       const { data: categories, error: categoriesError } = await supabase
@@ -56,38 +60,73 @@ export function useCategoriesWithStats() {
         throw categoriesError;
       }
 
-      // Then get item counts for each category
+      // Then get detailed item counts for each category
       const categoriesWithStats: CategoryWithStats[] = [];
       
       for (const category of categories || []) {
+        // Get total count
         const { count: totalCount, error: totalError } = await supabase
           .from('item_master')
           .select('*', { count: 'exact', head: true })
           .eq('category_id', category.id);
 
+        // Get active count
         const { count: activeCount, error: activeError } = await supabase
           .from('item_master')
           .select('*', { count: 'exact', head: true })
           .eq('category_id', category.id)
           .eq('status', 'active');
 
-        if (totalError || activeError) {
-          console.error('Error counting items for category:', category.category_name, totalError || activeError);
+        // Get counts by usage type
+        const { count: fgCount, error: fgError } = await supabase
+          .from('item_master')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+          .eq('usage_type', 'FINISHED_GOOD');
+
+        const { count: rmCount, error: rmError } = await supabase
+          .from('item_master')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+          .eq('usage_type', 'RAW_MATERIAL');
+
+        const { count: packagingCount, error: packagingError } = await supabase
+          .from('item_master')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+          .eq('usage_type', 'PACKAGING');
+
+        const { count: consumableCount, error: consumableError } = await supabase
+          .from('item_master')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+          .eq('usage_type', 'CONSUMABLE');
+
+        if (totalError || activeError || fgError || rmError || packagingError || consumableError) {
+          console.error('Error counting items for category:', category.category_name);
           continue;
         }
 
         categoriesWithStats.push({
           ...category,
           total_items: totalCount || 0,
-          active_items: activeCount || 0
+          active_items: activeCount || 0,
+          fg_items: fgCount || 0,
+          rm_items: rmCount || 0,
+          packaging_items: packagingCount || 0,
+          consumable_items: consumableCount || 0
         });
       }
       
-      console.log('Categories with stats processed:', categoriesWithStats.length);
+      console.log('Categories with detailed stats processed:', categoriesWithStats.length);
       return categoriesWithStats;
     },
   });
 }
+
+// Create an alias for backward compatibility
+export const useCategoryStats = useCategoriesWithStats;
+export type CategoryStats = CategoryWithStats;
 
 export function useCategoryMutations() {
   const queryClient = useQueryClient();
