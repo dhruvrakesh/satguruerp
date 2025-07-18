@@ -1118,6 +1118,39 @@ export type Database = {
           },
         ]
       }
+      bill_of_materials: {
+        Row: {
+          created_at: string | null
+          fg_item_code: string
+          id: string
+          quantity_required: number
+          rm_item_code: string
+          specifications: Json | null
+          unit_of_measure: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fg_item_code: string
+          id?: string
+          quantity_required?: number
+          rm_item_code: string
+          specifications?: Json | null
+          unit_of_measure?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fg_item_code?: string
+          id?: string
+          quantity_required?: number
+          rm_item_code?: string
+          specifications?: Json | null
+          unit_of_measure?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       blog_posts: {
         Row: {
           author: string
@@ -2437,6 +2470,36 @@ export type Database = {
           },
         ]
       }
+      item_code_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          item_master_id: string
+          new_item_code: string
+          old_item_code: string
+          reason: string | null
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          item_master_id: string
+          new_item_code: string
+          old_item_code: string
+          reason?: string | null
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          item_master_id?: string
+          new_item_code?: string
+          old_item_code?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       item_master: {
         Row: {
           category_id: string | null
@@ -2453,6 +2516,7 @@ export type Database = {
           status: string | null
           uom: string | null
           updated_at: string | null
+          usage_type: string | null
         }
         Insert: {
           category_id?: string | null
@@ -2469,6 +2533,7 @@ export type Database = {
           status?: string | null
           uom?: string | null
           updated_at?: string | null
+          usage_type?: string | null
         }
         Update: {
           category_id?: string | null
@@ -2485,6 +2550,7 @@ export type Database = {
           status?: string | null
           uom?: string | null
           updated_at?: string | null
+          usage_type?: string | null
         }
         Relationships: [
           {
@@ -6752,6 +6818,10 @@ export type Database = {
           p_result_count?: number
         }
         Returns: string
+      }
+      satguru_validate_item_code_format: {
+        Args: { p_item_code: string; p_usage_type: string }
+        Returns: boolean
       }
       satguru_validate_stock_transaction: {
         Args: {

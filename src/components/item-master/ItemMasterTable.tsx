@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Search, Filter, Edit, Trash2, Upload, Download, ArrowUpDown } from "lucide-react";
 import { useItemMaster, useItemMasterMutations, ItemMasterFilters, ItemMasterSort } from "@/hooks/useItemMaster";
 import { ItemMasterForm } from "./ItemMasterForm";
+import { ArtworkImportDialog } from "./ArtworkImportDialog";
 import { LoadingSpinner } from "../ui/loading-spinner";
 import { ConfirmationDialog } from "../ui/confirmation-dialog";
 
@@ -99,6 +100,7 @@ interface ItemMasterItem {
           <p className="text-muted-foreground">Manage your inventory catalog</p>
         </div>
         <div className="flex gap-2">
+          <ArtworkImportDialog />
           <Button variant="outline" onClick={onBulkUpload}>
             <Upload className="w-4 h-4 mr-2" />
             Bulk Upload

@@ -10,7 +10,7 @@ export const itemMasterSchema = z.object({
   uom: z.enum(["PCS", "KG", "MTR", "SQM", "LTR", "BOX", "ROLL"], {
     errorMap: () => ({ message: "Please select a valid unit of measure" })
   }),
-  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "PACKAGING", "CONSUMABLE"]).default("FINISHED_GOOD"),
+  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "WIP", "PACKAGING", "CONSUMABLE"]).default("RAW_MATERIAL"),
   status: z.enum(["active", "inactive"]).default("active")
 });
 
@@ -25,7 +25,7 @@ export const csvItemSchema = z.object({
   gsm: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
   size_mm: z.string().optional(),
   uom: z.enum(["PCS", "KG", "MTR", "SQM", "LTR", "BOX", "ROLL"]),
-  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "PACKAGING", "CONSUMABLE"]).optional(),
+  usage_type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "WIP", "PACKAGING", "CONSUMABLE"]).optional(),
   reorder_level: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
   specifications: z.string().optional()
 });
