@@ -97,20 +97,49 @@ export function ItemMasterCleanup() {
           if (fetchError) throw fetchError;
 
           if (items && items.length > 1) {
-            // Keep the most recent item, delete the rest
-            const itemsToDelete = items.slice(1);
+            // Keep the most recent item, merge data from others
+            const keepItem = items[0];
+            const itemsToRemove = items.slice(1);
             
-            for (const item of itemsToDelete) {
-              const { error: deleteError } = await supabase
-                .from('item_master')
-                .delete()
-                .eq('id', item.id);
+            // For each item to remove, check if it has stock references
+            for (const item of itemsToRemove) {
+              try {
+                // First, try to update any stock records to point to the kept item
+                const { error: stockUpdateError } = await supabase
+                  .from('satguru_stock')
+                  .update({ item_code: keepItem.item_code })
+                  .eq('item_code', item.item_code);
 
-              if (deleteError) {
-                console.error(`Error deleting item ${item.id}:`, deleteError);
+                if (stockUpdateError) {
+                  console.warn(`Could not update stock references for ${item.item_code}:`, stockUpdateError);
+                }
+
+                // Try to update other related tables that might exist
+                try {
+                  // Update any daily stock summary records
+                  await supabase
+                    .from('daily_stock_summary')
+                    .update({ item_code: keepItem.item_code })
+                    .eq('item_code', item.item_code);
+                } catch (updateError) {
+                  console.warn(`Could not update related table references for ${item.item_code}:`, updateError);
+                }
+
+                // Now try to delete the duplicate item
+                const { error: deleteError } = await supabase
+                  .from('item_master')
+                  .delete()
+                  .eq('id', item.id);
+
+                if (deleteError) {
+                  console.error(`Error deleting item ${item.id}:`, deleteError);
+                  errors++;
+                } else {
+                  cleaned++;
+                }
+              } catch (itemError) {
+                console.error(`Error processing item ${item.id}:`, itemError);
                 errors++;
-              } else {
-                cleaned++;
               }
             }
           }
