@@ -3,6 +3,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ItemMasterFormData } from "@/schemas/itemMasterSchema";
 
+// Hook for item selection (for order creation)
+export const useItemsForSelection = () => {
+  return useQuery({
+    queryKey: ["items-for-selection"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("item_master")
+        .select("item_code, item_name, customer_name, uom, status, usage_type")
+        .eq("is_active", true)
+        .order("item_name");
+      
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
 export interface ItemMasterFilters {
   search?: string;
   category_id?: string;

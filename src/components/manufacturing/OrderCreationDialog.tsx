@@ -43,6 +43,7 @@ export function OrderCreationDialog() {
   const onSubmit = async (data: OrderFormData) => {
     try {
       await createOrder.mutateAsync({
+        item_code: "", // Temporary: will be deprecated in favor of EnhancedOrderCreationDialog
         customer_name: data.customer_name,
         product_description: data.product_description,
         order_quantity: data.order_quantity,

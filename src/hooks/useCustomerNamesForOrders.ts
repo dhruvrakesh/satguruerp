@@ -21,34 +21,51 @@ export function useCustomerNamesForOrders(orders: any[]) {
         let resolvedCustomerName = order.customer_name;
         let isResolved = false;
         
-        if (order.product_description && order.customer_name === "Legacy Customer") {
-          console.log(`🎯 Resolving customer for UIORN ${order.uiorn} with product: ${order.product_description}`);
+        // First priority: Use item_code if available (new architecture)
+        if (order.item_code) {
+          console.log(`🎯 Using item_code ${order.item_code} for UIORN ${order.uiorn}`);
           
-          // Try exact item_code match first
+          const { data: itemData } = await supabase
+            .from("item_master")
+            .select("customer_name, item_name")
+            .eq("item_code", order.item_code)
+            .single();
+
+          if (itemData?.customer_name) {
+            resolvedCustomerName = itemData.customer_name;
+            isResolved = true;
+            console.log(`✅ Found customer via item_code for ${order.uiorn}: ${resolvedCustomerName}`);
+          }
+        }
+        // Fallback: Legacy resolution for orders without item_code
+        else if (order.customer_name === "Legacy Customer" && order.product_description) {
+          console.log(`🎯 Legacy resolution for UIORN ${order.uiorn} with product: ${order.product_description}`);
+          
+          // Try exact item_name match first
           const { data: exactMatch } = await supabase
             .from("master_data_artworks_se")
             .select("customer_name, item_name")
-            .eq("item_code", order.product_description)
+            .eq("item_name", order.product_description)
             .single();
 
-          if (exactMatch && exactMatch.customer_name) {
+          if (exactMatch?.customer_name) {
             resolvedCustomerName = exactMatch.customer_name;
             isResolved = true;
-            console.log(`✅ Found exact match for ${order.uiorn}: ${resolvedCustomerName}`);
+            console.log(`✅ Found exact legacy match for ${order.uiorn}: ${resolvedCustomerName}`);
           } else {
-            // Try item_name similarity match
-            const { data: similarItems } = await supabase
+            // Try fuzzy matching
+            const { data: fuzzyMatches } = await supabase
               .from("master_data_artworks_se")
               .select("customer_name, item_name")
               .ilike("item_name", `%${order.product_description}%`)
               .limit(3);
 
-            if (similarItems && similarItems.length > 0) {
-              const bestMatch = similarItems.find(item => item.customer_name);
+            if (fuzzyMatches?.length > 0) {
+              const bestMatch = fuzzyMatches.find(item => item.customer_name);
               if (bestMatch) {
                 resolvedCustomerName = bestMatch.customer_name;
                 isResolved = true;
-                console.log(`✅ Found similar match for ${order.uiorn}: ${resolvedCustomerName}`);
+                console.log(`✅ Found fuzzy legacy match for ${order.uiorn}: ${resolvedCustomerName}`);
               }
             }
           }

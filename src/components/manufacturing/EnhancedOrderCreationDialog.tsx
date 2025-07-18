@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Upload, Package, Settings, Palette, Layers } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArtworkItemSelector } from "./ArtworkItemSelector";
+import { ItemSelector } from "./ItemSelector";
 
 const orderSchema = z.object({
   item_code: z.string().min(1, "Item code selection is required"),
@@ -66,21 +66,19 @@ interface Substrate {
   supplier: string;
 }
 
-interface ArtworkItem {
+interface SelectedItem {
   item_code: string;
   customer_name: string;
   item_name: string;
-  dimensions: string;
-  no_of_colours: string;
-  file_hyperlink: string;
-  ups: number;
-  circum: number;
+  uom: string;
+  status: string;
+  usage_type: string;
 }
 
 export function EnhancedOrderCreationDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedArtwork, setSelectedArtwork] = useState<ArtworkItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { toast } = useToast();
 
@@ -106,29 +104,22 @@ export function EnhancedOrderCreationDialog() {
     },
   });
 
-  // Auto-populate form when artwork is selected
+  // Auto-populate form when item is selected
   useEffect(() => {
-    if (selectedArtwork) {
-      const colorCount = selectedArtwork.no_of_colours ? 
-        parseInt(selectedArtwork.no_of_colours.replace(/[^0-9]/g, '')) || 4 : 4;
-      
-      const [width, height] = selectedArtwork.dimensions
-        ?.split('x')
-        .map(d => parseInt(d.replace(/[^0-9]/g, ''))) || [0, 0];
-
-      form.setValue("item_code", selectedArtwork.item_code);
-      form.setValue("customer_name", selectedArtwork.customer_name);
-      form.setValue("product_description", selectedArtwork.item_name);
+    if (selectedItem) {
+      form.setValue("item_code", selectedItem.item_code);
+      form.setValue("customer_name", selectedItem.customer_name || "");
+      form.setValue("product_description", selectedItem.item_name);
       form.setValue("specifications", {
-        width_mm: width,
-        colors: colorCount,
+        width_mm: 1000,
+        colors: 4,
         finish: "GLOSSY",
-        dimensions: selectedArtwork.dimensions,
-        ups: selectedArtwork.ups,
-        circum: selectedArtwork.circum,
+        dimensions: "",
+        ups: 0,
+        circum: 0,
       });
     }
-  }, [selectedArtwork, form]);
+  }, [selectedItem, form]);
 
   // Fetch substrates
   const { data: substrates = [] } = useQuery({
@@ -147,6 +138,7 @@ export function EnhancedOrderCreationDialog() {
   const onSubmit = async (data: OrderFormData) => {
     createOrder(
       {
+        item_code: data.item_code,
         customer_name: data.customer_name,
         product_description: data.product_description,
         order_quantity: data.order_quantity,
@@ -165,6 +157,7 @@ export function EnhancedOrderCreationDialog() {
           setIsOpen(false);
           setCurrentStep(1);
           form.reset();
+          setSelectedItem(null);
         },
         onError: (error) => {
           toast({
@@ -223,8 +216,8 @@ export function EnhancedOrderCreationDialog() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Palette className="h-5 w-5" />
-                      Artwork Selection
+                      <Package className="h-5 w-5" />
+                      Item Selection
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -235,12 +228,12 @@ export function EnhancedOrderCreationDialog() {
                         <FormItem>
                           <FormLabel>Select Item Code</FormLabel>
                           <FormControl>
-                            <ArtworkItemSelector
+                            <ItemSelector
                               onSelect={(item) => {
-                                setSelectedArtwork(item);
+                                setSelectedItem(item);
                                 field.onChange(item.item_code);
                               }}
-                              selectedItem={selectedArtwork}
+                              selectedItem={selectedItem}
                             />
                           </FormControl>
                           <FormMessage />
@@ -250,7 +243,7 @@ export function EnhancedOrderCreationDialog() {
                   </CardContent>
                 </Card>
 
-                {selectedArtwork && (
+                {selectedItem && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -437,8 +430,8 @@ export function EnhancedOrderCreationDialog() {
                                 placeholder="1000"
                                 {...field}
                                 onChange={(e) => field.onChange(Number(e.target.value))}
-                                className={selectedArtwork ? "bg-muted" : ""}
-                                readOnly={!!selectedArtwork}
+                                className={selectedItem ? "bg-muted" : ""}
+                                readOnly={!!selectedItem}
                               />
                             </FormControl>
                             <FormMessage />
@@ -458,8 +451,8 @@ export function EnhancedOrderCreationDialog() {
                                 placeholder="4"
                                 {...field}
                                 onChange={(e) => field.onChange(Number(e.target.value))}
-                                className={selectedArtwork ? "bg-muted" : ""}
-                                readOnly={!!selectedArtwork}
+                                className={selectedItem ? "bg-muted" : ""}
+                                readOnly={!!selectedItem}
                               />
                             </FormControl>
                             <FormMessage />
@@ -491,28 +484,57 @@ export function EnhancedOrderCreationDialog() {
                       />
                     </div>
 
-                    {selectedArtwork && (
-                      <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                        <div>
-                          <FormLabel>Dimensions</FormLabel>
-                          <div className="p-2 bg-muted rounded text-sm">
-                            {selectedArtwork.dimensions}
-                          </div>
-                        </div>
-                        <div>
-                          <FormLabel>UPS (Units Per Sheet)</FormLabel>
-                          <div className="p-2 bg-muted rounded text-sm">
-                            {selectedArtwork.ups}
-                          </div>
-                        </div>
-                        <div>
-                          <FormLabel>Circumference</FormLabel>
-                          <div className="p-2 bg-muted rounded text-sm">
-                            {selectedArtwork.circum}mm
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                      <FormField
+                        control={form.control}
+                        name="specifications.dimensions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Dimensions</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="e.g., 100x200mm" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="specifications.ups"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>UPS (Units Per Sheet)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="1"
+                                {...field}
+                                onChange={(e) => field.onChange(Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="specifications.circum"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Circumference (mm)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                onChange={(e) => field.onChange(Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </div>

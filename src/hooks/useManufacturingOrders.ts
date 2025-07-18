@@ -66,6 +66,7 @@ export const useCreateOrder = () => {
   
   return useMutation({
     mutationFn: async (orderData: {
+      item_code: string;
       customer_name: string;
       product_description: string;
       order_quantity: number;
