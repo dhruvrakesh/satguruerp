@@ -13,12 +13,14 @@ import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LaminationCoating() {
   const [laminationLogs, setLaminationLogs] = useState([]);
   const [coatingLogs, setCoatingLogs] = useState([]);
   const [activeProcesses, setActiveProcesses] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [laminationParams, setLaminationParams] = useState({
     speed: '',
     temperature: '',
@@ -33,6 +35,8 @@ export default function LaminationCoating() {
     material: '',
     viscosity: ''
   });
+  
+  const { toast } = useToast();
   
   const { data: orders = [] } = useManufacturingOrders({
     status: "IN_PROGRESS"
@@ -102,6 +106,80 @@ export default function LaminationCoating() {
     }
   ];
 
+  const handleStartProcess = async () => {
+    if (!selectedOrder) {
+      toast({
+        title: "No Order Selected",
+        description: "Please select an order before starting the process.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      // Log process initiation
+      const { error } = await supabase
+        .from('process_logs_se')
+        .insert({
+          uiorn: selectedOrder.uiorn,
+          stage: 'LAMINATION',
+          metric: 'process_start',
+          txt_value: 'Process initiated from UI',
+          captured_by: supabase.auth.getUser().then(u => u.data.user?.id)
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Process Started",
+        description: `Lamination process initiated for order ${selectedOrder.uiorn}`,
+      });
+
+      // Refresh process data
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error starting process:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start process. Please try again.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfiguration = () => {
+    if (!selectedOrder) {
+      toast({
+        title: "No Order Selected",
+        description: "Please select an order to configure parameters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Configuration Panel",
+      description: "Opening advanced process configuration...",
+    });
+
+    // Auto-load parameters based on artwork data
+    if (artworkData?.artwork) {
+      setLaminationParams({
+        speed: '85',
+        temperature: '145',
+        pressure: '25',
+        adhesive: '2.5',
+        solventRatio: '60:40'
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'RUNNING': return 'text-green-600 bg-green-50 border-green-200';
@@ -149,11 +227,19 @@ export default function LaminationCoating() {
           <p className="text-muted-foreground">Substrate bonding, adhesive coating, and barrier enhancement</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={handleStartProcess}
+            disabled={isProcessing || !selectedOrder}
+          >
             <Play className="h-4 w-4 mr-2" />
-            Start Process
+            {isProcessing ? "Starting..." : "Start Process"}
           </Button>
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={handleConfiguration}
+            disabled={!selectedOrder}
+          >
             <Settings className="h-4 w-4 mr-2" />
             Configuration
           </Button>
@@ -244,7 +330,6 @@ export default function LaminationCoating() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="font-medium">
-                            {/* Show resolved customer name from artwork data if available */}
                             {selectedOrder?.uiorn === order.uiorn && artworkData?.customer_name ? 
                               artworkData.customer_name : order.customer_name}
                           </h4>
@@ -277,10 +362,125 @@ export default function LaminationCoating() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Lamination Parameters</CardTitle>
+                <CardDescription>Configure lamination settings for selected order</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Line Speed (m/min)</label>
+                      <Input 
+                        value={laminationParams.speed}
+                        onChange={(e) => setLaminationParams({...laminationParams, speed: e.target.value})}
+                        placeholder="85"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Temperature (°C)</label>
+                      <Input 
+                        value={laminationParams.temperature}
+                        onChange={(e) => setLaminationParams({...laminationParams, temperature: e.target.value})}
+                        placeholder="145"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Pressure (bar)</label>
+                      <Input 
+                        value={laminationParams.pressure}
+                        onChange={(e) => setLaminationParams({...laminationParams, pressure: e.target.value})}
+                        placeholder="25"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Adhesive (gsm)</label>
+                      <Input 
+                        value={laminationParams.adhesive}
+                        onChange={(e) => setLaminationParams({...laminationParams, adhesive: e.target.value})}
+                        placeholder="2.5"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Solvent Ratio</label>
+                    <Input 
+                      value={laminationParams.solventRatio}
+                      onChange={(e) => setLaminationParams({...laminationParams, solventRatio: e.target.value})}
+                      placeholder="60:40"
+                    />
+                  </div>
+                  <Button 
+                    className="w-full"
+                    onClick={handleStartProcess}
+                    disabled={isProcessing || !selectedOrder}
+                  >
+                    {isProcessing ? "Starting Process..." : "Apply Parameters & Start Lamination"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
         <TabsContent value="coating" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Coating Parameters</CardTitle>
+                <CardDescription>Configure coating settings for selected order</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Line Speed (m/min)</label>
+                      <Input 
+                        value={coatingParams.speed}
+                        onChange={(e) => setCoatingParams({...coatingParams, speed: e.target.value})}
+                        placeholder="120"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Drying Temp (°C)</label>
+                      <Input 
+                        value={coatingParams.temperature}
+                        onChange={(e) => setCoatingParams({...coatingParams, temperature: e.target.value})}
+                        placeholder="165"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Coat Weight (gsm)</label>
+                      <Input 
+                        value={coatingParams.coatWeight}
+                        onChange={(e) => setCoatingParams({...coatingParams, coatWeight: e.target.value})}
+                        placeholder="3.0"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Viscosity (sec)</label>
+                      <Input 
+                        value={coatingParams.viscosity}
+                        onChange={(e) => setCoatingParams({...coatingParams, viscosity: e.target.value})}
+                        placeholder="45"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Coating Material</label>
+                    <Input 
+                      value={coatingParams.material}
+                      onChange={(e) => setCoatingParams({...coatingParams, material: e.target.value})}
+                      placeholder="Acrylic"
+                    />
+                  </div>
+                  <Button className="w-full">Apply Parameters & Start Coating</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="artwork" className="space-y-6">
@@ -362,7 +562,6 @@ export default function LaminationCoating() {
           </div>
         </TabsContent>
 
-        
         <TabsContent value="monitoring">
           <Card>
             <CardHeader>

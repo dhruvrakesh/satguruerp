@@ -1,82 +1,99 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Palette, Activity, Thermometer, Droplets, CheckCircle, AlertTriangle, Play, Pause, Search, Filter } from "lucide-react";
+import { Palette, Droplets, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
-import { useOrderProcessHistoryView } from "@/hooks/useProcessHistory";
+import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
+import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
+import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
-import { ViscosityTables } from "@/components/manufacturing/ViscosityTables";
-import { PrintingTemplateLoader } from "@/components/manufacturing/PrintingTemplateLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
+// Utility functions defined before usage
+const extractColorCount = (colorString: string): number => {
+  if (!colorString) return 4;
+  const match = colorString.match(/(\d+)/);
+  return match ? parseInt(match[1]) : 4;
+};
+
+const generateColorNames = (count: number): string[] => {
+  const baseColors = ['Cyan', 'Magenta', 'Yellow', 'Black', 'Spot Color 1', 'Spot Color 2', 'Spot Color 3', 'Spot Color 4'];
+  return baseColors.slice(0, count);
+};
+
 export default function GravurePrinting() {
   const [printingLogs, setPrintingLogs] = useState([]);
-  const [selectedUiorn, setSelectedUiorn] = useState<string>("");
-  const [historyFilters, setHistoryFilters] = useState({
-    uiorn: "",
-    customer: "",
-    startDate: "",
-    endDate: ""
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [printingParams, setPrintingParams] = useState({
+    speed: '',
+    temperature: '',
+    pressure: '',
+    viscosity: '',
+    solventRatio: ''
   });
   
-  // Job setup form state
-  const [jobSetup, setJobSetup] = useState({
-    print_speed: "",
-    drying_temperature: "",
-    ink_viscosity: "",
-    color_tolerance: "",
-    registration_tolerance: "",
-    density_target: ""
-  });
-
   const { data: orders = [] } = useManufacturingOrders({
     status: "IN_PROGRESS"
   });
+  
+  const { data: printingParameters = [] } = useProcessParameters("GRAVURE_PRINTING");
+  const { data: printingAlerts = [] } = useProcessQualityAlerts("GRAVURE_PRINTING");
 
-  const { data: processHistory = [] } = useOrderProcessHistoryView();
+  // Use the enhanced artwork hook for selected order
+  const { data: artworkData, isLoading: isLoadingArtwork } = useArtworkByUiorn(
+    selectedOrder?.uiorn || ""
+  );
 
   useEffect(() => {
-    fetchPrintingData();
+    // Fetch printing process logs
+    const fetchProcessData = async () => {
+      const { data: printLogs } = await supabase
+        .from('process_logs_se')
+        .select('*')
+        .eq('stage', 'GRAVURE_PRINTING')
+        .order('captured_at', { ascending: false })
+        .limit(15);
+        
+      setPrintingLogs(printLogs || []);
+    };
+
+    fetchProcessData();
   }, []);
 
-  const fetchPrintingData = async () => {
-    const { data: logs } = await supabase
-      .from('process_logs_se')
-      .select('*')
-      .eq('stage', 'PRINTING')
-      .order('captured_at', { ascending: false })
-      .limit(20);
-      
-    setPrintingLogs(logs || []);
-  };
-
-  // Enhanced active jobs with real customer data
-  const activeJobs = orders.map((order, index) => {
-    const artworkData = useArtworkByUiorn(order.uiorn);
-    const customerName = artworkData.data?.customer_name || order.customer_name || "Loading...";
-    const colorCount = extractColorCount(artworkData.data?.no_of_colours || order.product_description || "");
-    
-    return {
-      id: index + 1,
-      uiorn: order.uiorn,
-      customer: customerName,
-      product: order.product_description,
-      substrate: index % 2 === 0 ? "BOPP Film" : "PET Film",
-      colors: generateColorNames(colorCount),
-      colorCount: colorCount,
-      speed: index % 2 === 0 ? "120 m/min" : "95 m/min",
-      temperature: index % 2 === 0 ? "185°C" : "175°C",
-      status: index === 0 ? "RUNNING" : "SETUP",
-      progress: index === 0 ? 65 : 15,
-      operator: index % 2 === 0 ? "Rajesh Kumar" : "Suresh Patel"
-    };
-  });
+  // Mock active processes data
+  const mockActiveProcesses = [
+    {
+      id: 1,
+      uiorn: "250718001",
+      customer: "ABC Packaging Ltd",
+      substrate: "BOPP Film",
+      colors: extractColorCount(artworkData?.no_of_colours || "4COL"),
+      speed: "150 m/min",
+      temperature: "45°C",
+      viscosity: "18 sec",
+      status: "RUNNING",
+      progress: 75,
+      operator: "Rajesh Kumar"
+    },
+    {
+      id: 2,
+      uiorn: "250718003",
+      customer: "XYZ Foods Pvt Ltd",
+      substrate: "PET Film",
+      colors: 6,
+      speed: "120 m/min",
+      temperature: "50°C",
+      viscosity: "20 sec",
+      status: "SETUP",
+      progress: 25,
+      operator: "Suresh Sharma"
+    }
+  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -88,64 +105,17 @@ export default function GravurePrinting() {
     }
   };
 
-  const extractColorCount = (colorString: string): number => {
-    console.log('Processing color string:', colorString);
+  const applyRecommendations = (parameters: any[]) => {
+    const paramMap = new Map(parameters.map(p => [p.metric, p.recommended_value]));
     
-    if (!colorString) return 4;
-    
-    // Handle various formats: "7COL", "8COL", "COL", "YTRCOL", etc.
-    const colMatch = colorString.match(/(\d+)COL/i);
-    if (colMatch) {
-      const count = parseInt(colMatch[1]);
-      console.log('Extracted color count:', count);
-      return count > 0 && count <= 12 ? count : 4;
-    }
-    
-    // Handle pure numbers
-    const numberMatch = colorString.match(/\b(\d+)\b/);
-    if (numberMatch) {
-      const count = parseInt(numberMatch[1]);
-      if (count > 0 && count <= 12) {
-        console.log('Extracted numeric color count:', count);
-        return count;
-      }
-    }
-    
-    // Default fallback
-    console.log('Using default color count: 4');
-    return 4;
-  };
-
-  const generateColorNames = (count: number): string[] => {
-    const allColors = ['Cyan', 'Magenta', 'Yellow', 'Black', 'Blue', 'Green', 'Red', 'White', 'Orange', 'Purple', 'Pink', 'Brown'];
-    return allColors.slice(0, count);
-  };
-
-  const handleTemplateLoad = (template: any) => {
-    setJobSetup({
-      print_speed: template.print_speed?.toString() || "",
-      drying_temperature: template.drying_temperature?.toString() || "",
-      ink_viscosity: template.ink_viscosity?.toString() || "",
-      color_tolerance: template.color_tolerance?.toString() || "",
-      registration_tolerance: template.registration_tolerance?.toString() || "",
-      density_target: template.density_target?.toString() || ""
+    setPrintingParams({
+      speed: paramMap.get('line_speed_mpm')?.toFixed(0) || '',
+      temperature: paramMap.get('drying_temp_c')?.toFixed(0) || '',
+      pressure: '2.5',
+      viscosity: paramMap.get('ink_viscosity_sec')?.toFixed(0) || '',
+      solventRatio: '70:30'
     });
   };
-
-  const filteredHistory = processHistory.filter(record => {
-    const matchesUiorn = !historyFilters.uiorn || record.uiorn?.includes(historyFilters.uiorn);
-    const matchesCustomer = !historyFilters.customer || record.customer_name?.toLowerCase().includes(historyFilters.customer.toLowerCase());
-    
-    let matchesDate = true;
-    if (historyFilters.startDate && record.captured_at) {
-      matchesDate = new Date(record.captured_at) >= new Date(historyFilters.startDate);
-    }
-    if (historyFilters.endDate && record.captured_at && matchesDate) {
-      matchesDate = new Date(record.captured_at) <= new Date(historyFilters.endDate);
-    }
-    
-    return matchesUiorn && matchesCustomer && matchesDate;
-  });
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -155,135 +125,397 @@ export default function GravurePrinting() {
             <Palette className="w-8 h-8 text-primary" />
             Gravure Printing
           </h1>
-          <p className="text-muted-foreground">High-quality printing operations and quality control</p>
+          <p className="text-muted-foreground">High-quality rotogravure printing with precision color control</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
             <Play className="h-4 w-4 mr-2" />
-            Start Job
+            Start Print Run
           </Button>
           <Button variant="outline">
-            <Pause className="h-4 w-4 mr-2" />
-            Pause All
+            <Settings className="h-4 w-4 mr-2" />
+            Press Setup
           </Button>
         </div>
       </div>
 
-      {/* Printing Metrics */}
+      {/* Process Metrics */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Active Print Jobs</CardTitle>
+            <Palette className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeJobs.filter(j => j.status === 'RUNNING').length}</div>
-            <p className="text-xs text-muted-foreground">Currently printing</p>
+            <div className="text-2xl font-bold">{mockActiveProcesses.filter(p => p.status === 'RUNNING').length}</div>
+            <p className="text-xs text-muted-foreground">
+              Currently running
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Process Records</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Print Records</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{printingLogs.length}</div>
-            <p className="text-xs text-muted-foreground">Historical records</p>
+            <p className="text-xs text-muted-foreground">
+              AI-analyzed records
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Speed</CardTitle>
-            <Thermometer className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Color Accuracy</CardTitle>
+            <Droplets className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">108</div>
-            <p className="text-xs text-muted-foreground">m/min current</p>
+            <div className="text-2xl font-bold text-green-600">98.5%</div>
+            <p className="text-xs text-muted-foreground">
+              Delta E compliance
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quality Issues</CardTitle>
+            <CardTitle className="text-sm font-medium">Quality Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2</div>
-            <p className="text-xs text-muted-foreground">Require attention</p>
+            <div className="text-2xl font-bold">{printingAlerts.length}</div>
+            <p className="text-xs text-muted-foreground">
+              AI-detected issues
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="active" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="active">Active Jobs</TabsTrigger>
-          <TabsTrigger value="setup">Job Setup</TabsTrigger>
-          <TabsTrigger value="quality">Quality Control</TabsTrigger>
-          <TabsTrigger value="history">Process History</TabsTrigger>
+      <Tabs defaultValue="printing" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="printing">Print Control</TabsTrigger>
+          <TabsTrigger value="colors">Color Management</TabsTrigger>
+          <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
+          <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
+          <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="active">
+        <TabsContent value="printing" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Orders</CardTitle>
+                <CardDescription>Select an order to start printing process</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <Card 
+                      key={order.uiorn} 
+                      className={`p-4 cursor-pointer transition-colors ${
+                        selectedOrder?.uiorn === order.uiorn ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">
+                            {selectedOrder?.uiorn === order.uiorn && artworkData?.customer_name ? 
+                              artworkData.customer_name : order.customer_name}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {order.product_description}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <Badge variant="outline">{order.uiorn}</Badge>
+                            <Badge 
+                              variant={order.priority_level === 'URGENT' ? 'destructive' : 'default'}
+                            >
+                              {order.priority_level}
+                            </Badge>
+                            {selectedOrder?.uiorn === order.uiorn && isLoadingArtwork && (
+                              <Badge variant="secondary">Loading artwork...</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant={selectedOrder?.uiorn === order.uiorn ? "default" : "outline"}
+                          >
+                            {selectedOrder?.uiorn === order.uiorn ? "Selected" : "Select"}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Print Parameters</CardTitle>
+                <CardDescription>Configure printing parameters for selected order</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Line Speed (m/min)</label>
+                      <Input 
+                        value={printingParams.speed}
+                        onChange={(e) => setPrintingParams({...printingParams, speed: e.target.value})}
+                        placeholder="150"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Drying Temp (°C)</label>
+                      <Input 
+                        value={printingParams.temperature}
+                        onChange={(e) => setPrintingParams({...printingParams, temperature: e.target.value})}
+                        placeholder="45"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Impression Pressure</label>
+                      <Input 
+                        value={printingParams.pressure}
+                        onChange={(e) => setPrintingParams({...printingParams, pressure: e.target.value})}
+                        placeholder="2.5 bar"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Ink Viscosity (sec)</label>
+                      <Input 
+                        value={printingParams.viscosity}
+                        onChange={(e) => setPrintingParams({...printingParams, viscosity: e.target.value})}
+                        placeholder="18"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Solvent Ratio</label>
+                    <Input 
+                      value={printingParams.solventRatio}
+                      onChange={(e) => setPrintingParams({...printingParams, solventRatio: e.target.value})}
+                      placeholder="70:30"
+                    />
+                  </div>
+                  <Button className="w-full">Apply Parameters & Start Print</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="colors" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Color Deck Setup</CardTitle>
+                <CardDescription>
+                  {selectedOrder && artworkData?.no_of_colours ? 
+                    `${extractColorCount(artworkData.no_of_colours)} colors required` : 
+                    'Select an order to see color requirements'
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedOrder && artworkData?.no_of_colours ? (
+                  <div className="space-y-3">
+                    {generateColorNames(extractColorCount(artworkData.no_of_colours)).map((color, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="w-6 h-6 rounded border bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                        <div className="flex-1">
+                          <p className="font-medium">Deck {index + 1}: {color}</p>
+                          <p className="text-sm text-muted-foreground">Viscosity: 18 sec | Density: 1.2</p>
+                        </div>
+                        <Badge variant="outline">Ready</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center p-8 text-muted-foreground">
+                    Select an order to configure color decks
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Ink Management</CardTitle>
+                <CardDescription>Monitor ink levels and viscosity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">Cyan Ink</p>
+                      <p className="text-sm text-muted-foreground">Tank A1</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">75%</p>
+                      <p className="text-xs text-muted-foreground">18.2 sec</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">Magenta Ink</p>
+                      <p className="text-sm text-muted-foreground">Tank A2</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">60%</p>
+                      <p className="text-xs text-muted-foreground">17.8 sec</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">Yellow Ink</p>
+                      <p className="text-sm text-muted-foreground">Tank A3</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">85%</p>
+                      <p className="text-xs text-muted-foreground">18.5 sec</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="artwork" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    Selected Order Artwork
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {selectedOrder ? (
+                    <ArtworkProcessDisplay
+                      uiorn={selectedOrder.uiorn}
+                      itemCode={selectedOrder.product_description}
+                      artworkData={artworkData?.artwork}
+                      processType="printing"
+                    />
+                  ) : (
+                    <div className="text-center p-8 text-muted-foreground">
+                      Select an order to view artwork specifications
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Smart Parameter Loading
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {artworkData?.artwork ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <h4 className="font-medium text-blue-800 mb-2">Auto-Configured Parameters</h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="font-medium">Colors:</span>
+                            <div className="text-blue-700">{artworkData.no_of_colours}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Substrate:</span>
+                            <div className="text-blue-700">{artworkData.artwork.dimensions || "N/A"}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Customer:</span>
+                            <div className="text-blue-700">{artworkData.customer_name || "N/A"}</div>
+                          </div>
+                          <div>
+                            <span className="font-medium">Item Code:</span>
+                            <div className="text-blue-700">{artworkData.item_code}</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button className="w-full">
+                        Apply Artwork Parameters to Press
+                      </Button>
+                    </div>
+                  ) : isLoadingArtwork ? (
+                    <div className="text-center p-4 text-muted-foreground">
+                      Loading artwork parameters...
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">
+                      Artwork parameters will appear here when order is selected
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="monitoring">
           <Card>
             <CardHeader>
-              <CardTitle>Active Printing Jobs</CardTitle>
-              <CardDescription>Real-time monitoring of printing operations</CardDescription>
+              <CardTitle>Active Printing Operations</CardTitle>
+              <CardDescription>
+                Real-time monitoring of gravure printing presses
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {activeJobs.map((job) => (
-                  <div key={job.id} className="p-4 border rounded-lg">
+                {mockActiveProcesses.map((process) => (
+                  <div key={process.id} className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-4">
                         <div>
-                          <h3 className="font-semibold">{job.uiorn}</h3>
-                          <p className="text-sm text-muted-foreground">{job.customer}</p>
-                          <p className="text-xs text-muted-foreground">{job.product}</p>
+                          <h3 className="font-semibold">{process.uiorn}</h3>
+                          <p className="text-sm text-muted-foreground">{process.customer}</p>
                         </div>
-                        <Badge className={getStatusColor(job.status)}>
-                          {job.status}
+                        <Badge className={getStatusColor(process.status)}>
+                          {process.status}
                         </Badge>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">{job.progress}% Complete</p>
-                        <p className="text-xs text-muted-foreground">Operator: {job.operator}</p>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="mt-1"
-                          onClick={() => setSelectedUiorn(job.uiorn)}
-                        >
-                          View Details
-                        </Button>
+                        <p className="text-sm font-medium">{process.progress}% Complete</p>
+                        <p className="text-xs text-muted-foreground">Operator: {process.operator}</p>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">Substrate</p>
-                        <p className="font-medium">{job.substrate}</p>
+                        <p className="font-medium">{process.substrate}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Colors</p>
+                        <p className="font-medium">{process.colors}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Speed</p>
-                        <p className="font-medium">{job.speed}</p>
+                        <p className="font-medium">{process.speed}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Temperature</p>
-                        <p className="font-medium">{job.temperature}</p>
+                        <p className="font-medium">{process.temperature}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Colors ({job.colorCount})</p>
-                        <div className="flex gap-1 mt-1">
-                          {job.colors.map((color, index) => (
-                            <div 
-                              key={index}
-                              className="w-4 h-4 rounded-full border"
-                              style={{ backgroundColor: color.toLowerCase() }}
-                              title={color}
-                            />
-                          ))}
-                        </div>
+                        <p className="text-muted-foreground">Viscosity</p>
+                        <p className="font-medium">{process.viscosity}</p>
                       </div>
                     </div>
                     
@@ -291,20 +523,10 @@ export default function GravurePrinting() {
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${job.progress}%` }}
+                          style={{ width: `${process.progress}%` }}
                         />
                       </div>
                     </div>
-
-                    {/* Dynamic Viscosity Tables */}
-                    {selectedUiorn === job.uiorn && (
-                      <div className="mt-4 pt-4 border-t">
-                        <ViscosityTables 
-                          uiorn={job.uiorn}
-                          colorCount={job.colorCount}
-                        />
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -312,214 +534,11 @@ export default function GravurePrinting() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="setup">
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Setup & Configuration</CardTitle>
-              <CardDescription>Configure printing parameters and job settings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-semibold">Printing Parameters</h3>
-                  <PrintingTemplateLoader 
-                    uiorn={selectedUiorn}
-                    onTemplateLoad={handleTemplateLoad}
-                  />
-                </div>
-                
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
-                    <div className="grid gap-3">
-                      <div>
-                        <label className="text-sm font-medium">Print Speed (m/min)</label>
-                        <Input 
-                          type="number" 
-                          placeholder="120"
-                          value={jobSetup.print_speed}
-                          onChange={(e) => setJobSetup(prev => ({...prev, print_speed: e.target.value}))}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Drying Temperature (°C)</label>
-                        <Input 
-                          type="number" 
-                          placeholder="185"
-                          value={jobSetup.drying_temperature}
-                          onChange={(e) => setJobSetup(prev => ({...prev, drying_temperature: e.target.value}))}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Ink Viscosity (cPs)</label>
-                        <Input 
-                          type="number" 
-                          placeholder="18"
-                          value={jobSetup.ink_viscosity}
-                          onChange={(e) => setJobSetup(prev => ({...prev, ink_viscosity: e.target.value}))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="font-semibold">Quality Settings</h3>
-                    <div className="grid gap-3">
-                      <div>
-                        <label className="text-sm font-medium">Color Tolerance (ΔE)</label>
-                        <Input 
-                          type="number" 
-                          placeholder="2.5"
-                          value={jobSetup.color_tolerance}
-                          onChange={(e) => setJobSetup(prev => ({...prev, color_tolerance: e.target.value}))}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Registration Tolerance (mm)</label>
-                        <Input 
-                          type="number" 
-                          placeholder="0.1"
-                          value={jobSetup.registration_tolerance}
-                          onChange={(e) => setJobSetup(prev => ({...prev, registration_tolerance: e.target.value}))}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Density Target</label>
-                        <Input 
-                          type="number" 
-                          placeholder="1.4"
-                          value={jobSetup.density_target}
-                          onChange={(e) => setJobSetup(prev => ({...prev, density_target: e.target.value}))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button>Save Configuration</Button>
-                  <Button variant="outline">Reset</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="quality">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quality Control Dashboard</CardTitle>
-              <CardDescription>Monitor print quality and defect tracking</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-3">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Color Accuracy</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">98.5%</div>
-                    <p className="text-sm text-muted-foreground">Within tolerance</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Registration</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-yellow-600">±0.08mm</div>
-                    <p className="text-sm text-muted-foreground">Average deviation</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Defect Rate</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">0.3%</div>
-                    <p className="text-sm text-muted-foreground">Below target</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle>Printing Process History</CardTitle>
-              <CardDescription>Historical printing records and process logs</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Enhanced Filtering */}
-              <div className="grid gap-4 md:grid-cols-4 mb-6 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">UIORN</label>
-                  <Input
-                    placeholder="Search UIORN..."
-                    value={historyFilters.uiorn}
-                    onChange={(e) => setHistoryFilters(prev => ({...prev, uiorn: e.target.value}))}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Customer</label>
-                  <Input
-                    placeholder="Search customer..."
-                    value={historyFilters.customer}
-                    onChange={(e) => setHistoryFilters(prev => ({...prev, customer: e.target.value}))}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Start Date</label>
-                  <Input
-                    type="date"
-                    value={historyFilters.startDate}
-                    onChange={(e) => setHistoryFilters(prev => ({...prev, startDate: e.target.value}))}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">End Date</label>
-                  <Input
-                    type="date"
-                    value={historyFilters.endDate}
-                    onChange={(e) => setHistoryFilters(prev => ({...prev, endDate: e.target.value}))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {filteredHistory.slice(0, 20).map((log: any) => (
-                  <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <Droplets className="w-5 h-5 text-blue-500" />
-                      <div>
-                        <h4 className="font-medium">{log.uiorn}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {log.customer_name && <span className="font-medium">{log.customer_name}</span>}
-                          {log.customer_name && " • "}
-                          {log.metric}: {log.value || log.txt_value}
-                        </p>
-                        {log.product_description && (
-                          <p className="text-xs text-muted-foreground">{log.product_description}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      {log.captured_at && format(new Date(log.captured_at), 'MMM dd, HH:mm')}
-                    </div>
-                  </div>
-                ))}
-                
-                {filteredHistory.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No printing records found matching your filters.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="intelligence">
+          <ProcessIntelligencePanel 
+            stage="GRAVURE_PRINTING"
+            onApplyRecommendations={applyRecommendations}
+          />
         </TabsContent>
       </Tabs>
     </div>
