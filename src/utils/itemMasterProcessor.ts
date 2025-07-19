@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { CategoryResolver } from "./categoryResolver";
 import { UsageTypeResolver } from "./usageTypeResolver";
@@ -36,7 +37,7 @@ export class ItemMasterProcessor {
           record.usage_type || 'RAW_MATERIAL',
           record.category_name,
           record.item_name
-        ) as "RAW_MATERIAL" | "FINISHED_GOOD" | "WIP" | "PACKAGING" | "CONSUMABLE";
+        );
 
         // Validate logical consistency for flexible packaging manufacturing
         const logicError = UsageTypeResolver.validateCategoryUsageTypeLogic(

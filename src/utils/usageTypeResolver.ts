@@ -1,18 +1,18 @@
 
+// Define valid usage types matching the database schema (text field)
+type ValidUsageType = 'RAW_MATERIAL' | 'FINISHED_GOOD' | 'WIP' | 'PACKAGING' | 'CONSUMABLE';
+
 // Enhanced usage type resolution with category-aware logic for flexible packaging manufacturing
 export class UsageTypeResolver {
   
   // Define valid usage types matching the database schema
-  private static readonly VALID_USAGE_TYPES = [
+  private static readonly VALID_USAGE_TYPES: ValidUsageType[] = [
     'RAW_MATERIAL',
     'FINISHED_GOOD', 
     'WIP',
     'PACKAGING',
     'CONSUMABLE'
-  ] as const;
-
-  // Valid usage type type
-  type ValidUsageType = typeof UsageTypeResolver.VALID_USAGE_TYPES[number];
+  ];
 
   // Category-specific usage type mappings for flexible packaging manufacturing
   private static readonly CATEGORY_USAGE_TYPE_MAP: Record<string, ValidUsageType> = {
