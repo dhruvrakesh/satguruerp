@@ -5836,6 +5836,7 @@ export type Database = {
           manufacturer: string | null
           mileage_m: number | null
           remarks: string | null
+          status: string
           type: string | null
           updated_at: string | null
         }
@@ -5853,6 +5854,7 @@ export type Database = {
           manufacturer?: string | null
           mileage_m?: number | null
           remarks?: string | null
+          status?: string
           type?: string | null
           updated_at?: string | null
         }
@@ -5870,6 +5872,7 @@ export type Database = {
           manufacturer?: string | null
           mileage_m?: number | null
           remarks?: string | null
+          status?: string
           type?: string | null
           updated_at?: string | null
         }

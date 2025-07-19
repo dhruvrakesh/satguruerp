@@ -61,14 +61,22 @@ export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
         .from('satguru_cylinders')
         .select('item_code, cylinder_code, status, mileage_m, location');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching cylinders:', error);
+        return {};
+      }
       
       // Group cylinders by item_code
       const grouped = (data || []).reduce((acc: Record<string, CylinderInfo[]>, cylinder) => {
         if (!acc[cylinder.item_code]) {
           acc[cylinder.item_code] = [];
         }
-        acc[cylinder.item_code].push(cylinder as CylinderInfo);
+        acc[cylinder.item_code].push({
+          cylinder_code: cylinder.cylinder_code,
+          status: cylinder.status || 'AVAILABLE',
+          mileage_m: cylinder.mileage_m || 0,
+          location: cylinder.location || ''
+        });
         return acc;
       }, {});
       
