@@ -17,10 +17,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Package, Palette, Wrench } from "lucide-react";
+import { Check, ChevronsUpDown, Package, Palette, Wrench, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useItemsForSelection } from "@/hooks/useItemMaster";
 import { useArtworkItemsForSelection, ArtworkItem } from "@/hooks/useArtworkItems";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Item {
   item_code: string;
@@ -39,10 +41,67 @@ interface ItemSelectorProps {
   selectedItem?: Item | null;
 }
 
+interface CylinderInfo {
+  cylinder_code: string;
+  status: string;
+  mileage_m: number;
+  location: string;
+}
+
 export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
   const [open, setOpen] = useState(false);
   const { data: rmItems = [], isLoading: rmLoading } = useItemsForSelection();
   const { data: fgItems = [], isLoading: fgLoading } = useArtworkItemsForSelection();
+
+  // Hook to get cylinder information for FG items
+  const { data: cylinderData = {} } = useQuery({
+    queryKey: ["cylinders-summary"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('satguru_cylinders')
+        .select('item_code, cylinder_code, status, mileage_m, location');
+      
+      if (error) throw error;
+      
+      // Group cylinders by item_code
+      const grouped = (data || []).reduce((acc: Record<string, CylinderInfo[]>, cylinder) => {
+        if (!acc[cylinder.item_code]) {
+          acc[cylinder.item_code] = [];
+        }
+        acc[cylinder.item_code].push(cylinder as CylinderInfo);
+        return acc;
+      }, {});
+      
+      return grouped;
+    },
+  });
+
+  const getCylinderSummary = (itemCode: string) => {
+    const cylinders = cylinderData[itemCode] || [];
+    const available = cylinders.filter(c => c.status === 'AVAILABLE').length;
+    const total = cylinders.length;
+    const highMileage = cylinders.filter(c => c.mileage_m > 50000).length;
+    
+    return { available, total, highMileage, cylinders };
+  };
+
+  const getCylinderBadge = (itemCode: string) => {
+    const { available, total, highMileage } = getCylinderSummary(itemCode);
+    
+    if (total === 0) {
+      return <Badge variant="outline" className="text-xs bg-gray-100 text-gray-600">No Cylinders</Badge>;
+    }
+    
+    if (available === 0) {
+      return <Badge variant="destructive" className="text-xs">No Available</Badge>;
+    }
+    
+    if (highMileage > 0) {
+      return <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">{available}/{total} Available*</Badge>;
+    }
+    
+    return <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">{available}/{total} Available</Badge>;
+  };
 
   const handleSelect = (item: Item | ArtworkItem) => {
     const standardizedItem: Item = {
@@ -93,7 +152,7 @@ export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[600px] p-0">
+      <PopoverContent className="w-[700px] p-0">
         <Tabs defaultValue="rm" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="rm" className="flex items-center gap-2">
@@ -179,16 +238,25 @@ export function ItemSelector({ onSelect, selectedItem }: ItemSelectorProps) {
                               {item.customer_name}
                             </Badge>
                           )}
+                          {getCylinderBadge(item.item_code)}
                         </div>
                         <div className="text-sm text-muted-foreground truncate">
                           {item.item_name}
                         </div>
-                        {(item.dimensions || item.no_of_colours) && (
-                          <div className="text-xs text-muted-foreground flex gap-2 mt-1">
-                            {item.dimensions && <span>📐 {item.dimensions}</span>}
-                            {item.no_of_colours && <span>🎨 {item.no_of_colours} colors</span>}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-4 mt-1">
+                          {(item.dimensions || item.no_of_colours) && (
+                            <div className="text-xs text-muted-foreground flex gap-2">
+                              {item.dimensions && <span>📐 {item.dimensions}</span>}
+                              {item.no_of_colours && <span>🎨 {item.no_of_colours} colors</span>}
+                            </div>
+                          )}
+                          {cylinderData[item.item_code] && cylinderData[item.item_code].length > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Settings2 className="h-3 w-3" />
+                              <span>{cylinderData[item.item_code].length} cylinders</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </CommandItem>
                   ))}
