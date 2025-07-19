@@ -10,13 +10,27 @@ export interface CategoryInfo {
   category_name: string;
 }
 
+// Simplified interfaces to prevent deep type instantiation
+interface CategoryMapEntry {
+  key: string;
+  value: string;
+}
+
+interface ResolverState {
+  categoryMap: CategoryMapping;
+  initialized: boolean;
+  availableCategories: CategoryInfo[];
+}
+
 export class CategoryResolver {
-  private categoryMap: CategoryMapping = {};
-  private initialized = false;
-  private availableCategories: CategoryInfo[] = [];
+  private state: ResolverState = {
+    categoryMap: {},
+    initialized: false,
+    availableCategories: []
+  };
 
   async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.state.initialized) return;
 
     // FIXED: Query satguru_categories instead of categories
     const { data: categories, error } = await supabase
@@ -29,38 +43,50 @@ export class CategoryResolver {
     }
 
     console.log('📂 Available categories from satguru_categories:', categories?.map(c => c.category_name));
-    this.availableCategories = categories || [];
+    this.state.availableCategories = categories || [];
 
-    this.categoryMap = {};
-    categories?.forEach(cat => {
-      this.addCategoryToMap(cat.category_name, cat.id);
-    });
+    // Clear and rebuild category map
+    this.state.categoryMap = {};
+    if (categories) {
+      for (const cat of categories) {
+        this.addCategoryToMap(cat.category_name, cat.id);
+      }
+    }
 
-    this.initialized = true;
-    console.log('✅ Category resolver initialized with', Object.keys(this.categoryMap).length, 'mappings');
+    this.state.initialized = true;
+    console.log('✅ Category resolver initialized with', Object.keys(this.state.categoryMap).length, 'mappings');
   }
 
   private addCategoryToMap(categoryName: string, categoryId: string): void {
+    const entries: CategoryMapEntry[] = [];
+    
     // Store original category info
-    const normalizedName = categoryName.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedName: string = categoryName.toLowerCase().trim().replace(/\s+/g, ' ');
     
     // Exact matches (case variations)
-    this.categoryMap[categoryName] = categoryId;
-    this.categoryMap[categoryName.toLowerCase()] = categoryId;
-    this.categoryMap[categoryName.toUpperCase()] = categoryId;
-    this.categoryMap[normalizedName] = categoryId;
+    entries.push(
+      { key: categoryName, value: categoryId },
+      { key: categoryName.toLowerCase(), value: categoryId },
+      { key: categoryName.toUpperCase(), value: categoryId },
+      { key: normalizedName, value: categoryId }
+    );
     
     // Enhanced singular/plural variations
-    this.addSingularPluralVariations(categoryName, categoryId);
+    this.addSingularPluralVariations(categoryName, categoryId, entries);
     
     // Add specific business logic mappings
-    this.addBusinessSpecificMappings(categoryName, categoryId);
+    this.addBusinessSpecificMappings(categoryName, categoryId, entries);
+    
+    // Apply all entries at once to prevent deep type inference
+    for (const entry of entries) {
+      this.state.categoryMap[entry.key] = entry.value;
+    }
     
     console.log(`🔗 Mapped category: "${categoryName}" (ID: ${categoryId})`);
   }
 
-  private addSingularPluralVariations(categoryName: string, categoryId: string): void {
-    const normalized = categoryName.toLowerCase().trim();
+  private addSingularPluralVariations(categoryName: string, categoryId: string, entries: CategoryMapEntry[]): void {
+    const normalized: string = categoryName.toLowerCase().trim();
     
     // Handle common singular/plural patterns for flexible packaging
     const pluralPatterns = [
@@ -73,60 +99,76 @@ export class CategoryResolver {
       { singular: 'adhesive', plural: 'adhesives' }
     ];
 
-    pluralPatterns.forEach(pattern => {
+    for (const pattern of pluralPatterns) {
       if (normalized.includes(pattern.plural)) {
-        this.categoryMap[pattern.singular] = categoryId;
-        this.categoryMap[pattern.singular.toUpperCase()] = categoryId;
-        this.categoryMap[this.capitalize(pattern.singular)] = categoryId;
+        entries.push(
+          { key: pattern.singular, value: categoryId },
+          { key: pattern.singular.toUpperCase(), value: categoryId },
+          { key: this.capitalize(pattern.singular), value: categoryId }
+        );
       }
       if (normalized.includes(pattern.singular)) {
-        this.categoryMap[pattern.plural] = categoryId;
-        this.categoryMap[pattern.plural.toUpperCase()] = categoryId;
-        this.categoryMap[this.capitalize(pattern.plural)] = categoryId;
+        entries.push(
+          { key: pattern.plural, value: categoryId },
+          { key: pattern.plural.toUpperCase(), value: categoryId },
+          { key: this.capitalize(pattern.plural), value: categoryId }
+        );
       }
-    });
+    }
 
     // Generic singular/plural handling
     if (normalized.endsWith('s') && normalized.length > 3) {
-      const singular = normalized.slice(0, -1);
-      this.categoryMap[singular] = categoryId;
-      this.categoryMap[singular.toUpperCase()] = categoryId;
-      this.categoryMap[this.capitalize(singular)] = categoryId;
+      const singular: string = normalized.slice(0, -1);
+      entries.push(
+        { key: singular, value: categoryId },
+        { key: singular.toUpperCase(), value: categoryId },
+        { key: this.capitalize(singular), value: categoryId }
+      );
     } else {
-      const plural = normalized + 's';
-      this.categoryMap[plural] = categoryId;
-      this.categoryMap[plural.toUpperCase()] = categoryId;
-      this.categoryMap[this.capitalize(plural)] = categoryId;
+      const plural: string = normalized + 's';
+      entries.push(
+        { key: plural, value: categoryId },
+        { key: plural.toUpperCase(), value: categoryId },
+        { key: this.capitalize(plural), value: categoryId }
+      );
     }
   }
 
-  private addBusinessSpecificMappings(categoryName: string, categoryId: string): void {
-    const normalized = categoryName.toLowerCase();
+  private addBusinessSpecificMappings(categoryName: string, categoryId: string, entries: CategoryMapEntry[]): void {
+    const normalized: string = categoryName.toLowerCase();
     
     // Flexible packaging specific mappings
     if (normalized.includes('cylinder')) {
-      this.categoryMap['printing cylinder'] = categoryId;
-      this.categoryMap['gravure cylinder'] = categoryId;
-      this.categoryMap['cylinders'] = categoryId;
-      this.categoryMap['cylinder'] = categoryId;
+      entries.push(
+        { key: 'printing cylinder', value: categoryId },
+        { key: 'gravure cylinder', value: categoryId },
+        { key: 'cylinders', value: categoryId },
+        { key: 'cylinder', value: categoryId }
+      );
     }
     
     if (normalized.includes('consumable')) {
-      this.categoryMap['consumable'] = categoryId;
-      this.categoryMap['CONSUMABLE'] = categoryId;
-      this.categoryMap['Consumable'] = categoryId;
+      entries.push(
+        { key: 'consumable', value: categoryId },
+        { key: 'CONSUMABLE', value: categoryId },
+        { key: 'Consumable', value: categoryId }
+      );
     }
     
     if (normalized.includes('raw material')) {
-      this.categoryMap['raw material'] = categoryId;
-      this.categoryMap['RAW MATERIAL'] = categoryId;
-      this.categoryMap['Raw Material'] = categoryId;
+      entries.push(
+        { key: 'raw material', value: categoryId },
+        { key: 'RAW MATERIAL', value: categoryId },
+        { key: 'Raw Material', value: categoryId }
+      );
     }
     
     if (normalized.includes('finished good')) {
-      this.categoryMap['finished good'] = categoryId;
-      this.categoryMap['FINISHED GOOD'] = categoryId;
-      this.categoryMap['Finished Good'] = categoryId;
+      entries.push(
+        { key: 'finished good', value: categoryId },
+        { key: 'FINISHED GOOD', value: categoryId },
+        { key: 'Finished Good', value: categoryId }
+      );
     }
   }
 
@@ -137,7 +179,7 @@ export class CategoryResolver {
   }
 
   resolveCategoryId(categoryName: string): string | null {
-    if (!this.initialized) {
+    if (!this.state.initialized) {
       throw new Error('CategoryResolver not initialized. Call initialize() first.');
     }
 
@@ -146,36 +188,36 @@ export class CategoryResolver {
       return null;
     }
 
-    const trimmedCategory = categoryName.trim();
+    const trimmedCategory: string = categoryName.trim();
     console.log(`🔍 Resolving category: "${trimmedCategory}"`);
     
     // Phase 1: Exact match (case-sensitive)
-    if (this.categoryMap[trimmedCategory]) {
-      const result = this.categoryMap[trimmedCategory];
+    if (this.state.categoryMap[trimmedCategory]) {
+      const result: string = this.state.categoryMap[trimmedCategory];
       console.log(`✅ Exact match found: "${trimmedCategory}" → ${result}`);
       return result;
     }
 
     // Phase 2: Case-insensitive exact match
-    const lowerCase = trimmedCategory.toLowerCase();
-    if (this.categoryMap[lowerCase]) {
-      const result = this.categoryMap[lowerCase];
+    const lowerCase: string = trimmedCategory.toLowerCase();
+    if (this.state.categoryMap[lowerCase]) {
+      const result: string = this.state.categoryMap[lowerCase];
       console.log(`✅ Case-insensitive match found: "${trimmedCategory}" → ${result}`);
       return result;
     }
 
     // Phase 3: Normalized match (remove extra spaces)
-    const normalized = lowerCase.replace(/\s+/g, ' ');
-    if (this.categoryMap[normalized]) {
-      const result = this.categoryMap[normalized];
+    const normalized: string = lowerCase.replace(/\s+/g, ' ');
+    if (this.state.categoryMap[normalized]) {
+      const result: string = this.state.categoryMap[normalized];
       console.log(`✅ Normalized match found: "${trimmedCategory}" → ${result}`);
       return result;
     }
 
     // Phase 4: Fuzzy matching with improved logic
-    const fuzzyMatches = Object.keys(this.categoryMap).filter(key => {
-      const keyLower = key.toLowerCase();
-      const categoryLower = lowerCase;
+    const fuzzyMatches: string[] = Object.keys(this.state.categoryMap).filter(key => {
+      const keyLower: string = key.toLowerCase();
+      const categoryLower: string = lowerCase;
       
       // Bidirectional substring matching
       return keyLower.includes(categoryLower) || 
@@ -185,27 +227,27 @@ export class CategoryResolver {
 
     if (fuzzyMatches.length > 0) {
       // Sort by best match (shortest distance)
-      const bestMatch = fuzzyMatches.sort((a, b) => {
-        const distA = this.levenshteinDistance(a.toLowerCase(), lowerCase);
-        const distB = this.levenshteinDistance(b.toLowerCase(), lowerCase);
+      const bestMatch: string = fuzzyMatches.sort((a, b) => {
+        const distA: number = this.levenshteinDistance(a.toLowerCase(), lowerCase);
+        const distB: number = this.levenshteinDistance(b.toLowerCase(), lowerCase);
         return distA - distB;
       })[0];
       
-      const result = this.categoryMap[bestMatch];
+      const result: string = this.state.categoryMap[bestMatch];
       console.log(`✅ Fuzzy match found: "${trimmedCategory}" → "${bestMatch}" → ${result}`);
       return result;
     }
 
     // Phase 5: Failed to resolve - provide detailed error info
     console.error(`❌ No category match found for: "${trimmedCategory}"`);
-    console.log('📋 Available category names:', this.availableCategories.map(c => c.category_name));
+    console.log('📋 Available category names:', this.state.availableCategories.map(c => c.category_name));
     console.log('🔧 Top suggestions:', this.getSuggestions(trimmedCategory));
     
     return null;
   }
 
   private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    const matrix: number[][] = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
     
     for (let i = 0; i <= str1.length; i += 1) {
       matrix[0][i] = i;
@@ -217,7 +259,7 @@ export class CategoryResolver {
     
     for (let j = 1; j <= str2.length; j += 1) {
       for (let i = 1; i <= str1.length; i += 1) {
-        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        const indicator: number = str1[i - 1] === str2[j - 1] ? 0 : 1;
         matrix[j][i] = Math.min(
           matrix[j][i - 1] + 1, // deletion
           matrix[j - 1][i] + 1, // insertion
@@ -230,7 +272,7 @@ export class CategoryResolver {
   }
 
   private getSuggestions(categoryName: string): string[] {
-    const suggestions = this.availableCategories
+    const suggestions: string[] = this.state.availableCategories
       .map(cat => ({
         name: cat.category_name,
         distance: this.levenshteinDistance(categoryName.toLowerCase(), cat.category_name.toLowerCase())
@@ -243,12 +285,12 @@ export class CategoryResolver {
   }
 
   getAllMappings(): CategoryMapping {
-    return { ...this.categoryMap };
+    return { ...this.state.categoryMap };
   }
 
   getUnmappedCategories(categoryNames: string[]): string[] {
     return categoryNames.filter(name => {
-      const resolved = this.resolveCategoryId(name);
+      const resolved: string | null = this.resolveCategoryId(name);
       if (!resolved) {
         console.log(`❌ Unmapped category: "${name}"`);
       }
@@ -262,10 +304,10 @@ export class CategoryResolver {
       console.log(`📝 Auto-creating category: "${categoryName}"`);
       
       // Check if we should map to existing category instead
-      const suggestions = this.getSuggestions(categoryName);
+      const suggestions: string[] = this.getSuggestions(categoryName);
       if (suggestions.length > 0) {
-        const bestSuggestion = suggestions[0];
-        const distance = this.levenshteinDistance(categoryName.toLowerCase(), bestSuggestion.toLowerCase());
+        const bestSuggestion: string = suggestions[0];
+        const distance: number = this.levenshteinDistance(categoryName.toLowerCase(), bestSuggestion.toLowerCase());
         
         if (distance <= 2) {
           console.log(`🔄 Mapping "${categoryName}" to existing "${bestSuggestion}" instead of creating new`);
@@ -274,8 +316,8 @@ export class CategoryResolver {
       }
       
       // Create new category with enhanced description
-      let description = `Auto-created during bulk upload for flexible packaging`;
-      const lowerName = categoryName.toLowerCase();
+      let description: string = `Auto-created during bulk upload for flexible packaging`;
+      const lowerName: string = categoryName.toLowerCase();
       
       if (lowerName.includes('consumable')) {
         description = 'Consumable items and supplies for manufacturing operations';
@@ -327,7 +369,7 @@ export class CategoryResolver {
     const invalid: Array<{name: string, suggestions: string[]}> = [];
 
     csvCategories.forEach(categoryName => {
-      const resolved = this.resolveCategoryId(categoryName);
+      const resolved: string | null = this.resolveCategoryId(categoryName);
       if (resolved) {
         valid.push({ name: categoryName, id: resolved });
       } else {
