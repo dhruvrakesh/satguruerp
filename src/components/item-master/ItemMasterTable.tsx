@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Trash2, Edit, Plus, Upload, Download, ExternalLink, Database } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ItemMasterUpsert } from "./ItemMasterUpsert";
 
@@ -77,13 +77,26 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   };
 
   const handleExport = () => {
-    exportItemMasterToCSV(filters);
+    try {
+      exportItemMasterToCSV(filters);
+      toast({
+        title: "Export Started",
+        description: "Item master data export has been initiated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export item master data. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
+  // Show error toast if there's an error loading data
   if (error) {
     toast({
       title: "Error",
-      description: "Failed to load item master data",
+      description: "Failed to load item master data. Please refresh the page.",
       variant: "destructive",
     });
   }

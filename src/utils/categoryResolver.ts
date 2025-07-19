@@ -1,11 +1,19 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { CategoryMapping } from "@/types/itemMasterUpsert";
+
+export interface CategoryMapping {
+  [key: string]: string;
+}
+
+export interface CategoryInfo {
+  id: string;
+  category_name: string;
+}
 
 export class CategoryResolver {
   private categoryMap: CategoryMapping = {};
   private initialized = false;
-  private availableCategories: Array<{id: string, category_name: string}> = [];
+  private availableCategories: CategoryInfo[] = [];
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -25,27 +33,30 @@ export class CategoryResolver {
 
     this.categoryMap = {};
     categories?.forEach(cat => {
-      // Store original category info
-      const normalizedName = cat.category_name.toLowerCase().trim().replace(/\s+/g, ' ');
-      
-      // Exact matches (case variations)
-      this.categoryMap[cat.category_name] = cat.id;
-      this.categoryMap[cat.category_name.toLowerCase()] = cat.id;
-      this.categoryMap[cat.category_name.toUpperCase()] = cat.id;
-      this.categoryMap[normalizedName] = cat.id;
-      
-      // Enhanced singular/plural variations for flexible packaging
-      this.addSingularPluralVariations(cat.category_name, cat.id);
-      
-      // Add specific business logic mappings
-      this.addBusinessSpecificMappings(cat.category_name, cat.id);
-      
-      console.log(`🔗 Mapped category: "${cat.category_name}" (ID: ${cat.id})`);
+      this.addCategoryToMap(cat.category_name, cat.id);
     });
 
     this.initialized = true;
     console.log('✅ Category resolver initialized with', Object.keys(this.categoryMap).length, 'mappings');
-    console.log('🗂️ Category mappings preview:', this.getTopMappings());
+  }
+
+  private addCategoryToMap(categoryName: string, categoryId: string): void {
+    // Store original category info
+    const normalizedName = categoryName.toLowerCase().trim().replace(/\s+/g, ' ');
+    
+    // Exact matches (case variations)
+    this.categoryMap[categoryName] = categoryId;
+    this.categoryMap[categoryName.toLowerCase()] = categoryId;
+    this.categoryMap[categoryName.toUpperCase()] = categoryId;
+    this.categoryMap[normalizedName] = categoryId;
+    
+    // Enhanced singular/plural variations
+    this.addSingularPluralVariations(categoryName, categoryId);
+    
+    // Add specific business logic mappings
+    this.addBusinessSpecificMappings(categoryName, categoryId);
+    
+    console.log(`🔗 Mapped category: "${categoryName}" (ID: ${categoryId})`);
   }
 
   private addSingularPluralVariations(categoryName: string, categoryId: string): void {
@@ -64,18 +75,14 @@ export class CategoryResolver {
 
     pluralPatterns.forEach(pattern => {
       if (normalized.includes(pattern.plural)) {
-        // Map singular to plural category
         this.categoryMap[pattern.singular] = categoryId;
         this.categoryMap[pattern.singular.toUpperCase()] = categoryId;
         this.categoryMap[this.capitalize(pattern.singular)] = categoryId;
-        console.log(`  ↳ Added singular variation: "${pattern.singular}" → ${categoryId}`);
       }
       if (normalized.includes(pattern.singular)) {
-        // Map plural to singular category
         this.categoryMap[pattern.plural] = categoryId;
         this.categoryMap[pattern.plural.toUpperCase()] = categoryId;
         this.categoryMap[this.capitalize(pattern.plural)] = categoryId;
-        console.log(`  ↳ Added plural variation: "${pattern.plural}" → ${categoryId}`);
       }
     });
 
@@ -127,11 +134,6 @@ export class CategoryResolver {
     return str.split(' ').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     ).join(' ');
-  }
-
-  private getTopMappings(): Record<string, string> {
-    const entries = Object.entries(this.categoryMap);
-    return Object.fromEntries(entries.slice(0, 10));
   }
 
   resolveCategoryId(categoryName: string): string | null {
@@ -314,14 +316,6 @@ export class CategoryResolver {
       console.error('❌ Error creating category:', error);
       return null;
     }
-  }
-
-  private addCategoryToMap(categoryName: string, categoryId: string): void {
-    this.categoryMap[categoryName] = categoryId;
-    this.categoryMap[categoryName.toLowerCase()] = categoryId;
-    this.categoryMap[categoryName.toUpperCase()] = categoryId;
-    this.addSingularPluralVariations(categoryName, categoryId);
-    this.addBusinessSpecificMappings(categoryName, categoryId);
   }
 
   // Validation helper

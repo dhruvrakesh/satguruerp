@@ -1,6 +1,7 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { ItemMasterFormData } from "@/schemas/itemMasterSchema";
 
 // Hook for item selection (for order creation)
@@ -50,64 +51,76 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
     queryFn: async () => {
       console.log('Fetching satguru item master with options:', { page, pageSize, filters, sort });
       
-      // Build query step by step to avoid type issues
-      const query = supabase.from('satguru_item_master');
-      let selectQuery = query.select('*', { count: 'exact' });
+      try {
+        // Build query step by step to avoid type issues
+        const query = supabase.from('satguru_item_master');
+        let selectQuery = query.select('*', { count: 'exact' });
 
-      // Apply filters
-      if (filters.search) {
-        console.log('Applying search filter:', filters.search);
-        selectQuery = selectQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
-      }
-      
-      if (filters.category_id) {
-        console.log('Applying category filter:', filters.category_id);
-        selectQuery = selectQuery.eq('category_id', filters.category_id);
-      }
-      
-      if (filters.status) {
-        console.log('Applying status filter:', filters.status);
-        selectQuery = selectQuery.eq('status', filters.status);
-      }
-      
-      if (filters.uom) {
-        console.log('Applying UOM filter:', filters.uom);
-        selectQuery = selectQuery.eq('uom', filters.uom);
-      }
-      
-      if (filters.usage_type) {
-        console.log('Applying usage type filter:', filters.usage_type);
-        selectQuery = selectQuery.eq('usage_type', filters.usage_type);
-      }
+        // Apply filters
+        if (filters.search) {
+          console.log('Applying search filter:', filters.search);
+          selectQuery = selectQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
+        }
+        
+        if (filters.category_id) {
+          console.log('Applying category filter:', filters.category_id);
+          selectQuery = selectQuery.eq('category_id', filters.category_id);
+        }
+        
+        if (filters.status) {
+          console.log('Applying status filter:', filters.status);
+          selectQuery = selectQuery.eq('status', filters.status);
+        }
+        
+        if (filters.uom) {
+          console.log('Applying UOM filter:', filters.uom);
+          selectQuery = selectQuery.eq('uom', filters.uom);
+        }
+        
+        if (filters.usage_type) {
+          console.log('Applying usage type filter:', filters.usage_type);
+          selectQuery = selectQuery.eq('usage_type', filters.usage_type);
+        }
 
-      // Apply sorting
-      if (sort) {
-        selectQuery = selectQuery.order(sort.column, { ascending: sort.direction === 'asc' });
-      } else {
-        selectQuery = selectQuery.order('created_at', { ascending: false });
+        // Apply sorting
+        if (sort) {
+          selectQuery = selectQuery.order(sort.column, { ascending: sort.direction === 'asc' });
+        } else {
+          selectQuery = selectQuery.order('created_at', { ascending: false });
+        }
+
+        // Apply pagination
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        selectQuery = selectQuery.range(from, to);
+
+        const result = await selectQuery;
+        
+        if (result.error) {
+          console.error('Error fetching satguru item master:', result.error);
+          throw new Error(`Failed to fetch item master data: ${result.error.message}`);
+        }
+
+        const items = result.data || [];
+        console.log('Satguru item master fetched:', items.length, 'total:', result.count);
+        
+        return {
+          data: items,
+          count: result.count || 0,
+          totalPages: Math.ceil((result.count || 0) / pageSize)
+        };
+      } catch (error) {
+        console.error('Failed to fetch item master data:', error);
+        throw error;
       }
-
-      // Apply pagination
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      selectQuery = selectQuery.range(from, to);
-
-      const result = await selectQuery;
-      
-      if (result.error) {
-        console.error('Error fetching satguru item master:', result.error);
-        throw result.error;
-      }
-
-      const items = result.data || [];
-      console.log('Satguru item master fetched:', items.length, 'total:', result.count);
-      
-      return {
-        data: items,
-        count: result.count || 0,
-        totalPages: Math.ceil((result.count || 0) / pageSize)
-      };
     },
+    retry: (failureCount, error) => {
+      // Retry up to 2 times for network errors, but not for permission errors
+      if (failureCount >= 2) return false;
+      if (error?.message?.includes('permission')) return false;
+      return true;
+    },
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -131,6 +144,7 @@ export function useItemMasterMutations() {
       toast({ title: "Success", description: "Item created successfully" });
     },
     onError: (error: any) => {
+      console.error('Failed to create item:', error);
       toast({ 
         title: "Error", 
         description: error.message || "Failed to create item",
@@ -157,6 +171,7 @@ export function useItemMasterMutations() {
       toast({ title: "Success", description: "Item updated successfully" });
     },
     onError: (error: any) => {
+      console.error('Failed to update item:', error);
       toast({ 
         title: "Error", 
         description: error.message || "Failed to update item",
@@ -180,6 +195,7 @@ export function useItemMasterMutations() {
       toast({ title: "Success", description: "Item deleted successfully" });
     },
     onError: (error: any) => {
+      console.error('Failed to delete item:', error);
       toast({ 
         title: "Error", 
         description: error.message || "Failed to delete item",
@@ -203,6 +219,7 @@ export function useItemMasterMutations() {
       toast({ title: "Success", description: `${ids.length} items deleted successfully` });
     },
     onError: (error: any) => {
+      console.error('Failed to delete items:', error);
       toast({ 
         title: "Error", 
         description: error.message || "Failed to delete items",
