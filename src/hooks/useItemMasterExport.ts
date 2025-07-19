@@ -12,29 +12,82 @@ export const useItemMasterExport = () => {
     try {
       console.log('Starting export with filters:', filters);
       
-      // First, get the total count from satguru_item_master
+      // Build the base query for counting
       let countQuery = supabase
         .from('satguru_item_master')
         .select('*', { count: 'exact', head: true });
 
-      // Apply same filters to count query
-      if (filters?.category_id) {
+      // Apply filters to count query
+      if (filters?.category_id && filters.category_id !== 'all') {
         countQuery = countQuery.eq('category_id', filters.category_id);
       }
-      if (filters?.status) {
+      if (filters?.status && filters.status !== 'all') {
         countQuery = countQuery.eq('status', filters.status);
       }
-      if (filters?.usage_type) {
+      if (filters?.usage_type && filters.usage_type !== 'all') {
         countQuery = countQuery.eq('usage_type', filters.usage_type);
       }
 
       const { count, error: countError } = await countQuery;
       
-      if (countError) throw countError;
+      if (countError) {
+        console.error('Count query error:', countError);
+        throw countError;
+      }
       
       console.log(`Total items to export: ${count}`);
       
       if (!count || count === 0) {
+        toast({
+          title: "No Data",
+          description: "No items found to export with the current filters",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Export Started",
+        description: `Preparing to export ${count} items...`,
+      });
+
+      // For better reliability, let's use a simpler approach with proper error handling
+      let dataQuery = supabase
+        .from('satguru_item_master')
+        .select(`
+          item_code,
+          item_name,
+          category_id,
+          usage_type,
+          uom,
+          status,
+          size_mm,
+          gsm,
+          specifications,
+          created_at,
+          updated_at
+        `)
+        .order('item_code');
+
+      // Apply same filters to data query
+      if (filters?.category_id && filters.category_id !== 'all') {
+        dataQuery = dataQuery.eq('category_id', filters.category_id);
+      }
+      if (filters?.status && filters.status !== 'all') {
+        dataQuery = dataQuery.eq('status', filters.status);
+      }
+      if (filters?.usage_type && filters.usage_type !== 'all') {
+        dataQuery = dataQuery.eq('usage_type', filters.usage_type);
+      }
+
+      const { data: items, error: dataError } = await dataQuery;
+      
+      if (dataError) {
+        console.error('Data query error:', dataError);
+        throw dataError;
+      }
+
+      if (!items || items.length === 0) {
         toast({
           title: "No Data",
           description: "No items found to export",
@@ -43,101 +96,56 @@ export const useItemMasterExport = () => {
         return;
       }
 
-      // Fetch all data in batches to overcome the 1000 limit
-      const batchSize = 1000;
-      const totalBatches = Math.ceil(count / batchSize);
-      let allItems: any[] = [];
+      console.log(`Successfully fetched ${items.length} items`);
 
-      toast({
-        title: "Export in Progress",
-        description: `Fetching ${count} items in ${totalBatches} batch(es)...`,
-      });
+      // Get categories for lookup (separate query for better reliability)
+      const { data: categories } = await supabase
+        .from('satguru_categories')
+        .select('id, category_name');
 
-      for (let batch = 0; batch < totalBatches; batch++) {
-        const from = batch * batchSize;
-        const to = from + batchSize - 1;
-        
-        console.log(`Fetching batch ${batch + 1}/${totalBatches}: rows ${from}-${to}`);
+      const categoryMap = new Map(
+        categories?.map(cat => [cat.id, cat.category_name]) || []
+      );
 
-        let batchQuery = supabase
-          .from('satguru_item_master')
-          .select(`
-            *,
-            satguru_categories (
-              category_name
-            )
-          `)
-          .range(from, to)
-          .order('item_code');
-
-        // Apply filters to each batch
-        if (filters?.category_id) {
-          batchQuery = batchQuery.eq('category_id', filters.category_id);
-        }
-        if (filters?.status) {
-          batchQuery = batchQuery.eq('status', filters.status);
-        }
-        if (filters?.usage_type) {
-          batchQuery = batchQuery.eq('usage_type', filters.usage_type);
-        }
-
-        const { data: batchData, error: batchError } = await batchQuery;
-        
-        if (batchError) {
-          console.error(`Error in batch ${batch + 1}:`, batchError);
-          throw batchError;
-        }
-        
-        allItems = [...allItems, ...(batchData || [])];
-        console.log(`Batch ${batch + 1} completed. Total items so far: ${allItems.length}`);
-      }
-
-      console.log(`Successfully fetched all ${allItems.length} items`);
-
-      // Prepare CSV data with all relevant fields
-      const csvData = allItems.map(item => ({
+      // Prepare CSV data with correct field mappings
+      const csvData = items.map(item => ({
         item_code: item.item_code || '',
         item_name: item.item_name || '',
-        category: item.satguru_categories?.category_name || '',
+        category: categoryMap.get(item.category_id) || '',
         usage_type: item.usage_type || '',
-        customer_name: item.customer_name || '',
-        dimensions: item.dimensions || '',
+        dimensions: item.size_mm || '', // Map size_mm to dimensions for export
         gsm: item.gsm || '',
         uom: item.uom || '',
         status: item.status || '',
-        current_cost: (item as any).current_cost || '',
         specifications: item.specifications ? JSON.stringify(item.specifications) : '',
-        file_id: item.file_id || '',
-        file_hyperlink: item.file_hyperlink || '',
         created_at: item.created_at ? new Date(item.created_at).toLocaleDateString() : '',
         updated_at: item.updated_at ? new Date(item.updated_at).toLocaleDateString() : ''
       }));
 
-      // Generate CSV content
+      // Generate CSV content with proper headers
       const headers = [
         'Item Code',
         'Item Name', 
         'Category',
         'Usage Type',
-        'Customer Name',
         'Dimensions',
         'GSM',
         'UOM',
         'Status',
-        'Current Cost',
         'Specifications',
-        'File ID',
-        'File Hyperlink',
         'Created Date',
         'Updated Date'
       ];
 
       const csvRows = csvData.map(row => 
-        Object.values(row).map(value => 
-          typeof value === 'string' && value.includes(',') 
-            ? `"${value}"` 
-            : value
-        ).join(',')
+        Object.values(row).map(value => {
+          // Handle values that contain commas or quotes
+          const stringValue = String(value || '');
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          return stringValue;
+        }).join(',')
       );
 
       const csvContent = [headers.join(','), ...csvRows].join('\n');
@@ -154,17 +162,31 @@ export const useItemMasterExport = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      // Clean up the URL object
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Export Successful",
-        description: `${allItems.length} items exported to CSV (fetched in ${totalBatches} batch(es))`,
+        description: `${items.length} items exported to CSV successfully`,
       });
 
     } catch (error) {
-      console.error('Export error:', error);
+      console.error('Export error details:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to export item master data";
+      if (error.message?.includes('permission')) {
+        errorMessage = "Permission denied. Please check your access rights.";
+      } else if (error.message?.includes('network')) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = "Export timed out. Try reducing the data size with filters.";
+      }
+      
       toast({
         title: "Export Failed",
-        description: "Failed to export item master data",
+        description: errorMessage,
         variant: "destructive",
       });
     }
