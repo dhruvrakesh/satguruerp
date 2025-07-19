@@ -12,9 +12,9 @@ export const useItemMasterExport = () => {
     try {
       console.log('Starting export with filters:', filters);
       
-      // First, get the total count
+      // First, get the total count from satguru_item_master
       let countQuery = supabase
-        .from('item_master')
+        .from('satguru_item_master')
         .select('*', { count: 'exact', head: true });
 
       // Apply same filters to count query
@@ -60,10 +60,10 @@ export const useItemMasterExport = () => {
         console.log(`Fetching batch ${batch + 1}/${totalBatches}: rows ${from}-${to}`);
 
         let batchQuery = supabase
-          .from('item_master')
+          .from('satguru_item_master')
           .select(`
             *,
-            categories (
+            satguru_categories (
               category_name
             )
           `)
@@ -98,7 +98,7 @@ export const useItemMasterExport = () => {
       const csvData = allItems.map(item => ({
         item_code: item.item_code || '',
         item_name: item.item_name || '',
-        category: item.categories?.category_name || '',
+        category: item.satguru_categories?.category_name || '',
         usage_type: item.usage_type || '',
         customer_name: item.customer_name || '',
         dimensions: item.dimensions || '',
@@ -148,7 +148,7 @@ export const useItemMasterExport = () => {
       const url = URL.createObjectURL(blob);
       
       link.setAttribute('href', url);
-      link.setAttribute('download', `item_master_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `satguru_item_master_export_${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       
       document.body.appendChild(link);

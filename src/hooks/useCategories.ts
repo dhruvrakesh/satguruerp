@@ -24,9 +24,9 @@ export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
     queryFn: async (): Promise<Category[]> => {
-      console.log('Fetching categories from categories table...');
+      console.log('Fetching categories from satguru_categories table...');
       const { data, error } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .select('id, category_name, description, created_at, updated_at')
         .eq('is_active', true)
         .order('category_name');
@@ -48,9 +48,9 @@ export function useCategoriesWithStats() {
     queryFn: async (): Promise<CategoryWithStats[]> => {
       console.log('Fetching categories with stats using manual aggregation...');
       
-      // Get all categories
+      // Get all categories from satguru_categories
       const { data: categoryData, error: categoryError } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .select(`
           id,
           category_name,
@@ -69,10 +69,10 @@ export function useCategoriesWithStats() {
       const categories = categoryData || [];
       const categoriesWithStats: CategoryWithStats[] = [];
       
-      // Get item counts for each category
+      // Get item counts for each category from satguru_item_master
       for (const category of categories) {
         const { data: itemData, error: itemError } = await supabase
-          .from('item_master')
+          .from('satguru_item_master')
           .select('status, usage_type')
           .eq('category_id', category.id);
         
@@ -124,7 +124,7 @@ export function useCategoryMutations() {
   const createCategory = useMutation({
     mutationFn: async (category: { category_name: string; description?: string }) => {
       const { data, error } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .insert([category])
         .select()
         .single();
@@ -149,7 +149,7 @@ export function useCategoryMutations() {
   const updateCategory = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Category> }) => {
       const { data, error } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .update(updates)
         .eq('id', id)
         .select()
@@ -175,7 +175,7 @@ export function useCategoryMutations() {
   const deleteCategory = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .delete()
         .eq('id', id);
       

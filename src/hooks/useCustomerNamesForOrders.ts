@@ -26,7 +26,7 @@ export function useCustomerNamesForOrders(orders: any[]) {
           console.log(`🎯 Using item_code ${order.item_code} for UIORN ${order.uiorn}`);
           
           const { data: itemData } = await supabase
-            .from("item_master")
+            .from("satguru_item_master")
             .select("customer_name, item_name")
             .eq("item_code", order.item_code)
             .single();

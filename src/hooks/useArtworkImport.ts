@@ -59,7 +59,7 @@ export function useArtworkImport() {
 
       console.log(`📊 Found ${artworkItems.length} artwork items to import`);
 
-      // Get or create default categories
+      // Get or create default categories in satguru_categories
       const categoryMap = new Map();
       
       // Create default categories if they don't exist
@@ -72,7 +72,7 @@ export function useArtworkImport() {
       console.log('🏷️ Setting up categories...');
       for (const cat of defaultCategories) {
         const { data: existing } = await supabase
-          .from('categories')
+          .from('satguru_categories')
           .select('id')
           .eq('category_name', cat.category_name)
           .single();
@@ -80,7 +80,7 @@ export function useArtworkImport() {
         if (!existing) {
           console.log(`Creating category: ${cat.category_name}`);
           const { data: newCat, error } = await supabase
-            .from('categories')
+            .from('satguru_categories')
             .insert(cat)
             .select('id')
             .single();
@@ -116,7 +116,7 @@ export function useArtworkImport() {
               categoryId = categoryMap.get('PACKAGING_FILMS') || defaultCategoryId;
             }
 
-            // Create item master entry with all required fields
+            // Create item master entry with all required fields in satguru_item_master
             const itemData = {
               item_code: artwork.item_code,
               item_name: artwork.item_name || `Product ${artwork.item_code}`,
@@ -141,16 +141,16 @@ export function useArtworkImport() {
               }
             };
 
-            // Check if item already exists
+            // Check if item already exists in satguru_item_master
             const { data: existing } = await supabase
-              .from('item_master')
+              .from('satguru_item_master')
               .select('id')
               .eq('item_code', artwork.item_code)
               .single();
 
             if (!existing) {
               const { error } = await supabase
-                .from('item_master')
+                .from('satguru_item_master')
                 .insert(itemData);
               
               if (error) {
