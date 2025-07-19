@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings, ChevronLeft, ChevronRight, Edit, Upload, Users, TrendingDown } from "lucide-react";
+import { useArtworkCatalogExport } from "@/hooks/useArtworkItems";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +55,7 @@ interface CustomerCount {
 }
 
 export default function ArtworkManagement() {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [customerFilter, setCustomerFilter] = useState("all");
   const [colorFilter, setColorFilter] = useState("all");
@@ -63,6 +66,8 @@ export default function ArtworkManagement() {
   const [pageSize, setPageSize] = useState(50);
   const [editingArtwork, setEditingArtwork] = useState<ArtworkItem | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  
+  const { refetch: refetchCatalogData } = useArtworkCatalogExport();
 
   // Fetch artwork statistics and customer data (full dataset)
   const { data: artworkStats, isLoading: isStatsLoading } = useQuery({
@@ -238,6 +243,77 @@ export default function ArtworkManagement() {
     });
   };
 
+  const handleExportCatalog = async () => {
+    try {
+      toast({
+        title: "Export Started",
+        description: "Preparing artwork catalog for export..."
+      });
+
+      const { data: catalogData } = await refetchCatalogData();
+      
+      if (!catalogData || catalogData.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No artwork data found to export",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Convert to CSV format
+      const headers = [
+        'Item Code', 'Item Name', 'Customer Name', 'No of Colours', 
+        'Dimensions', 'UPS', 'Circumference', 'Location', 'Cylinder Qty',
+        'Total Runs', 'Last Run', 'Mileage (m)', 'Remarks', 'File ID', 'File Hyperlink'
+      ];
+      
+      const csvContent = [
+        headers.join(','),
+        ...catalogData.map(item => [
+          item.item_code || '',
+          item.item_name || '',
+          item.customer_name || '',
+          item.no_of_colours || '',
+          item.dimensions || '',
+          item.ups || '',
+          item.circum || '',
+          item.location || '',
+          item.cyl_qty || '',
+          item.total_runs || '',
+          item.last_run || '',
+          item.mielage_m || '',
+          item.remarks || '',
+          item.file_id || '',
+          item.file_hyperlink || ''
+        ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `artwork_catalog_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export Complete",
+        description: `Successfully exported ${catalogData.length} artwork records`
+      });
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast({
+        title: "Export Failed",
+        description: error.message || "An error occurred during export",
+        variant: "destructive"
+      });
+    }
+  };
+
   const stats = {
     totalArtworks: artworkStats?.totalArtworks || 0,
     withLinks: artworkStats?.withLinks || 0,
@@ -262,7 +338,7 @@ export default function ArtworkManagement() {
             <Upload className="h-4 w-4 mr-2" />
             Upload Artwork
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportCatalog}>
             <Download className="h-4 w-4 mr-2" />
             Export Catalog
           </Button>

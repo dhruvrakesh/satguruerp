@@ -7527,6 +7527,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      create_manufacturing_order_with_artwork: {
+        Args: { p_order_data: Json; p_selected_items: Json }
+        Returns: Json
+      }
       create_prompt_and_job: {
         Args: { p_user_id: string; p_prompt_data: Json; p_job_type?: string }
         Returns: {
@@ -7628,6 +7632,21 @@ export type Database = {
           uom: string
           status: string
           usage_type: string
+        }[]
+      }
+      get_artwork_items_for_selection: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          item_code: string
+          item_name: string
+          customer_name: string
+          no_of_colours: string
+          dimensions: string
+          file_hyperlink: string
+          file_id: string
+          usage_type: string
+          uom: string
+          status: string
         }[]
       }
       get_current_user_role: {

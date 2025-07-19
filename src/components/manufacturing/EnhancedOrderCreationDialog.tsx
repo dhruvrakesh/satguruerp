@@ -19,6 +19,10 @@ interface Item {
   uom: string;
   status: string;
   usage_type: string;
+  customer_name?: string;
+  no_of_colours?: string;
+  dimensions?: string;
+  file_hyperlink?: string;
 }
 
 interface SelectedItem {
@@ -27,6 +31,10 @@ interface SelectedItem {
   uom: string;
   usage_type: string;
   quantity: number;
+  customer_name?: string;
+  no_of_colours?: string;
+  dimensions?: string;
+  file_hyperlink?: string;
 }
 
 interface EnhancedOrderCreationDialogProps {
@@ -56,7 +64,11 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       item_name: item.item_name,
       uom: item.uom,
       usage_type: item.usage_type,
-      quantity: 1
+      quantity: 1,
+      customer_name: item.customer_name,
+      no_of_colours: item.no_of_colours,
+      dimensions: item.dimensions,
+      file_hyperlink: item.file_hyperlink
     };
     
     const exists = selectedItems.find(si => si.item_code === item.item_code);
@@ -256,11 +268,31 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
                     {selectedItems.map((item, index) => (
                       <div key={item.item_code} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
                         <div className="flex-1">
-                          <div className="font-medium text-sm">{item.item_code}</div>
+                          <div className="font-medium text-sm flex items-center gap-2">
+                            {item.item_code}
+                            {item.usage_type === 'FG' && (
+                              <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                FG - Artwork
+                              </Badge>
+                            )}
+                            {item.usage_type !== 'FG' && (
+                              <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800">
+                                {item.usage_type}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">{item.item_name}</div>
-                          <Badge variant="outline" className="text-xs mt-1">
-                            {item.usage_type}
-                          </Badge>
+                          {item.customer_name && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Customer: {item.customer_name}
+                            </div>
+                          )}
+                          {(item.dimensions || item.no_of_colours) && (
+                            <div className="text-xs text-muted-foreground flex gap-2 mt-1">
+                              {item.dimensions && <span>📐 {item.dimensions}</span>}
+                              {item.no_of_colours && <span>🎨 {item.no_of_colours} colors</span>}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Input
