@@ -162,21 +162,27 @@ export function useBulkUpload() {
             throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
           }
 
-          // Transform and validate usage type with category awareness
+          // Enhanced usage type transformation with item name context
           const transformedUsageType = UsageTypeResolver.transformUsageType(
             rowData.usage_type || 'raw material', 
-            rowData.category_name
+            rowData.category_name,
+            rowData.item_name
           );
           
           if (!UsageTypeResolver.validateUsageType(transformedUsageType)) {
-            const suggestion = generateSuggestion(rowData.usage_type || '', 'usage_type', rowData.category_name);
+            const suggestion = UsageTypeResolver.getUsageTypeSuggestion(
+              rowData.usage_type || '', 
+              rowData.category_name,
+              rowData.item_name
+            );
             throw new Error(`Invalid usage type: ${rowData.usage_type}.${suggestion}`);
           }
 
-          // Check for logical conflicts
+          // Enhanced logical validation with item name
           const logicError = UsageTypeResolver.validateCategoryUsageTypeLogic(
             rowData.category_name, 
-            transformedUsageType
+            transformedUsageType,
+            rowData.item_name
           );
           if (logicError) {
             console.warn(`⚠️ ${logicError}`);
@@ -191,7 +197,9 @@ export function useBulkUpload() {
             originalUsageType: rowData.usage_type,
             transformedUsageType,
             originalGSM: rowData.gsm,
-            parsedGSM
+            parsedGSM,
+            itemName: rowData.item_name,
+            categoryName: rowData.category_name
           });
 
           // Find or create category with improved resolution

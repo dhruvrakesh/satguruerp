@@ -1,128 +1,121 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { ParsedRecord, UpsertProgress } from "@/types/itemMasterUpsert";
-import { ItemCodeGenerator } from "./itemCodeGenerator";
+import { CategoryResolver } from "./categoryResolver";
+import { UsageTypeResolver } from "./usageTypeResolver";
+import type { ParsedRecord, UpsertProgress } from "@/types/itemMasterUpsert";
 
 export class ItemMasterProcessor {
-  private itemCodeGenerator = new ItemCodeGenerator();
+  private categoryResolver: CategoryResolver;
 
-  async initialize(): Promise<void> {
-    await this.itemCodeGenerator.initialize();
+  constructor() {
+    this.categoryResolver = new CategoryResolver();
+  }
+
+  async initialize() {
+    await this.categoryResolver.initialize();
   }
 
   async processRecords(
-    records: ParsedRecord[], 
-    onProgress?: (progress: UpsertProgress) => void
-  ): Promise<{ success: number; errors: Array<{ record: ParsedRecord; error: string }> }> {
-    let successCount = 0;
-    const errors: Array<{ record: ParsedRecord; error: string }> = [];
-    const batchSize = 5; // Process in smaller batches for better error handling
-
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
+    records: ParsedRecord[],
+    onProgress: (progress: UpsertProgress) => void
+  ): Promise<{ success: number; errors: string[] }> {
+    const results = { success: 0, errors: [] as string[] };
+    
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
       
-      for (const record of batch) {
-        onProgress?.({
-          current: i + batch.indexOf(record) + 1,
-          total: records.length,
-          stage: 'processing',
-          currentRecord: record
-        });
+      onProgress({
+        current: i + 1,
+        total: records.length,
+        stage: 'processing',
+        currentRecord: record
+      });
 
-        try {
-          if (record.action === 'UPDATE' && record.existing_item) {
-            await this.updateExistingItem(record);
-          } else if (record.action === 'INSERT') {
-            await this.insertNewItem(record);
-          }
-          successCount++;
-        } catch (error: any) {
-          console.error(`Error processing row ${record.row_number}:`, error);
-          errors.push({
-            record,
-            error: error.message || 'Unknown error occurred'
-          });
+      try {
+        // Enhanced usage type resolution with item name context
+        const resolvedUsageType = UsageTypeResolver.transformUsageType(
+          record.usage_type || 'RAW_MATERIAL',
+          record.category_name,
+          record.item_name
+        );
+
+        // Validate logical consistency for wrapper manufacturing
+        const logicError = UsageTypeResolver.validateCategoryUsageTypeLogic(
+          record.category_name,
+          resolvedUsageType,
+          record.item_name
+        );
+
+        if (logicError) {
+          console.warn(`⚠️ Logic warning for ${record.item_name}: ${logicError}`);
         }
 
-        // Small delay to prevent overwhelming the database
-        await new Promise(resolve => setTimeout(resolve, 50));
+        if (record.action === 'INSERT') {
+          await this.insertRecord({ ...record, usage_type: resolvedUsageType });
+        } else if (record.action === 'UPDATE') {
+          await this.updateRecord({ ...record, usage_type: resolvedUsageType });
+        }
+        
+        results.success++;
+      } catch (error: any) {
+        console.error(`Failed to process ${record.item_name}:`, error);
+        results.errors.push(`Row ${record.row_number}: ${error.message}`);
       }
     }
 
-    onProgress?.({
-      current: records.length,
-      total: records.length,
-      stage: 'complete'
-    });
-
-    return { success: successCount, errors };
+    return results;
   }
 
-  private async updateExistingItem(record: ParsedRecord): Promise<void> {
-    const updateData = {
-      item_name: record.item_name,
-      category_id: record.category_id,
-      qualifier: record.qualifier,
-      gsm: record.gsm,
-      size_mm: record.size_mm,
-      uom: record.uom,
-      usage_type: record.usage_type,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error } = await supabase
-      .from('satguru_item_master')
-      .update(updateData)
-      .eq('id', record.existing_item.id);
-
-    if (error) {
-      throw new Error(`Failed to update item: ${error.message}`);
-    }
-  }
-
-  private async insertNewItem(record: ParsedRecord): Promise<void> {
-    // Check if item_name already exists to preserve existing codes and foreign key relationships
-    const { data: existingItem } = await supabase
-      .from('satguru_item_master')
-      .select('item_code')
-      .eq('item_name', record.item_name)
-      .maybeSingle();
-
-    let itemCode: string;
-    
-    if (existingItem) {
-      // Use existing item code to preserve foreign key relationships
-      itemCode = existingItem.item_code;
-    } else {
-      // Generate or get new item code for new item_name
-      itemCode = await this.itemCodeGenerator.getOrGenerateCodeForItem(
-        record, 
-        record.category_name
-      );
-    }
-
-    const insertData = {
-      item_code: itemCode,
-      item_name: record.item_name,
-      category_id: record.category_id,
-      qualifier: record.qualifier,
-      gsm: record.gsm,
-      size_mm: record.size_mm,
-      uom: record.uom,
-      usage_type: record.usage_type,
-      status: 'active',
-      created_at: new Date().toISOString()
-    };
-
-    const { error } = await supabase
-      .from('satguru_item_master')
-      .upsert(insertData, { 
-        onConflict: 'item_name',
-        ignoreDuplicates: false 
+  private async insertRecord(record: ParsedRecord) {
+    // Generate item code
+    const { data: itemCode, error: codeError } = await supabase
+      .rpc('satguru_generate_item_code', {
+        category_name: record.category_name,
+        qualifier: record.qualifier || '',
+        size_mm: record.size_mm || '',
+        gsm: record.gsm
       });
 
-    if (error) {
-      throw new Error(`Failed to insert item: ${error.message}`);
-    }
+    if (codeError) throw new Error(`Failed to generate item code: ${codeError.message}`);
+
+    // Insert new record
+    const { error } = await supabase
+      .from('satguru_item_master')
+      .insert([{
+        item_code: itemCode,
+        item_name: record.item_name,
+        category_id: record.category_id,
+        qualifier: record.qualifier,
+        gsm: record.gsm,
+        size_mm: record.size_mm,
+        uom: record.uom,
+        usage_type: record.usage_type,
+        specifications: record.specifications,
+        status: 'active'
+      }]);
+
+    if (error) throw error;
+  }
+
+  private async updateRecord(record: ParsedRecord) {
+    if (!record.existing_item) throw new Error('No existing item to update');
+
+    // Update existing record
+    const { error } = await supabase
+      .from('satguru_item_master')
+      .update({
+        item_name: record.item_name,
+        category_id: record.category_id,
+        qualifier: record.qualifier,
+        gsm: record.gsm,
+        size_mm: record.size_mm,
+        uom: record.uom,
+        usage_type: record.usage_type,
+        specifications: record.specifications,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', record.existing_item.id);
+
+    if (error) throw error;
   }
 }
