@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useCategories } from "@/hooks/useCategories";
+import { useFilterOptions } from "@/hooks/useFilterOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
   });
 
   const { data: categories } = useCategories();
+  const { usageTypes, uomOptions, statusOptions } = useFilterOptions();
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
@@ -50,24 +52,6 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
     });
   };
 
-  const statusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' }
-  ];
-
-  const uomOptions = [
-    { value: 'KG', label: 'KG' },
-    { value: 'PCS', label: 'PCS' },
-    { value: 'METER', label: 'METER' },
-    { value: 'LITER', label: 'LITER' }
-  ];
-
-  const usageTypeOptions = [
-    { value: 'RAW_MATERIAL', label: 'Raw Material' },
-    { value: 'FINISHED_GOODS', label: 'Finished Goods' },
-    { value: 'CONSUMABLES', label: 'Consumables' },
-    { value: 'SPARES', label: 'Spares' }
-  ];
 
   return (
     <Card>
@@ -164,7 +148,7 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {usageTypeOptions.map((option) => (
+                {usageTypes.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

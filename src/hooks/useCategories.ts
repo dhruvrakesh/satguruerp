@@ -28,7 +28,6 @@ export function useCategories() {
       const { data, error } = await supabase
         .from('satguru_categories')
         .select('id, category_name, description, created_at, updated_at')
-        .eq('is_active', true)
         .order('category_name');
       
       if (error) {
@@ -58,7 +57,7 @@ export function useCategoriesWithStats() {
           created_at,
           updated_at
         `)
-        .eq('is_active', true)
+        
         .order('category_name');
       
       if (categoryError) {

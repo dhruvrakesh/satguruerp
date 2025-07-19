@@ -104,7 +104,7 @@ export function SafeDataReplacement() {
               uom: 'PCS',
               usage_type: 'FINISHED_GOOD',
               status: 'active',
-              specifications: {
+              specifications: JSON.stringify({
                 customer_name: item.customer_name,
                 dimensions: item.dimensions,
                 colours: item.no_of_colours,
@@ -115,7 +115,8 @@ export function SafeDataReplacement() {
                 cut_length: item.cut_length,
                 location: item.location,
                 remarks: item.remarks
-              }
+              }),
+              customer_name: item.customer_name
             };
 
             const { error } = await supabase

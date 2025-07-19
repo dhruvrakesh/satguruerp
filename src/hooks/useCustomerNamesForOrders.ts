@@ -25,14 +25,31 @@ export function useCustomerNamesForOrders(orders: any[]) {
         if (order.item_code) {
           console.log(`🎯 Using item_code ${order.item_code} for UIORN ${order.uiorn}`);
           
-          const { data: itemData } = await supabase
+          const { data: itemData, error } = await supabase
             .from("satguru_item_master")
-            .select("customer_name, item_name")
+            .select("customer_name, item_name, specifications")
             .eq("item_code", order.item_code)
             .single();
 
-          if (itemData?.customer_name) {
-            resolvedCustomerName = itemData.customer_name;
+          if (!error && itemData) {
+            if ((itemData as any).customer_name) {
+              resolvedCustomerName = (itemData as any).customer_name;
+            } else if ((itemData as any).specifications) {
+              // Try to extract customer_name from specifications JSON
+              try {
+                const specs = typeof (itemData as any).specifications === 'string' 
+                  ? JSON.parse((itemData as any).specifications) 
+                  : (itemData as any).specifications;
+                if (specs?.customer_name) {
+                  resolvedCustomerName = specs.customer_name;
+                }
+              } catch (e) {
+                console.warn('Failed to parse specifications JSON:', e);
+              }
+            }
+          }
+          
+          if (resolvedCustomerName && resolvedCustomerName !== "Legacy Customer") {
             isResolved = true;
             console.log(`✅ Found customer via item_code for ${order.uiorn}: ${resolvedCustomerName}`);
           }

@@ -127,7 +127,7 @@ export function useArtworkImport() {
               uom: 'PCS' as const,
               usage_type: 'FINISHED_GOOD' as const,
               status: 'active' as const,
-              specifications: {
+              specifications: JSON.stringify({
                 customer_name: artwork.customer_name,
                 dimensions: artwork.dimensions,
                 colours: artwork.no_of_colours,
@@ -138,7 +138,8 @@ export function useArtworkImport() {
                 cut_length: artwork.cut_length,
                 location: artwork.location,
                 remarks: artwork.remarks
-              }
+              }),
+              customer_name: artwork.customer_name
             };
 
             // Check if item already exists in satguru_item_master
