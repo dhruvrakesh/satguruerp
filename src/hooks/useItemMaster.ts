@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -56,28 +55,28 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
         const query = supabase.from('satguru_item_master');
         let selectQuery = query.select('*', { count: 'exact' });
 
-        // Apply filters
-        if (filters.search) {
+        // Apply filters - skip if value is "all" or empty
+        if (filters.search && filters.search.trim() !== '') {
           console.log('Applying search filter:', filters.search);
           selectQuery = selectQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
         }
         
-        if (filters.category_id) {
+        if (filters.category_id && filters.category_id !== 'all') {
           console.log('Applying category filter:', filters.category_id);
           selectQuery = selectQuery.eq('category_id', filters.category_id);
         }
         
-        if (filters.status) {
+        if (filters.status && filters.status !== 'all') {
           console.log('Applying status filter:', filters.status);
           selectQuery = selectQuery.eq('status', filters.status);
         }
         
-        if (filters.uom) {
+        if (filters.uom && filters.uom !== 'all') {
           console.log('Applying UOM filter:', filters.uom);
           selectQuery = selectQuery.eq('uom', filters.uom);
         }
         
-        if (filters.usage_type) {
+        if (filters.usage_type && filters.usage_type !== 'all') {
           console.log('Applying usage type filter:', filters.usage_type);
           selectQuery = selectQuery.eq('usage_type', filters.usage_type);
         }

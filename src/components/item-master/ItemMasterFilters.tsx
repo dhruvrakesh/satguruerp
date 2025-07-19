@@ -26,22 +26,33 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
   const { data: categories } = useCategories();
   const { usageTypes, uomOptions, statusOptions } = useFilterOptions();
 
-  // Sync with external filters prop changes
+  // Sync with external filters prop changes only when they actually change
   useEffect(() => {
-    setLocalFilters(filters);
-  }, [filters]);
+    const filtersChanged = 
+      filters.search !== localFilters.search ||
+      filters.category_id !== localFilters.category_id ||
+      filters.status !== localFilters.status ||
+      filters.uom !== localFilters.uom ||
+      filters.usage_type !== localFilters.usage_type;
+    
+    if (filtersChanged) {
+      console.log('Syncing filters from parent:', filters);
+      setLocalFilters(filters);
+    }
+  }, [filters.search, filters.category_id, filters.status, filters.uom, filters.usage_type]);
 
-  // Debounced filter application
+  // Debounced filter application - only call onFiltersChange, don't include it in deps
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
-      console.log('Applying debounced search:', localFilters.search);
+      console.log('Applying debounced filters:', localFilters);
       onFiltersChange(localFilters);
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [localFilters]);
+  }, [localFilters.search, localFilters.category_id, localFilters.status, localFilters.uom, localFilters.usage_type]);
 
   const handleFilterChange = (key: string, value: string) => {
+    console.log('Filter change:', key, value);
     setLocalFilters(prev => ({
       ...prev,
       [key]: value
@@ -56,6 +67,7 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
       uom: 'all',
       usage_type: 'all'
     };
+    console.log('Clearing filters:', clearedFilters);
     setLocalFilters(clearedFilters);
   };
 

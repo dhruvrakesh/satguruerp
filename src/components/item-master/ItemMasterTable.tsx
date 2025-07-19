@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
 import { ItemMasterFilters } from "./ItemMasterFilters";
 import { ItemMasterForm } from "./ItemMasterForm";
@@ -38,16 +38,23 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(() => {
+    console.log('Memoizing filters:', filters);
+    return filters;
+  }, [filters.search, filters.category_id, filters.status, filters.uom, filters.usage_type]);
+
   const { data: itemMasterData, isLoading, error } = useItemMaster({
     page,
     pageSize,
-    filters
+    filters: memoizedFilters
   });
 
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
 
   // Memoize the filters change handler to prevent infinite re-renders
   const handleFiltersChange = useCallback((newFilters: any) => {
+    console.log('Filters changed:', newFilters);
     setFilters(newFilters);
     setPage(1); // Reset to first page when filters change
   }, []);
@@ -90,7 +97,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
 
   const handleExport = () => {
     try {
-      exportItemMasterToCSV(filters);
+      exportItemMasterToCSV(memoizedFilters);
       toast({
         title: "Export Started",
         description: "Item master data export has been initiated.",
@@ -106,6 +113,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
 
   // Show error toast if there's an error loading data
   if (error) {
+    console.error('Item master loading error:', error);
     toast({
       title: "Error",
       description: "Failed to load item master data. Please refresh the page.",
