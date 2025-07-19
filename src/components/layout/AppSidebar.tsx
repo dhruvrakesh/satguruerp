@@ -18,7 +18,8 @@ import {
   FolderTree,
   Shield,
   Image,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CircleDot
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -47,6 +48,7 @@ const manufacturingItems = [
   { title: "Manufacturing Workflow", url: "/manufacturing-workflow", icon: Workflow },
   { title: "Order Punching", url: "/order-punching", icon: FileText },
   { title: "Artwork Management", url: "/artwork-management", icon: Image },
+  { title: "Cylinder Management", url: "/cylinder-management", icon: CircleDot },
   { title: "Gravure Printing", url: "/gravure-printing", icon: Palette },
   { title: "Lamination & Coating", url: "/lamination-coating", icon: Layers },
   { title: "Slitting & Packaging", url: "/slitting-packaging", icon: Scissors },

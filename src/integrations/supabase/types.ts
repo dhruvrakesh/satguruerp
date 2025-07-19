@@ -8076,6 +8076,14 @@ export type Database = {
         Args: { rows: Json; update_reason: string }
         Returns: Json
       }
+      update_cylinder_usage: {
+        Args: {
+          p_cylinder_code: string
+          p_mileage_increment: number
+          p_last_run?: string
+        }
+        Returns: undefined
+      }
       update_formula_metrics: {
         Args: {
           p_formula_name: string
@@ -8126,6 +8134,10 @@ export type Database = {
           p_captured_by?: string
         }
         Returns: string
+      }
+      upsert_satguru_cylinders_from_csv: {
+        Args: { csv_data: Json }
+        Returns: Json
       }
       urlencode: {
         Args: { data: Json } | { string: string } | { string: string }

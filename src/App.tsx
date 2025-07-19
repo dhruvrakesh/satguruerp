@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import ManufacturingWorkflow from "./pages/ManufacturingWorkflow";
 import OrderPunching from "./pages/OrderPunching";
 import ArtworkManagement from "./pages/ArtworkManagement";
+import CylinderManagement from "./pages/CylinderManagement";
 import GravurePrinting from "./pages/GravurePrinting";
 import LaminationCoating from "./pages/LaminationCoating";
 import SlittingPackaging from "./pages/SlittingPackaging";
@@ -111,6 +112,14 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <ArtworkManagement />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/cylinder-management"
+                        element={
+                          <ProtectedRoute>
+                            <CylinderManagement />
                           </ProtectedRoute>
                         }
                       />
