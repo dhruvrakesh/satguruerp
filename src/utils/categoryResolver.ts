@@ -246,20 +246,32 @@ export class CategoryResolver {
     return null;
   }
 
+  // FIXED: Simplified matrix initialization to prevent deep type inference
   private calculateDistance(str1: string, str2: string): number {
-    const matrix: number[][] = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    const len1 = str1.length;
+    const len2 = str2.length;
     
-    for (let i = 0; i <= str1.length; i += 1) {
-      matrix[0][i] = i;
+    // Create matrix with explicit initialization to avoid deep type inference
+    const matrix: number[][] = [];
+    for (let i = 0; i <= len2; i++) {
+      matrix[i] = [];
+      for (let j = 0; j <= len1; j++) {
+        matrix[i][j] = 0;
+      }
     }
     
-    for (let j = 0; j <= str2.length; j += 1) {
+    // Initialize first row and column
+    for (let i = 0; i <= len1; i++) {
+      matrix[0][i] = i;
+    }
+    for (let j = 0; j <= len2; j++) {
       matrix[j][0] = j;
     }
     
-    for (let j = 1; j <= str2.length; j += 1) {
-      for (let i = 1; i <= str1.length; i += 1) {
-        const indicator: number = str1[i - 1] === str2[j - 1] ? 0 : 1;
+    // Fill the matrix
+    for (let j = 1; j <= len2; j++) {
+      for (let i = 1; i <= len1; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
         matrix[j][i] = Math.min(
           matrix[j][i - 1] + 1, // deletion
           matrix[j - 1][i] + 1, // insertion
@@ -268,7 +280,7 @@ export class CategoryResolver {
       }
     }
     
-    return matrix[str2.length][str1.length];
+    return matrix[len2][len1];
   }
 
   private getSuggestions(categoryName: string): string[] {
