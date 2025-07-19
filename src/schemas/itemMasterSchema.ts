@@ -147,7 +147,7 @@ export const csvItemSchema = z.object({
 
 export type CsvItemData = z.infer<typeof csvItemSchema>;
 
-// Enhanced validation helpers with better error reporting
+// Enhanced validation helpers with better error reporting and graceful error handling
 export const validateBulkUploadData = (data: any[]): { valid: any[], invalid: Array<{row: number, errors: string[]}> } => {
   const valid: any[] = [];
   const invalid: Array<{row: number, errors: string[]}> = [];
@@ -157,21 +157,43 @@ export const validateBulkUploadData = (data: any[]): { valid: any[], invalid: Ar
       const validatedRow = csvItemSchema.parse(row);
       valid.push(validatedRow);
     } catch (error: any) {
-      const errors = error.errors?.map((e: any) => {
-        const field = e.path.join('.');
-        let message = e.message;
-        
-        // Provide more helpful error messages for common issues
-        if (field === 'uom' && message.includes('Invalid enum value')) {
-          message = `Invalid UOM: "${row.uom}". Supported values: PCS, KG, MTR, SQM, LTR, BOX, ROLL (or variations like boxes, nos, kg, etc.)`;
-        } else if (field === 'size_mm' && message.includes('Expected string')) {
-          message = `Size MM should be text format. Found: ${row.size_mm}`;
-        }
-        
-        return `${field}: ${message}`;
-      }) || ['Validation failed'];
+      let errors: string[] = [];
       
-      invalid.push({ row: index + 1, errors });
+      if (error.name === 'ZodError') {
+        errors = error.errors?.map((e: any) => {
+          const field = e.path.join('.');
+          let message = e.message;
+          
+          // Provide more helpful error messages for common issues
+          if (field === 'uom' && message.includes('Invalid enum value')) {
+            message = `Invalid UOM: "${row.uom}". Supported values: PCS, KG, MTR, SQM, LTR, BOX, ROLL (or variations like boxes, nos, kg, etc.)`;
+          } else if (field === 'size_mm' && message.includes('Expected string')) {
+            message = `Size MM should be text format. Found: ${row.size_mm}`;
+          } else if (field === 'gsm' && message.includes('Expected number')) {
+            message = `GSM should be a number. Found: ${row.gsm}`;
+          } else if (field === 'item_name' && message.includes('String must contain at least 1 character')) {
+            message = 'Item name cannot be empty';
+          } else if (field === 'category_name' && message.includes('String must contain at least 1 character')) {
+            message = 'Category name cannot be empty';
+          }
+          
+          return `${field}: ${message}`;
+        }) || ['Validation failed'];
+      } else {
+        // Handle other types of errors gracefully
+        errors = [error.message || 'Unknown validation error occurred'];
+      }
+      
+      invalid.push({ 
+        row: index + 1, 
+        errors: errors.map(err => {
+          // Make error messages more user-friendly
+          if (err.includes('ZodError')) {
+            return 'Data validation failed - please check the format of your data';
+          }
+          return err;
+        })
+      });
     }
   });
   
