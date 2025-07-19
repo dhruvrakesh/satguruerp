@@ -6,6 +6,7 @@ import { CategoryResolver } from "@/utils/categoryResolver";
 import { UsageTypeResolver } from "@/utils/usageTypeResolver";
 
 interface BulkUploadRow {
+  item_code?: string; // Manual item code
   item_name: string;
   category_name: string;
   qualifier?: string;
@@ -150,6 +151,10 @@ export function useBulkUpload() {
         .select('item_code, item_name');
 
       const existingItemCodes = new Set(existingItems?.map(item => item.item_code) || []);
+      
+      // Check if this is a manual item code upload (has Item_Code column)
+      const hasItemCodeColumn = headers.some(h => h.toLowerCase().includes('item_code') || h === 'Item_Code');
+      console.log('📋 Manual item code upload detected:', hasItemCodeColumn);
 
       // Process each row with enhanced error handling
       for (let i = 1; i < lines.length; i++) {
@@ -166,112 +171,141 @@ export function useBulkUpload() {
 
         try {
           // Enhanced validation with better error messages
-          if (!rowData.item_name) {
+          const itemCode = rowData.Item_Code || rowData.item_code;
+          const itemName = rowData.Item_Name || rowData.item_name;
+          const categoryName = rowData.Category_Name || rowData.category_name;
+          const uom = rowData.UOM || rowData.uom;
+          const usageType = rowData.Usage_Type || rowData.usage_type;
+          const qualifier = rowData.Qualifier || rowData.qualifier;
+          const gsm = rowData.GSM || rowData.gsm;
+          const sizeMm = rowData.Size_MM || rowData.size_mm;
+          const specifications = rowData.Specifications || rowData.specifications;
+          
+          if (hasItemCodeColumn && !itemCode) {
+            throw new Error("Item code is required when using manual item codes");
+          }
+          if (!itemName) {
             throw new Error("Item name is required");
           }
-          if (!rowData.category_name) {
+          if (!categoryName) {
             throw new Error("Category name is required");
           }
-          if (!rowData.uom) {
+          if (!uom) {
             throw new Error("UOM is required");
           }
 
           // Transform and validate UOM with better error messages
-          const transformedUOM = transformUOM(rowData.uom);
+          const transformedUOM = transformUOM(uom);
           if (!validateUOM(transformedUOM)) {
-            const suggestion = generateSuggestion(rowData.uom, 'uom');
-            throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
+            const suggestion = generateSuggestion(uom, 'uom');
+            throw new Error(`Invalid UOM: ${uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
           }
 
           // Enhanced usage type transformation
           const transformedUsageType = UsageTypeResolver.transformUsageType(
-            rowData.usage_type || 'raw material', 
-            rowData.category_name,
-            rowData.item_name
+            usageType || 'RAW_MATERIAL', 
+            categoryName,
+            itemName
           );
           
           if (!UsageTypeResolver.validateUsageType(transformedUsageType)) {
             const suggestion = UsageTypeResolver.getUsageTypeSuggestion(
-              rowData.usage_type || '', 
-              rowData.category_name,
-              rowData.item_name
+              usageType || '', 
+              categoryName,
+              itemName
             );
-            throw new Error(`Invalid usage type: ${rowData.usage_type}.${suggestion}`);
+            throw new Error(`Invalid usage type: ${usageType}.${suggestion}`);
           }
 
           // Parse GSM with validation
-          const parsedGSM = parseGSM(rowData.gsm);
+          const parsedGSM = parseGSM(gsm);
 
           console.log('🔄 Transformed data:', {
-            originalUOM: rowData.uom,
+            itemCode,
+            originalUOM: uom,
             transformedUOM,
-            originalUsageType: rowData.usage_type,
+            originalUsageType: usageType,
             transformedUsageType,
-            originalGSM: rowData.gsm,
+            originalGSM: gsm,
             parsedGSM,
-            itemName: rowData.item_name,
-            categoryName: rowData.category_name
+            itemName,
+            categoryName
           });
 
           // Enhanced category resolution with detailed logging
-          let categoryId = categoryResolver.resolveCategoryId(rowData.category_name);
+          let categoryId = categoryResolver.resolveCategoryId(categoryName);
           
           if (!categoryId) {
-            console.log(`❌ Category not found: "${rowData.category_name}"`);
+            console.log(`❌ Category not found: "${categoryName}"`);
             console.log('💡 Available categories:', categoryResolver.getAllMappings());
             
             // Try to create missing category
-            categoryId = await categoryResolver.createMissingCategory(rowData.category_name);
+            categoryId = await categoryResolver.createMissingCategory(categoryName);
             
             if (!categoryId) {
-              const suggestions = categoryResolver.validateCategoryMapping([rowData.category_name]);
+              const suggestions = categoryResolver.validateCategoryMapping([categoryName]);
               const suggestionText = suggestions.invalid.length > 0 
                 ? ` Suggestions: ${suggestions.invalid[0].suggestions.join(', ')}`
                 : '';
-              throw new Error(`Failed to resolve or create category: "${rowData.category_name}".${suggestionText}`);
+              throw new Error(`Failed to resolve or create category: "${categoryName}".${suggestionText}`);
             }
           }
 
-          console.log(`✅ Category resolved: "${rowData.category_name}" → ${categoryId}`);
+          console.log(`✅ Category resolved: "${categoryName}" → ${categoryId}`);
 
-          // Generate item code using the correct function
-          const { data: generatedCode, error: codeError } = await supabase
-            .rpc('satguru_generate_item_code', {
-              category_name: rowData.category_name,
-              qualifier: rowData.qualifier || '',
-              size_mm: rowData.size_mm || '',
-              gsm: parsedGSM
-            });
+          // Use manual item code or generate one
+          let finalItemCode: string;
+          
+          if (hasItemCodeColumn && itemCode) {
+            // Use the manual item code
+            finalItemCode = itemCode.trim();
+            console.log('🔑 Using manual item code:', finalItemCode);
+            
+            // Validate manual item code
+            if (!finalItemCode || finalItemCode.length === 0) {
+              throw new Error('Manual item code cannot be empty');
+            }
+          } else {
+            // Generate item code using the correct function
+            const { data: generatedCode, error: codeError } = await supabase
+              .rpc('satguru_generate_item_code', {
+                category_name: categoryName,
+                qualifier: qualifier || '',
+                size_mm: sizeMm || '',
+                gsm: parsedGSM
+              });
 
-          if (codeError) throw new Error(`Failed to generate item code: ${codeError.message}`);
-
-          console.log('🔑 Generated item code:', generatedCode);
+            if (codeError) throw new Error(`Failed to generate item code: ${codeError.message}`);
+            
+            finalItemCode = generatedCode;
+            console.log('🔑 Generated item code:', finalItemCode);
+          }
 
           // Enhanced duplicate detection
-          if (existingItemCodes.has(generatedCode)) {
+          if (existingItemCodes.has(finalItemCode)) {
             const { data: existingItem } = await supabase
               .from('satguru_item_master')
               .select('*')
-              .eq('item_code', generatedCode)
+              .eq('item_code', finalItemCode)
               .single();
 
-            if (existingItem && existingItem.item_name === rowData.item_name) {
-              console.log('⚠️ Skipping duplicate item:', generatedCode);
-              throw new Error(`Item code already exists: ${generatedCode}. Use update functionality if you want to modify this item.`);
+            if (existingItem && existingItem.item_name === itemName) {
+              console.log('⚠️ Skipping duplicate item:', finalItemCode);
+              throw new Error(`Item code already exists: ${finalItemCode}. Use update functionality if you want to modify this item.`);
             }
           }
 
           // Prepare item data with validated category_id
           const itemData = {
-            item_code: generatedCode,
-            item_name: rowData.item_name,
+            item_code: finalItemCode,
+            item_name: itemName,
             category_id: categoryId, // This should now never be null
-            qualifier: rowData.qualifier || null,
+            qualifier: qualifier || null,
             gsm: parsedGSM,
-            size_mm: rowData.size_mm || null,
+            size_mm: sizeMm || null,
             uom: transformedUOM,
             usage_type: transformedUsageType,
-            specifications: rowData.specifications || null,
+            specifications: specifications || null,
             status: 'active'
           };
 
@@ -279,7 +313,7 @@ export function useBulkUpload() {
 
           // Validate that category_id is not null before insert
           if (!itemData.category_id) {
-            throw new Error(`Category ID is null for category: ${rowData.category_name}. This should not happen after resolution.`);
+            throw new Error(`Category ID is null for category: ${categoryName}. This should not happen after resolution.`);
           }
 
           // Insert item into satguru_item_master table
@@ -289,18 +323,18 @@ export function useBulkUpload() {
 
           if (insertError) {
             if (insertError.code === '23505') { // Unique constraint violation
-              throw new Error(`Item code already exists: ${generatedCode}`);
+              throw new Error(`Item code already exists: ${finalItemCode}`);
             }
             if (insertError.code === '23503') { // Foreign key constraint violation
-              throw new Error(`Invalid category reference. Category ID: ${itemData.category_id} for category: ${rowData.category_name}`);
+              throw new Error(`Invalid category reference. Category ID: ${itemData.category_id} for category: ${categoryName}`);
             }
             console.error('❌ Insert error:', insertError);
             throw new Error(`Database error: ${insertError.message}`);
           }
 
-          console.log('✅ Successfully inserted item:', generatedCode);
+          console.log('✅ Successfully inserted item:', finalItemCode);
           results.successCount++;
-          existingItemCodes.add(generatedCode); // Add to set to prevent duplicates within same batch
+          existingItemCodes.add(finalItemCode); // Add to set to prevent duplicates within same batch
 
         } catch (error: any) {
           console.error(`❌ Error processing row ${i + 1}:`, error.message);

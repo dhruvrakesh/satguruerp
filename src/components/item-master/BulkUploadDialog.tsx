@@ -23,14 +23,14 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
   const { uploadMutation, isProcessing, progress } = useBulkUpload();
 
   const downloadTemplate = () => {
-    const csvContent = `item_name,category_name,qualifier,gsm,size_mm,uom,usage_type,specifications
-BOPP Film 20 Micron,Raw Materials,Premium,20,1000mm,KG,Raw Material,High clarity BOPP film for lamination
-PE Wrapper Film,Raw Materials,Standard,80,,MTR,Wrapper,Low density polyethylene wrapper
-Lamination Adhesive,Chemicals,Industrial,,5L,LTR,Consumable,Two-component polyurethane adhesive
-Packaging Box,Packaging,,200,300x200x100mm,PCS,Packaging,Corrugated cardboard shipping box
-Cylinder Peg Coating,Consumables,Standard,,"1125X518",PCS,Hot Melt,Peg coating for cylinders
-Doctor Blades,Consumables,,"0.15",0.15MM,PCS,General,Precision doctor blades
-Corrugated Box,Packaging,,"235","235PCS",BOX,Packaging,Corrugated boxes for shipping`;
+    const csvContent = `Item_Code,Item_Name,Category_Name,Qualifier,GSM,Size_MM,UOM,Usage_Type,Specifications
+BOPP-FILM-20-20,BOPP Film 20 Micron,Raw Materials,Premium,20,1000mm,KG,RAW_MATERIAL,High clarity BOPP film for lamination
+PE-WRAP-80,PE Wrapper Film,Raw Materials,Standard,80,,MTR,RAW_MATERIAL,Low density polyethylene wrapper
+ADH-LAM-IND,Lamination Adhesive,Chemicals,Industrial,,5L,LTR,CONSUMABLE,Two-component polyurethane adhesive
+PKG-BOX-200,Packaging Box,Packaging,,200,300x200x100mm,PCS,PACKAGING,Corrugated cardboard shipping box
+CYL-PEG-STD,Cylinder Peg Coating,Consumables,Standard,,"1125X518",PCS,CONSUMABLE,Peg coating for cylinders
+DOC-BLD-015,Doctor Blades,Consumables,,"0.15",0.15MM,PCS,CONSUMABLE,Precision doctor blades
+COR-BOX-235,Corrugated Box,Packaging,,"235","235PCS",BOX,PACKAGING,Corrugated boxes for shipping`;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -150,7 +150,7 @@ Corrugated Box,Packaging,,"235","235PCS",BOX,Packaging,Corrugated boxes for ship
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Download the CSV template with examples that match your current data format. Includes samples for cylinders, consumables, and corrugated boxes.
+                Download the CSV template for manual item code upload. You provide the Item_Code, and the system will use it directly without auto-generation.
               </p>
               <div className="space-y-4">
                 <Button variant="outline" onClick={downloadTemplate}>
@@ -163,9 +163,10 @@ Corrugated Box,Packaging,,"235","235PCS",BOX,Packaging,Corrugated boxes for ship
                   <div>
                     <h4 className="font-medium mb-2">Required Fields:</h4>
                     <ul className="space-y-1 text-muted-foreground">
-                      <li>• <strong>item_name:</strong> Product name (e.g., "BOPP Film 20 Micron")</li>
-                      <li>• <strong>category_name:</strong> Category (auto-created if new)</li>
-                      <li>• <strong>uom:</strong> Use nos, boxes, metre, kg, pcs, mtr, etc.</li>
+                      <li>• <strong>Item_Code:</strong> Your unique code (e.g., "BOPP-FILM-20-20")</li>
+                      <li>• <strong>Item_Name:</strong> Product name (e.g., "BOPP Film 20 Micron")</li>
+                      <li>• <strong>Category_Name:</strong> Category (auto-created if new)</li>
+                      <li>• <strong>UOM:</strong> Use PCS, KG, MTR, BOX, etc.</li>
                     </ul>
                   </div>
                   <div>
