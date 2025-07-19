@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,20 +116,42 @@ export function useBulkUpload() {
         errors: []
       };
 
-      // Initialize category resolver
+      // Initialize category resolver with enhanced logging
       const categoryResolver = new CategoryResolver();
       await categoryResolver.initialize();
 
       console.log('📂 Category resolver initialized');
 
-      // Get existing item codes for smarter duplicate detection from satguru_item_master
+      // Pre-validate all categories from CSV
+      const csvCategories = [...new Set(
+        lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+          const categoryIndex = headers.findIndex(h => h.toLowerCase().includes('category'));
+          return categoryIndex >= 0 ? values[categoryIndex] : '';
+        }).filter(Boolean)
+      )];
+
+      console.log('🔍 Categories found in CSV:', csvCategories);
+      
+      const categoryValidation = categoryResolver.validateCategoryMapping(csvCategories);
+      console.log('✅ Valid categories:', categoryValidation.valid);
+      console.log('❌ Invalid categories:', categoryValidation.invalid);
+
+      if (categoryValidation.invalid.length > 0) {
+        console.warn('⚠️ Some categories could not be resolved:');
+        categoryValidation.invalid.forEach(cat => {
+          console.warn(`  - "${cat.name}" (suggestions: ${cat.suggestions.join(', ')})`);
+        });
+      }
+
+      // Get existing item codes for duplicate detection
       const { data: existingItems } = await supabase
         .from('satguru_item_master')
         .select('item_code, item_name');
 
       const existingItemCodes = new Set(existingItems?.map(item => item.item_code) || []);
 
-      // Process each row
+      // Process each row with enhanced error handling
       for (let i = 1; i < lines.length; i++) {
         setProgress((i / (lines.length - 1)) * 90);
         
@@ -144,7 +165,7 @@ export function useBulkUpload() {
         console.log(`🔄 Processing row ${i}:`, rowData);
 
         try {
-          // Validate required fields
+          // Enhanced validation with better error messages
           if (!rowData.item_name) {
             throw new Error("Item name is required");
           }
@@ -155,14 +176,14 @@ export function useBulkUpload() {
             throw new Error("UOM is required");
           }
 
-          // Transform and validate UOM
+          // Transform and validate UOM with better error messages
           const transformedUOM = transformUOM(rowData.uom);
           if (!validateUOM(transformedUOM)) {
             const suggestion = generateSuggestion(rowData.uom, 'uom');
             throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
           }
 
-          // Enhanced usage type transformation with item name context
+          // Enhanced usage type transformation
           const transformedUsageType = UsageTypeResolver.transformUsageType(
             rowData.usage_type || 'raw material', 
             rowData.category_name,
@@ -178,17 +199,7 @@ export function useBulkUpload() {
             throw new Error(`Invalid usage type: ${rowData.usage_type}.${suggestion}`);
           }
 
-          // Enhanced logical validation with item name
-          const logicError = UsageTypeResolver.validateCategoryUsageTypeLogic(
-            rowData.category_name, 
-            transformedUsageType,
-            rowData.item_name
-          );
-          if (logicError) {
-            console.warn(`⚠️ ${logicError}`);
-          }
-
-          // Parse GSM
+          // Parse GSM with validation
           const parsedGSM = parseGSM(rowData.gsm);
 
           console.log('🔄 Transformed data:', {
@@ -202,17 +213,26 @@ export function useBulkUpload() {
             categoryName: rowData.category_name
           });
 
-          // Find or create category with improved resolution
+          // Enhanced category resolution with detailed logging
           let categoryId = categoryResolver.resolveCategoryId(rowData.category_name);
           
           if (!categoryId) {
-            console.log('❌ Category not found, attempting to create:', rowData.category_name);
+            console.log(`❌ Category not found: "${rowData.category_name}"`);
+            console.log('💡 Available categories:', categoryResolver.getAllMappings());
+            
+            // Try to create missing category
             categoryId = await categoryResolver.createMissingCategory(rowData.category_name);
             
             if (!categoryId) {
-              throw new Error(`Failed to resolve or create category: ${rowData.category_name}. Available categories: ${Object.keys(categoryResolver.getAllMappings()).slice(0, 5).join(', ')}...`);
+              const suggestions = categoryResolver.validateCategoryMapping([rowData.category_name]);
+              const suggestionText = suggestions.invalid.length > 0 
+                ? ` Suggestions: ${suggestions.invalid[0].suggestions.join(', ')}`
+                : '';
+              throw new Error(`Failed to resolve or create category: "${rowData.category_name}".${suggestionText}`);
             }
           }
+
+          console.log(`✅ Category resolved: "${rowData.category_name}" → ${categoryId}`);
 
           // Generate item code using the correct function
           const { data: generatedCode, error: codeError } = await supabase
@@ -227,9 +247,8 @@ export function useBulkUpload() {
 
           console.log('🔑 Generated item code:', generatedCode);
 
-          // Enhanced duplicate detection - check if exact same item exists
+          // Enhanced duplicate detection
           if (existingItemCodes.has(generatedCode)) {
-            // Check if it's truly a duplicate or just needs updating
             const { data: existingItem } = await supabase
               .from('satguru_item_master')
               .select('*')
@@ -242,11 +261,11 @@ export function useBulkUpload() {
             }
           }
 
-          // Prepare item data for the correct table
+          // Prepare item data with validated category_id
           const itemData = {
             item_code: generatedCode,
             item_name: rowData.item_name,
-            category_id: categoryId,
+            category_id: categoryId, // This should now never be null
             qualifier: rowData.qualifier || null,
             gsm: parsedGSM,
             size_mm: rowData.size_mm || null,
@@ -258,6 +277,11 @@ export function useBulkUpload() {
 
           console.log('💾 Inserting item data:', itemData);
 
+          // Validate that category_id is not null before insert
+          if (!itemData.category_id) {
+            throw new Error(`Category ID is null for category: ${rowData.category_name}. This should not happen after resolution.`);
+          }
+
           // Insert item into satguru_item_master table
           const { error: insertError } = await supabase
             .from('satguru_item_master')
@@ -266,6 +290,9 @@ export function useBulkUpload() {
           if (insertError) {
             if (insertError.code === '23505') { // Unique constraint violation
               throw new Error(`Item code already exists: ${generatedCode}`);
+            }
+            if (insertError.code === '23503') { // Foreign key constraint violation
+              throw new Error(`Invalid category reference. Category ID: ${itemData.category_id} for category: ${rowData.category_name}`);
             }
             console.error('❌ Insert error:', insertError);
             throw new Error(`Database error: ${insertError.message}`);

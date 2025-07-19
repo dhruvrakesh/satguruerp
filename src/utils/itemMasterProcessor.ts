@@ -32,6 +32,33 @@ export class ItemMasterProcessor {
       });
 
       try {
+        // Enhanced category resolution with validation
+        if (!record.category_id) {
+          console.log(`🔍 Resolving category for record: ${record.item_name}, category: ${record.category_name}`);
+          
+          const resolvedCategoryId = this.categoryResolver.resolveCategoryId(record.category_name);
+          
+          if (!resolvedCategoryId) {
+            // Try to create missing category
+            const createdCategoryId = await this.categoryResolver.createMissingCategory(record.category_name);
+            
+            if (!createdCategoryId) {
+              throw new Error(`Failed to resolve or create category: ${record.category_name}`);
+            }
+            
+            record.category_id = createdCategoryId;
+            console.log(`✅ Created and assigned category: ${record.category_name} → ${createdCategoryId}`);
+          } else {
+            record.category_id = resolvedCategoryId;
+            console.log(`✅ Resolved category: ${record.category_name} → ${resolvedCategoryId}`);
+          }
+        }
+
+        // Validate that we have a valid category_id before proceeding
+        if (!record.category_id) {
+          throw new Error(`Category ID is null after resolution for category: ${record.category_name}`);
+        }
+
         // Enhanced usage type resolution with item name context
         const resolvedUsageType = UsageTypeResolver.transformUsageType(
           record.usage_type || 'RAW_MATERIAL',
@@ -67,6 +94,11 @@ export class ItemMasterProcessor {
   }
 
   private async insertRecord(record: ParsedRecord) {
+    // Validate category_id before generating item code
+    if (!record.category_id) {
+      throw new Error(`Cannot insert record without valid category_id. Category: ${record.category_name}`);
+    }
+
     // Generate item code
     const { data: itemCode, error: codeError } = await supabase
       .rpc('satguru_generate_item_code', {
@@ -78,13 +110,15 @@ export class ItemMasterProcessor {
 
     if (codeError) throw new Error(`Failed to generate item code: ${codeError.message}`);
 
-    // Insert new record
+    console.log(`📝 Inserting record with category_id: ${record.category_id}`);
+
+    // Insert new record with validated category_id
     const { error } = await supabase
       .from('satguru_item_master')
       .insert([{
         item_code: itemCode,
         item_name: record.item_name,
-        category_id: record.category_id,
+        category_id: record.category_id, // This should never be null now
         qualifier: record.qualifier,
         gsm: record.gsm,
         size_mm: record.size_mm,
@@ -94,11 +128,23 @@ export class ItemMasterProcessor {
         status: 'active'
       }]);
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23503') {
+        throw new Error(`Foreign key constraint violation. Invalid category_id: ${record.category_id} for category: ${record.category_name}`);
+      }
+      throw error;
+    }
+
+    console.log(`✅ Successfully inserted: ${itemCode}`);
   }
 
   private async updateRecord(record: ParsedRecord) {
     if (!record.existing_item) throw new Error('No existing item to update');
+    if (!record.category_id) {
+      throw new Error(`Cannot update record without valid category_id. Category: ${record.category_name}`);
+    }
+
+    console.log(`📝 Updating record with category_id: ${record.category_id}`);
 
     // Update existing record
     const { error } = await supabase
@@ -116,6 +162,13 @@ export class ItemMasterProcessor {
       })
       .eq('id', record.existing_item.id);
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23503') {
+        throw new Error(`Foreign key constraint violation. Invalid category_id: ${record.category_id} for category: ${record.category_name}`);
+      }
+      throw error;
+    }
+
+    console.log(`✅ Successfully updated: ${record.existing_item.item_code}`);
   }
 }
