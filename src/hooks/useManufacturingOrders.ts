@@ -110,16 +110,19 @@ export const useUpdateOrderStatus = () => {
       uiorn: string; 
       status: string;
     }) => {
-      const { error } = await supabase
-        .from("order_punching")
-        .update({ status: status as any })
-        .eq("uiorn", uiorn);
+      // Use the new database function for proper stage transitions
+      const { error } = await supabase.rpc('handle_manufacturing_stage_transition', {
+        p_uiorn: uiorn,
+        p_new_status: status as any
+      });
       
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manufacturing-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["manufacturing-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["order-progress"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-bottlenecks"] });
     },
   });
 };

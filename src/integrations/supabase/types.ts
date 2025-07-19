@@ -6149,6 +6149,7 @@ export type Database = {
           created_at: string
           id: number
           master_item_id: number
+          period_id: number | null
           tally_ledger_name: string
           updated_at: string
         }
@@ -6156,6 +6157,7 @@ export type Database = {
           created_at?: string
           id?: number
           master_item_id: number
+          period_id?: number | null
           tally_ledger_name: string
           updated_at?: string
         }
@@ -6163,6 +6165,7 @@ export type Database = {
           created_at?: string
           id?: number
           master_item_id?: number
+          period_id?: number | null
           tally_ledger_name?: string
           updated_at?: string
         }
@@ -6172,6 +6175,13 @@ export type Database = {
             columns: ["master_item_id"]
             isOneToOne: false
             referencedRelation: "schedule3_master_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule3_mapping_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "financial_periods"
             referencedColumns: ["id"]
           },
         ]
@@ -7472,6 +7482,13 @@ export type Database = {
           leave_days: number
         }[]
       }
+      can_transition_to_stage: {
+        Args: {
+          p_uiorn: string
+          p_target_status: Database["public"]["Enums"]["process_status"]
+        }
+        Returns: boolean
+      }
       check_attendance_data_consistency: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -7628,6 +7645,12 @@ export type Database = {
           viscosity_cps: number
         }[]
       }
+      get_next_manufacturing_stage: {
+        Args: {
+          p_current_status: Database["public"]["Enums"]["process_status"]
+        }
+        Returns: Database["public"]["Enums"]["process_status"]
+      }
       get_order_process_history: {
         Args: { p_uiorn: string }
         Returns: {
@@ -7695,6 +7718,14 @@ export type Database = {
       gtrgm_out: {
         Args: { "": unknown }
         Returns: unknown
+      }
+      handle_manufacturing_stage_transition: {
+        Args: {
+          p_uiorn: string
+          p_new_status: Database["public"]["Enums"]["process_status"]
+          p_user_id?: string
+        }
+        Returns: undefined
       }
       has_role: {
         Args: { user_role: string }
@@ -8118,6 +8149,11 @@ export type Database = {
         | "COMPLETED"
         | "ON_HOLD"
         | "CANCELLED"
+        | "ARTWORK_UPLOAD"
+        | "GRAVURE_PRINTING"
+        | "LAMINATION_COATING"
+        | "ADHESIVE_COATING"
+        | "SLITTING_PACKING"
       stage: "printing" | "lamination" | "adhesive" | "slitting" | "dispatch"
       transfer_status: "pending" | "approved" | "rejected" | "completed"
       variable_type: "fixed" | "calculated" | "employee_specific" | "system"
@@ -8292,6 +8328,11 @@ export const Constants = {
         "COMPLETED",
         "ON_HOLD",
         "CANCELLED",
+        "ARTWORK_UPLOAD",
+        "GRAVURE_PRINTING",
+        "LAMINATION_COATING",
+        "ADHESIVE_COATING",
+        "SLITTING_PACKING",
       ],
       stage: ["printing", "lamination", "adhesive", "slitting", "dispatch"],
       transfer_status: ["pending", "approved", "rejected", "completed"],

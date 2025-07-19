@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useManufacturingDashboard, useUpdateOrderStatus } from "@/hooks/useManufacturingOrders";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   Clock,
@@ -14,6 +15,10 @@ import {
   Package,
   Settings,
   Truck,
+  Upload,
+  Printer,
+  Layers,
+  Droplets,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -37,24 +42,59 @@ interface Order {
 const stages = [
   {
     id: "PENDING",
-    name: "Artwork Upload",
-    icon: Package,
+    name: "Pending",
+    icon: Clock,
     color: "bg-slate-100 border-slate-300",
     headerColor: "bg-slate-50",
   },
   {
-    id: "IN_PROGRESS", 
+    id: "ARTWORK_UPLOAD",
+    name: "Artwork Upload",
+    icon: Upload,
+    color: "bg-purple-100 border-purple-300",
+    headerColor: "bg-purple-50",
+  },
+  {
+    id: "GRAVURE_PRINTING", 
     name: "Gravure Printing",
-    icon: Settings,
+    icon: Printer,
     color: "bg-blue-100 border-blue-300",
     headerColor: "bg-blue-50",
   },
   {
-    id: "COMPLETED",
-    name: "Packaging",
-    icon: Truck,
-    color: "bg-green-100 border-green-300", 
+    id: "LAMINATION_COATING",
+    name: "Lamination/Coating",
+    icon: Layers,
+    color: "bg-yellow-100 border-yellow-300",
+    headerColor: "bg-yellow-50",
+  },
+  {
+    id: "ADHESIVE_COATING",
+    name: "Adhesive Coating",
+    icon: Droplets,
+    color: "bg-orange-100 border-orange-300",
+    headerColor: "bg-orange-50",
+  },
+  {
+    id: "SLITTING_PACKING",
+    name: "Slitting & Packing",
+    icon: Package,
+    color: "bg-green-100 border-green-300",
     headerColor: "bg-green-50",
+  },
+  {
+    id: "COMPLETED",
+    name: "Completed",
+    icon: CheckCircle,
+    color: "bg-emerald-100 border-emerald-300", 
+    headerColor: "bg-emerald-50",
+  },
+  {
+    id: "ON_HOLD",
+    name: "On Hold",
+    icon: Pause,
+    color: "bg-red-100 border-red-300",
+    headerColor: "bg-red-50",
   },
 ];
 
@@ -66,12 +106,20 @@ export function InteractiveWorkflowKanban() {
 
   const handleStatusUpdate = async (uiorn: string, newStatus: string) => {
     try {
-      await updateStatus.mutateAsync({ uiorn, status: newStatus });
+      // Use the new database function for stage transitions
+      const { error } = await supabase.rpc('handle_manufacturing_stage_transition', {
+        p_uiorn: uiorn,
+        p_new_status: newStatus as any
+      });
+      
+      if (error) throw error;
+      
       toast({
         title: "Status Updated",
         description: `Order ${uiorn} moved to ${getStageLabel(newStatus)}`,
       });
     } catch (error) {
+      console.error('Status update error:', error);
       toast({
         title: "Update Failed",
         description: "Failed to update order status",
@@ -86,17 +134,7 @@ export function InteractiveWorkflowKanban() {
 
   const getOrdersByStage = (stageId: string): Order[] => {
     return orders.filter((order: Order) => {
-      // Map order statuses to kanban stages
-      switch (stageId) {
-        case "PENDING":
-          return order.status === "PENDING";
-        case "IN_PROGRESS":
-          return order.status === "IN_PROGRESS";
-        case "COMPLETED":
-          return order.status === "COMPLETED";
-        default:
-          return false;
-      }
+      return order.status === stageId;
     });
   };
 
@@ -119,12 +157,20 @@ export function InteractiveWorkflowKanban() {
     switch (status) {
       case "PENDING":
         return <Clock className="h-4 w-4 text-slate-500" />;
-      case "IN_PROGRESS":
-        return <Play className="h-4 w-4 text-blue-500" />;
+      case "ARTWORK_UPLOAD":
+        return <Upload className="h-4 w-4 text-purple-500" />;
+      case "GRAVURE_PRINTING":
+        return <Printer className="h-4 w-4 text-blue-500" />;
+      case "LAMINATION_COATING":
+        return <Layers className="h-4 w-4 text-yellow-500" />;
+      case "ADHESIVE_COATING":
+        return <Droplets className="h-4 w-4 text-orange-500" />;
+      case "SLITTING_PACKING":
+        return <Package className="h-4 w-4 text-green-500" />;
       case "COMPLETED":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
       case "ON_HOLD":
-        return <Pause className="h-4 w-4 text-orange-500" />;
+        return <Pause className="h-4 w-4 text-red-500" />;
       default:
         return <AlertCircle className="h-4 w-4 text-gray-500" />;
     }
@@ -152,24 +198,34 @@ export function InteractiveWorkflowKanban() {
   };
 
   const getNextStatus = (currentStatus: string) => {
-    const currentIndex = stages.findIndex(s => s.id === currentStatus);
-    if (currentIndex < stages.length - 1) {
-      return stages[currentIndex + 1].id;
+    // Use the proper manufacturing sequence
+    switch (currentStatus) {
+      case "PENDING": return "ARTWORK_UPLOAD";
+      case "ARTWORK_UPLOAD": return "GRAVURE_PRINTING";
+      case "GRAVURE_PRINTING": return "LAMINATION_COATING";
+      case "LAMINATION_COATING": return "ADHESIVE_COATING";
+      case "ADHESIVE_COATING": return "SLITTING_PACKING";
+      case "SLITTING_PACKING": return "COMPLETED";
+      default: return currentStatus;
     }
-    return currentStatus;
   };
 
   const getPreviousStatus = (currentStatus: string) => {
-    const currentIndex = stages.findIndex(s => s.id === currentStatus);
-    if (currentIndex > 0) {
-      return stages[currentIndex - 1].id;
+    // Use the proper manufacturing sequence in reverse
+    switch (currentStatus) {
+      case "ARTWORK_UPLOAD": return "PENDING";
+      case "GRAVURE_PRINTING": return "ARTWORK_UPLOAD";
+      case "LAMINATION_COATING": return "GRAVURE_PRINTING";
+      case "ADHESIVE_COATING": return "LAMINATION_COATING";
+      case "SLITTING_PACKING": return "ADHESIVE_COATING";
+      case "COMPLETED": return "SLITTING_PACKING";
+      default: return currentStatus;
     }
-    return currentStatus;
   };
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stages.map((stage) => (
           <Card key={stage.id} className="h-96">
             <CardHeader className={stage.headerColor}>
@@ -192,7 +248,7 @@ export function InteractiveWorkflowKanban() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {stages.map((stage) => {
         const stageOrders = getOrdersByStage(stage.id);
         
@@ -287,7 +343,7 @@ export function InteractiveWorkflowKanban() {
                     )}
 
                     <div className="flex gap-1 mt-2">
-                      {stage.id !== stages[stages.length - 1].id && (
+                      {order.status !== "COMPLETED" && order.status !== "ON_HOLD" && (
                         <Button
                           size="sm"
                           variant="outline"
