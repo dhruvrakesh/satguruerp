@@ -17,10 +17,10 @@ interface ItemMasterFiltersProps {
 export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFiltersProps) {
   const [localFilters, setLocalFilters] = useState({
     search: '',
-    category_id: '',
-    status: '',
-    uom: '',
-    usage_type: ''
+    category_id: 'all',
+    status: 'all',
+    uom: 'all',
+    usage_type: 'all'
   });
 
   const { data: categories } = useCategories();
@@ -45,13 +45,12 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
   const clearFilters = () => {
     setLocalFilters({
       search: '',
-      category_id: '',
-      status: '',
-      uom: '',
-      usage_type: ''
+      category_id: 'all',
+      status: 'all',
+      uom: 'all',
+      usage_type: 'all'
     });
   };
-
 
   return (
     <Card>
@@ -80,8 +79,8 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
           <div className="space-y-2">
             <Label>Category</Label>
             <Select
-              value={localFilters.category_id || undefined}
-              onValueChange={(value) => handleFilterChange('category_id', value || '')}
+              value={localFilters.category_id}
+              onValueChange={(value) => handleFilterChange('category_id', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
@@ -100,8 +99,8 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
           <div className="space-y-2">
             <Label>Status</Label>
             <Select
-              value={localFilters.status || undefined}
-              onValueChange={(value) => handleFilterChange('status', value || '')}
+              value={localFilters.status}
+              onValueChange={(value) => handleFilterChange('status', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select status" />
@@ -120,8 +119,8 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
           <div className="space-y-2">
             <Label>Unit of Measure</Label>
             <Select
-              value={localFilters.uom || undefined}
-              onValueChange={(value) => handleFilterChange('uom', value || '')}
+              value={localFilters.uom}
+              onValueChange={(value) => handleFilterChange('uom', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select UOM" />
@@ -140,8 +139,8 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
           <div className="space-y-2">
             <Label>Usage Type</Label>
             <Select
-              value={localFilters.usage_type || undefined}
-              onValueChange={(value) => handleFilterChange('usage_type', value || '')}
+              value={localFilters.usage_type}
+              onValueChange={(value) => handleFilterChange('usage_type', value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select usage type" />

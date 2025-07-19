@@ -36,8 +36,8 @@ export default function SpecificationMaster() {
   const queryClient = useQueryClient();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [newSpecification, setNewSpecification] = useState({
     item_code: '',
     customer_code: '',
@@ -70,7 +70,7 @@ export default function SpecificationMaster() {
       if (searchQuery) {
         query = query.or(`item_code.ilike.%${searchQuery}%,specification_name.ilike.%${searchQuery}%`);
       }
-      if (selectedCustomer) {
+      if (selectedCustomer && selectedCustomer !== 'all') {
         query = query.eq('customer_code', selectedCustomer);
       }
       if (selectedStatus && selectedStatus !== 'all') {
@@ -482,7 +482,7 @@ export default function SpecificationMaster() {
                   <SelectValue placeholder="All customers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All customers</SelectItem>
+                  <SelectItem value="all">All customers</SelectItem>
                   <SelectItem value="GCPL">GCPL</SelectItem>
                   <SelectItem value="RB">Reckitt Benckiser</SelectItem>
                   <SelectItem value="HUL">Hindustan Unilever</SelectItem>

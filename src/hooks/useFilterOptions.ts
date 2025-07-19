@@ -1,10 +1,11 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export function useFilterOptions() {
-  // Get actual usage types from the database
-  const { data: usageTypes } = useQuery({
-    queryKey: ['filter-usage-types'],
+  // Fetch unique usage types from database
+  const { data: usageTypesData } = useQuery({
+    queryKey: ['usage-types'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('satguru_item_master')
@@ -13,18 +14,17 @@ export function useFilterOptions() {
       
       if (error) throw error;
       
-      // Get unique usage types
       const uniqueTypes = [...new Set(data.map(item => item.usage_type))];
       return uniqueTypes.map(type => ({
         value: type,
-        label: type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+        label: type.replace('_', ' ')
       }));
-    },
+    }
   });
 
-  // Get actual UOMs from the database
-  const { data: uomOptions } = useQuery({
-    queryKey: ['filter-uom-options'],
+  // Fetch unique UOM values from database
+  const { data: uomData } = useQuery({
+    queryKey: ['uom-options'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('satguru_item_master')
@@ -33,23 +33,25 @@ export function useFilterOptions() {
       
       if (error) throw error;
       
-      // Get unique UOMs
       const uniqueUoms = [...new Set(data.map(item => item.uom))];
       return uniqueUoms.map(uom => ({
         value: uom,
         label: uom
       }));
-    },
+    }
   });
 
   const statusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' }
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'INACTIVE', label: 'Inactive' },
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'REJECTED', label: 'Rejected' }
   ];
 
   return {
-    usageTypes: usageTypes || [],
-    uomOptions: uomOptions || [],
+    usageTypes: usageTypesData || [],
+    uomOptions: uomData || [],
     statusOptions
   };
 }
