@@ -32,11 +32,10 @@ export class CategoryResolver {
   async initialize(): Promise<void> {
     if (this.data.initialized) return;
 
-    // FIXED: Query satguru_categories instead of categories
+    // FIXED: Remove the invalid is_active filter since the column doesn't exist
     const { data: categories, error } = await supabase
       .from('satguru_categories')
-      .select('id, category_name')
-      .eq('is_active', true);
+      .select('id, category_name');
 
     if (error) {
       throw new Error(`Failed to load categories: ${error.message}`);
@@ -350,8 +349,7 @@ export class CategoryResolver {
         .from('satguru_categories')
         .insert([{ 
           category_name: categoryName.trim(),
-          description: description,
-          is_active: true
+          description: description
         }])
         .select()
         .single();
