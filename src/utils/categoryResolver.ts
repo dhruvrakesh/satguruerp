@@ -10,8 +10,9 @@ export class CategoryResolver {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // FIXED: Query satguru_categories instead of categories
     const { data: categories, error } = await supabase
-      .from('categories')
+      .from('satguru_categories')
       .select('id, category_name')
       .eq('is_active', true);
 
@@ -19,7 +20,7 @@ export class CategoryResolver {
       throw new Error(`Failed to load categories: ${error.message}`);
     }
 
-    console.log('📂 Available categories from database:', categories?.map(c => c.category_name));
+    console.log('📂 Available categories from satguru_categories:', categories?.map(c => c.category_name));
     this.availableCategories = categories || [];
 
     this.categoryMap = {};
@@ -50,7 +51,7 @@ export class CategoryResolver {
   private addSingularPluralVariations(categoryName: string, categoryId: string): void {
     const normalized = categoryName.toLowerCase().trim();
     
-    // Handle common singular/plural patterns
+    // Handle common singular/plural patterns for flexible packaging
     const pluralPatterns = [
       { singular: 'consumable', plural: 'consumables' },
       { singular: 'spare', plural: 'spares' },
@@ -288,8 +289,9 @@ export class CategoryResolver {
         description = 'Chemicals and solvents for manufacturing processes';
       }
       
+      // FIXED: Insert into satguru_categories instead of categories
       const { data: newCategory, error } = await supabase
-        .from('categories')
+        .from('satguru_categories')
         .insert([{ 
           category_name: categoryName.trim(),
           description: description,

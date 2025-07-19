@@ -144,7 +144,7 @@ export function useBulkUpload() {
         });
       }
 
-      // Get existing item codes for duplicate detection
+      // Get existing item codes for duplicate detection from satguru_item_master
       const { data: existingItems } = await supabase
         .from('satguru_item_master')
         .select('item_code, item_name');
