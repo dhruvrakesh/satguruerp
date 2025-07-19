@@ -15,6 +15,10 @@ interface SpecificationPreviewDialogProps {
     customer_code: string;
     specification_name: string;
     file_path: string;
+    external_url?: string;
+    source_type?: string;
+    sync_status?: string;
+    parsed_metadata?: any;
     status: string;
     version: number;
     item_master?: {
@@ -35,12 +39,20 @@ export function SpecificationPreviewDialog({ specification, children }: Specific
   const loadPreview = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.storage
-        .from('customer-specifications')
-        .createSignedUrl(specification.file_path, 3600); // 1 hour expiry
+      // Handle Google Drive files
+      if (specification.source_type === 'GOOGLE_DRIVE' && specification.external_url) {
+        // Convert Google Drive share URL to embeddable format
+        const embedUrl = specification.external_url.replace('/view', '/preview');
+        setPreviewUrl(embedUrl);
+      } else {
+        // Handle Supabase storage files
+        const { data, error } = await supabase.storage
+          .from('customer-specifications')
+          .createSignedUrl(specification.file_path, 3600); // 1 hour expiry
 
-      if (error) throw error;
-      setPreviewUrl(data.signedUrl);
+        if (error) throw error;
+        setPreviewUrl(data.signedUrl);
+      }
     } catch (error) {
       console.error('Preview error:', error);
       toast({
@@ -84,6 +96,14 @@ export function SpecificationPreviewDialog({ specification, children }: Specific
 
   const downloadFile = async () => {
     try {
+      // Handle Google Drive files
+      if (specification.source_type === 'GOOGLE_DRIVE' && specification.external_url) {
+        // Open Google Drive file in new tab for download
+        window.open(specification.external_url, '_blank');
+        return;
+      }
+
+      // Handle Supabase storage files
       const { data, error } = await supabase.storage
         .from('customer-specifications')
         .download(specification.file_path);
@@ -128,6 +148,11 @@ export function SpecificationPreviewDialog({ specification, children }: Specific
             <div className="flex items-center gap-2">
               {getStatusIcon(specification.status)}
               {specification.specification_name}
+              {specification.source_type === 'GOOGLE_DRIVE' && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                  Google Drive
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline">v{specification.version}</Badge>

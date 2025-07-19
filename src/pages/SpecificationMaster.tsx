@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SpecificationPreviewDialog } from "@/components/manufacturing/SpecificationPreviewDialog";
+import { GoogleDriveSpecificationScanner } from "@/components/manufacturing/GoogleDriveSpecificationScanner";
 
 interface CustomerSpecification {
   id: string;
@@ -21,6 +22,10 @@ interface CustomerSpecification {
   customer_code: string;
   specification_name: string;
   file_path: string;
+  external_url?: string;
+  source_type?: string;
+  sync_status?: string;
+  parsed_metadata?: any;
   file_size: number;
   upload_date: string;
   version: number;
@@ -57,6 +62,10 @@ export default function SpecificationMaster() {
           customer_code,
           specification_name,
           file_path,
+          external_url,
+          source_type,
+          sync_status,
+          parsed_metadata,
           file_size,
           upload_date,
           version,
@@ -320,6 +329,9 @@ export default function SpecificationMaster() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Google Drive Scanner */}
+      <GoogleDriveSpecificationScanner />
+      
       {/* Statistics Cards */}
       <div className="grid grid-cols-4 gap-4">
         <Card>
