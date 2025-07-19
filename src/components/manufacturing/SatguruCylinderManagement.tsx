@@ -14,8 +14,8 @@ import { SatguruCylinder } from '@/types';
 
 export const SatguruCylinderManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [itemCodeFilter, setItemCodeFilter] = useState('');
-  const [colourFilter, setColourFilter] = useState('');
+  const [itemCodeFilter, setItemCodeFilter] = useState('all');
+  const [colourFilter, setColourFilter] = useState('all');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -33,11 +33,11 @@ export const SatguruCylinderManagement: React.FC = () => {
         query = query.or(`cylinder_code.ilike.%${searchTerm}%,cylinder_name.ilike.%${searchTerm}%,item_code.ilike.%${searchTerm}%`);
       }
 
-      if (itemCodeFilter) {
+      if (itemCodeFilter && itemCodeFilter !== 'all') {
         query = query.eq('item_code', itemCodeFilter);
       }
 
-      if (colourFilter) {
+      if (colourFilter && colourFilter !== 'all') {
         query = query.eq('colour', colourFilter);
       }
 
@@ -244,7 +244,7 @@ export const SatguruCylinderManagement: React.FC = () => {
                 <SelectValue placeholder="Filter by Item Code" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Item Codes</SelectItem>
+                <SelectItem value="all">All Item Codes</SelectItem>
                 {uniqueItemCodes.map((code) => (
                   <SelectItem key={code} value={code}>
                     {code}
@@ -257,7 +257,7 @@ export const SatguruCylinderManagement: React.FC = () => {
                 <SelectValue placeholder="Colour" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Colours</SelectItem>
+                <SelectItem value="all">All Colours</SelectItem>
                 {uniqueColours.map((colour) => (
                   <SelectItem key={colour} value={colour}>
                     {colour}
@@ -267,7 +267,7 @@ export const SatguruCylinderManagement: React.FC = () => {
             </Select>
             <Button 
               variant="outline" 
-              onClick={() => {setSearchTerm(""); setItemCodeFilter(""); setColourFilter("");}}
+              onClick={() => {setSearchTerm(""); setItemCodeFilter("all"); setColourFilter("all");}}
             >
               <Filter className="h-4 w-4 mr-2" />
               Clear

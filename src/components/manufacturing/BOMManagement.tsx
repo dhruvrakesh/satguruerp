@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,8 +51,8 @@ export const BOMManagement: React.FC = () => {
   const queryClient = useQueryClient();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFGItem, setSelectedFGItem] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [selectedFGItem, setSelectedFGItem] = useState('all');
+  const [selectedCustomer, setSelectedCustomer] = useState('all');
   const [newBOMItem, setNewBOMItem] = useState({
     fg_item_code: '',
     rm_item_code: '',
@@ -339,7 +338,7 @@ export const BOMManagement: React.FC = () => {
                             <SelectValue placeholder="All Customers" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All Customers</SelectItem>
+                            <SelectItem value="all">All Customers</SelectItem>
                             <SelectItem value="GCPL">GCPL</SelectItem>
                             <SelectItem value="RB">Reckitt Benckiser</SelectItem>
                             <SelectItem value="HUL">Hindustan Unilever</SelectItem>
@@ -424,7 +423,7 @@ export const BOMManagement: React.FC = () => {
                   <SelectValue placeholder="All FG Items" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All FG Items</SelectItem>
+                  <SelectItem value="all">All FG Items</SelectItem>
                   {finishedGoods?.map((item) => (
                     <SelectItem key={item.item_code} value={item.item_code}>
                       {item.item_code} - {item.item_name}
@@ -440,7 +439,7 @@ export const BOMManagement: React.FC = () => {
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Customers</SelectItem>
+                  <SelectItem value="all">All Customers</SelectItem>
                   <SelectItem value="GCPL">GCPL</SelectItem>
                   <SelectItem value="RB">Reckitt Benckiser</SelectItem>
                   <SelectItem value="HUL">Hindustan Unilever</SelectItem>
@@ -654,7 +653,7 @@ export const BOMManagement: React.FC = () => {
                   <SelectValue placeholder="Generic BOM (no customer)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Generic BOM</SelectItem>
+                  <SelectItem value="all">Generic BOM</SelectItem>
                   <SelectItem value="GCPL">GCPL</SelectItem>
                   <SelectItem value="RB">Reckitt Benckiser</SelectItem>
                   <SelectItem value="HUL">Hindustan Unilever</SelectItem>
