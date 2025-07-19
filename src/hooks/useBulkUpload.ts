@@ -1,7 +1,10 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { CategoryResolver } from "@/utils/categoryResolver";
+import { UsageTypeResolver } from "@/utils/usageTypeResolver";
 
 interface BulkUploadRow {
   item_name: string;
@@ -56,37 +59,6 @@ const transformUOM = (uom: string): string => {
   return uomMap[normalizedUom] || normalizedUom.toUpperCase();
 };
 
-const transformUsageType = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    'wrapper': 'RAW_MATERIAL',
-    'lamination': 'RAW_MATERIAL', 
-    'coating': 'RAW_MATERIAL',
-    'adhesive': 'RAW_MATERIAL',
-    'film': 'RAW_MATERIAL',
-    'paper': 'RAW_MATERIAL',
-    'ink': 'RAW_MATERIAL',
-    'solvent': 'RAW_MATERIAL',
-    'chemical': 'RAW_MATERIAL',
-    'packaging': 'PACKAGING',
-    'consumable': 'CONSUMABLE',
-    'finished': 'FINISHED_GOOD',
-    'wip': 'WIP',
-    'raw material': 'RAW_MATERIAL',
-    'raw_material': 'RAW_MATERIAL',
-    'finished_good': 'FINISHED_GOOD',
-    'finished good': 'FINISHED_GOOD',
-    'hot melt': 'RAW_MATERIAL',
-    'general': 'CONSUMABLE',
-    'consumables': 'CONSUMABLE',
-    'maintenance': 'CONSUMABLE',
-    'spares': 'CONSUMABLE',
-    'tooling': 'CONSUMABLE'
-  };
-  
-  const normalizedType = type.toLowerCase().trim();
-  return typeMap[normalizedType] || 'RAW_MATERIAL';
-};
-
 const parseGSM = (gsmValue: string): number | null => {
   if (!gsmValue || gsmValue.trim() === '') return null;
   
@@ -105,12 +77,7 @@ const validateUOM = (uom: string): boolean => {
   return validUOMs.includes(uom);
 };
 
-const validateUsageType = (type: string): boolean => {
-  const validTypes = ['RAW_MATERIAL', 'FINISHED_GOOD', 'WIP', 'PACKAGING', 'CONSUMABLE'];
-  return validTypes.includes(type);
-};
-
-const generateSuggestion = (originalValue: string, type: 'uom' | 'usage_type'): string => {
+const generateSuggestion = (originalValue: string, type: 'uom' | 'usage_type', categoryName?: string): string => {
   if (type === 'uom') {
     const commonMappings = {
       'nos': 'PCS', 'boxes': 'BOX', 'metre': 'MTR', 'pieces': 'PCS'
@@ -118,11 +85,7 @@ const generateSuggestion = (originalValue: string, type: 'uom' | 'usage_type'): 
     const suggestion = commonMappings[originalValue.toLowerCase()];
     return suggestion ? ` Did you mean '${suggestion}'?` : '';
   } else {
-    const commonMappings = {
-      'hot melt': 'RAW_MATERIAL', 'general': 'CONSUMABLE', 'consumables': 'CONSUMABLE'
-    };
-    const suggestion = commonMappings[originalValue.toLowerCase()];
-    return suggestion ? ` Mapped to: ${suggestion}` : '';
+    return UsageTypeResolver.getUsageTypeSuggestion(originalValue, categoryName);
   }
 };
 
@@ -154,16 +117,11 @@ export function useBulkUpload() {
         errors: []
       };
 
-      // Get existing categories from the correct table
-      const { data: categories } = await supabase
-        .from('categories')
-        .select('id, category_name');
+      // Initialize category resolver
+      const categoryResolver = new CategoryResolver();
+      await categoryResolver.initialize();
 
-      const categoryMap = new Map(
-        categories?.map(c => [c.category_name.toLowerCase(), c.id]) || []
-      );
-
-      console.log('📂 Found categories:', categories?.length || 0);
+      console.log('📂 Category resolver initialized');
 
       // Get existing item codes for smarter duplicate detection from satguru_item_master
       const { data: existingItems } = await supabase
@@ -204,11 +162,24 @@ export function useBulkUpload() {
             throw new Error(`Invalid UOM: ${rowData.uom}. Expected one of: PCS, KG, MTR, SQM, LTR, BOX, ROLL.${suggestion}`);
           }
 
-          // Transform and validate usage type
-          const transformedUsageType = transformUsageType(rowData.usage_type || 'raw material');
-          if (!validateUsageType(transformedUsageType)) {
-            const suggestion = generateSuggestion(rowData.usage_type || '', 'usage_type');
+          // Transform and validate usage type with category awareness
+          const transformedUsageType = UsageTypeResolver.transformUsageType(
+            rowData.usage_type || 'raw material', 
+            rowData.category_name
+          );
+          
+          if (!UsageTypeResolver.validateUsageType(transformedUsageType)) {
+            const suggestion = generateSuggestion(rowData.usage_type || '', 'usage_type', rowData.category_name);
             throw new Error(`Invalid usage type: ${rowData.usage_type}.${suggestion}`);
+          }
+
+          // Check for logical conflicts
+          const logicError = UsageTypeResolver.validateCategoryUsageTypeLogic(
+            rowData.category_name, 
+            transformedUsageType
+          );
+          if (logicError) {
+            console.warn(`⚠️ ${logicError}`);
           }
 
           // Parse GSM
@@ -223,25 +194,16 @@ export function useBulkUpload() {
             parsedGSM
           });
 
-          // Find or create category
-          let categoryId = categoryMap.get(rowData.category_name.toLowerCase());
+          // Find or create category with improved resolution
+          let categoryId = categoryResolver.resolveCategoryId(rowData.category_name);
           
           if (!categoryId) {
-            console.log('➕ Creating new category:', rowData.category_name);
-            // Auto-create category
-            const { data: newCategory, error: categoryError } = await supabase
-              .from('categories')
-              .insert([{ 
-                category_name: rowData.category_name,
-                description: `Auto-created during bulk upload`
-              }])
-              .select()
-              .single();
-
-            if (categoryError) throw new Error(`Failed to create category: ${categoryError.message}`);
+            console.log('❌ Category not found, attempting to create:', rowData.category_name);
+            categoryId = await categoryResolver.createMissingCategory(rowData.category_name);
             
-            categoryId = newCategory.id;
-            categoryMap.set(rowData.category_name.toLowerCase(), categoryId);
+            if (!categoryId) {
+              throw new Error(`Failed to resolve or create category: ${rowData.category_name}. Available categories: ${Object.keys(categoryResolver.getAllMappings()).slice(0, 5).join(', ')}...`);
+            }
           }
 
           // Generate item code using the correct function
