@@ -5916,6 +5916,7 @@ export type Database = {
           item_name: string
           qualifier: string | null
           size_mm: string | null
+          specifications: string | null
           status: string
           uom: string
           updated_at: string
@@ -5931,6 +5932,7 @@ export type Database = {
           item_name: string
           qualifier?: string | null
           size_mm?: string | null
+          specifications?: string | null
           status?: string
           uom?: string
           updated_at?: string
@@ -5946,6 +5948,7 @@ export type Database = {
           item_name?: string
           qualifier?: string | null
           size_mm?: string | null
+          specifications?: string | null
           status?: string
           uom?: string
           updated_at?: string
