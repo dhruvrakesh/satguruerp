@@ -40,10 +40,32 @@ export class CategoryResolver {
         this.categoryMap[normalizedName + 's'] = cat.id; // Add 's'
       }
       
-      // Handle common variations
+      // Handle common variations for flexible packaging
       if (normalizedName.includes('cylinder')) {
         this.categoryMap['cylinders'] = cat.id;
         this.categoryMap['cylinder'] = cat.id;
+        this.categoryMap['printing cylinder'] = cat.id;
+        this.categoryMap['gravure cylinder'] = cat.id;
+      }
+      
+      if (normalizedName.includes('raw material')) {
+        this.categoryMap['raw materials'] = cat.id;
+        this.categoryMap['raw material'] = cat.id;
+      }
+      
+      if (normalizedName.includes('finished good')) {
+        this.categoryMap['finished goods'] = cat.id;
+        this.categoryMap['finished good'] = cat.id;
+      }
+      
+      if (normalizedName.includes('consumable')) {
+        this.categoryMap['consumables'] = cat.id;
+        this.categoryMap['consumable'] = cat.id;
+      }
+      
+      if (normalizedName.includes('spare')) {
+        this.categoryMap['spares'] = cat.id;
+        this.categoryMap['spare'] = cat.id;
       }
       
       console.log(`🔗 Mapped category: "${cat.category_name}" -> ${cat.id}`);
@@ -85,8 +107,21 @@ export class CategoryResolver {
       return this.categoryMap[normalized];
     }
 
+    // Try fuzzy matching for flexible packaging terms
+    const fuzzyMatches = Object.keys(this.categoryMap).filter(key => {
+      const keyLower = key.toLowerCase();
+      const categoryLower = lowerCase;
+      return keyLower.includes(categoryLower) || categoryLower.includes(keyLower);
+    });
+
+    if (fuzzyMatches.length > 0) {
+      const bestMatch = fuzzyMatches[0];
+      console.log(`✅ Found fuzzy category match: "${trimmedCategory}" -> "${bestMatch}" -> ${this.categoryMap[bestMatch]}`);
+      return this.categoryMap[bestMatch];
+    }
+
     console.error(`❌ No category match found for: "${trimmedCategory}"`);
-    console.log('Available categories:', Object.keys(this.categoryMap).filter(k => typeof this.categoryMap[k] === 'string'));
+    console.log('Available categories:', Object.keys(this.categoryMap).filter(k => typeof this.categoryMap[k] === 'string').slice(0, 10));
     
     return null;
   }
@@ -99,16 +134,34 @@ export class CategoryResolver {
     return categoryNames.filter(name => !this.resolveCategoryId(name));
   }
 
-  // Helper method to auto-create missing categories
+  // Helper method to auto-create missing categories for flexible packaging
   async createMissingCategory(categoryName: string): Promise<string | null> {
     try {
       console.log(`📝 Auto-creating category: "${categoryName}"`);
+      
+      // Add description based on flexible packaging context
+      let description = `Auto-created during bulk upload`;
+      const lowerName = categoryName.toLowerCase();
+      
+      if (lowerName.includes('raw material')) {
+        description = 'Raw materials for flexible packaging manufacturing';
+      } else if (lowerName.includes('finished good')) {
+        description = 'Finished wrapper and packaging products';
+      } else if (lowerName.includes('cylinder')) {
+        description = 'Printing cylinders and production tools';
+      } else if (lowerName.includes('consumable')) {
+        description = 'General consumables and supplies';
+      } else if (lowerName.includes('spare')) {
+        description = 'Machine spare parts and maintenance items';
+      } else if (lowerName.includes('wip')) {
+        description = 'Work in progress items';
+      }
       
       const { data: newCategory, error } = await supabase
         .from('categories')
         .insert([{ 
           category_name: categoryName.trim(),
-          description: `Auto-created during bulk upload`
+          description: description
         }])
         .select()
         .single();
@@ -118,9 +171,10 @@ export class CategoryResolver {
         return null;
       }
 
-      // Add to local mapping
+      // Add to local mapping with variations
       this.categoryMap[categoryName] = newCategory.id;
       this.categoryMap[categoryName.toLowerCase()] = newCategory.id;
+      this.categoryMap[categoryName.toUpperCase()] = newCategory.id;
       
       console.log(`✅ Created new category: "${categoryName}" -> ${newCategory.id}`);
       return newCategory.id;

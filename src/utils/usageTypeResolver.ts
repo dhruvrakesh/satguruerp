@@ -1,27 +1,28 @@
 
-// Enhanced usage type resolution with category-aware logic for wrapper manufacturing
+// Enhanced usage type resolution with category-aware logic for flexible packaging manufacturing
 export class UsageTypeResolver {
   
-  // Define valid usage types
+  // Define valid usage types matching the database schema
   private static readonly VALID_USAGE_TYPES = [
     'RAW_MATERIAL',
     'FINISHED_GOOD', 
     'WIP',
     'PACKAGING',
-    'CONSUMABLE',
-    'EQUIPMENT',
-    'CYLINDER'
-  ];
+    'CONSUMABLE'
+  ] as const;
 
-  // Category-specific usage type mappings for wrapper manufacturing
-  private static readonly CATEGORY_USAGE_TYPE_MAP: Record<string, string> = {
-    // Cylinders should be CYLINDER or EQUIPMENT, not WRAPPER
-    'cylinder': 'CYLINDER',
-    'cylinders': 'CYLINDER',
-    'printing cylinder': 'CYLINDER',
-    'gravure cylinder': 'CYLINDER',
+  // Valid usage type type
+  type ValidUsageType = typeof UsageTypeResolver.VALID_USAGE_TYPES[number];
+
+  // Category-specific usage type mappings for flexible packaging manufacturing
+  private static readonly CATEGORY_USAGE_TYPE_MAP: Record<string, ValidUsageType> = {
+    // Cylinders are production tools/equipment - classify as CONSUMABLE
+    'cylinder': 'CONSUMABLE',
+    'cylinders': 'CONSUMABLE',
+    'printing cylinder': 'CONSUMABLE',
+    'gravure cylinder': 'CONSUMABLE',
     
-    // Raw materials for wrapper manufacturing
+    // Raw materials for flexible packaging manufacturing
     'raw materials': 'RAW_MATERIAL',
     'raw material': 'RAW_MATERIAL',
     'chemicals': 'RAW_MATERIAL',
@@ -46,6 +47,7 @@ export class UsageTypeResolver {
     'laminates': 'RAW_MATERIAL',
     'stiffener': 'RAW_MATERIAL',
     'stiffeners': 'RAW_MATERIAL',
+    'lamination': 'RAW_MATERIAL',
     
     // Finished goods - wrapper products
     'wrapper': 'FINISHED_GOOD', // Context-dependent - will be refined below
@@ -65,7 +67,7 @@ export class UsageTypeResolver {
     'carton': 'PACKAGING',
     'cartons': 'PACKAGING',
     
-    // Consumables and spares
+    // Consumables and spares (both map to CONSUMABLE)
     'consumable': 'CONSUMABLE',
     'consumables': 'CONSUMABLE',
     'spares': 'CONSUMABLE',
@@ -77,7 +79,7 @@ export class UsageTypeResolver {
     'work in progress': 'WIP'
   };
 
-  // Pattern-based recognition for wrapper manufacturing
+  // Pattern-based recognition for flexible packaging manufacturing
   private static readonly ITEM_PATTERNS = {
     // Raw material patterns
     raw_material: [
@@ -86,24 +88,28 @@ export class UsageTypeResolver {
       /_laminate$/i,
       /^(ink|solvent|adhesive|chemical)_/i,
       /hotmelt/i,
-      /stiffener/i
+      /stiffener/i,
+      /lamination/i
     ],
     // Finished goods patterns
     finished_good: [
       /wrapper$/i,
       /^(soap|food|snack)_wrapper/i,
       /flowrap/i,
-      /^finished_/i
+      /^finished_/i,
+      /^final_/i
     ],
-    // Cylinder patterns
-    cylinder: [
+    // Consumable patterns (including cylinders)
+    consumable: [
       /^cylinder_/i,
-      /(printing|gravure)_cylinder/i
+      /(printing|gravure)_cylinder/i,
+      /^spare_/i,
+      /maintenance/i
     ]
   };
 
-  // Transform usage type with enhanced wrapper manufacturing logic
-  static transformUsageType(usageType: string, categoryName?: string, itemName?: string): string {
+  // Transform usage type with enhanced flexible packaging logic
+  static transformUsageType(usageType: string, categoryName?: string, itemName?: string): ValidUsageType {
     if (!usageType || typeof usageType !== 'string') {
       console.warn('⚠️ Invalid usage type provided:', usageType);
       return this.getDefaultUsageTypeForCategory(categoryName, itemName);
@@ -122,7 +128,7 @@ export class UsageTypeResolver {
       }
     }
 
-    // Then check item name patterns for wrapper manufacturing
+    // Then check item name patterns for flexible packaging manufacturing
     if (normalizedItemName) {
       const patternBasedUsageType = this.getPatternBasedUsageType(normalizedItemName);
       if (patternBasedUsageType) {
@@ -131,8 +137,8 @@ export class UsageTypeResolver {
       }
     }
 
-    // Finally, map the provided usage type with wrapper manufacturing context
-    const mappedUsageType = this.mapUsageTypeForWrapperManufacturing(normalizedUsageType, normalizedCategory, normalizedItemName);
+    // Finally, map the provided usage type with flexible packaging context
+    const mappedUsageType = this.mapUsageTypeForFlexiblePackaging(normalizedUsageType, normalizedCategory, normalizedItemName);
     
     if (mappedUsageType !== normalizedUsageType.toUpperCase()) {
       console.log(`🔄 Usage type corrected: "${usageType}" -> "${mappedUsageType}"`);
@@ -142,7 +148,7 @@ export class UsageTypeResolver {
   }
 
   // Get category-based usage type
-  private static getCategoryBasedUsageType(categoryName: string): string | null {
+  private static getCategoryBasedUsageType(categoryName: string): ValidUsageType | null {
     for (const [key, value] of Object.entries(this.CATEGORY_USAGE_TYPE_MAP)) {
       if (categoryName.includes(key) || key.includes(categoryName)) {
         return value;
@@ -151,8 +157,8 @@ export class UsageTypeResolver {
     return null;
   }
 
-  // Get pattern-based usage type for wrapper manufacturing
-  private static getPatternBasedUsageType(itemName: string): string | null {
+  // Get pattern-based usage type for flexible packaging manufacturing
+  private static getPatternBasedUsageType(itemName: string): ValidUsageType | null {
     // Check raw material patterns
     for (const pattern of this.ITEM_PATTERNS.raw_material) {
       if (pattern.test(itemName)) {
@@ -167,20 +173,20 @@ export class UsageTypeResolver {
       }
     }
 
-    // Check cylinder patterns
-    for (const pattern of this.ITEM_PATTERNS.cylinder) {
+    // Check consumable patterns (including cylinders)
+    for (const pattern of this.ITEM_PATTERNS.consumable) {
       if (pattern.test(itemName)) {
-        return 'CYLINDER';
+        return 'CONSUMABLE';
       }
     }
 
     return null;
   }
 
-  // Enhanced usage type mapping for wrapper manufacturing
-  private static mapUsageTypeForWrapperManufacturing(usageType: string, categoryName?: string, itemName?: string): string {
-    const typeMap: Record<string, string> = {
-      // Wrapper manufacturing specific mappings
+  // Enhanced usage type mapping for flexible packaging manufacturing
+  private static mapUsageTypeForFlexiblePackaging(usageType: string, categoryName?: string, itemName?: string): ValidUsageType {
+    const typeMap: Record<string, ValidUsageType> = {
+      // Flexible packaging specific mappings
       'wrapper': this.determineWrapperUsageType(categoryName, itemName),
       'wrappers': this.determineWrapperUsageType(categoryName, itemName),
       'lamination': 'RAW_MATERIAL',
@@ -204,7 +210,6 @@ export class UsageTypeResolver {
       'solvents': 'RAW_MATERIAL',
       'chemical': 'RAW_MATERIAL',
       'chemicals': 'RAW_MATERIAL',
-      'hot melt': 'RAW_MATERIAL',
       'hotmelt': 'RAW_MATERIAL',
       
       // Finished goods
@@ -225,7 +230,7 @@ export class UsageTypeResolver {
       'carton': 'PACKAGING',
       'cartons': 'PACKAGING',
       
-      // Consumables
+      // Consumables (including cylinders and spares)
       'consumable': 'CONSUMABLE',
       'consumables': 'CONSUMABLE',
       'general': 'CONSUMABLE',
@@ -233,34 +238,33 @@ export class UsageTypeResolver {
       'spares': 'CONSUMABLE',
       'spare': 'CONSUMABLE',
       'tooling': 'CONSUMABLE',
-      
-      // Equipment/Cylinders
-      'equipment': 'EQUIPMENT',
-      'machinery': 'EQUIPMENT',
-      'machine': 'EQUIPMENT',
-      'cylinder': 'CYLINDER',
-      'cylinders': 'CYLINDER',
-      'printing cylinder': 'CYLINDER',
-      'gravure cylinder': 'CYLINDER'
+      'equipment': 'CONSUMABLE',
+      'machinery': 'CONSUMABLE',
+      'machine': 'CONSUMABLE',
+      'cylinder': 'CONSUMABLE',
+      'cylinders': 'CONSUMABLE',
+      'printing cylinder': 'CONSUMABLE',
+      'gravure cylinder': 'CONSUMABLE'
     };
     
     return typeMap[usageType] || 'RAW_MATERIAL';
   }
 
-  // Determine wrapper usage type based on context
-  private static determineWrapperUsageType(categoryName?: string, itemName?: string): string {
+  // Determine wrapper usage type based on context for flexible packaging
+  private static determineWrapperUsageType(categoryName?: string, itemName?: string): ValidUsageType {
     if (!categoryName && !itemName) return 'FINISHED_GOOD'; // Default for wrapper
     
     const category = categoryName?.toLowerCase() || '';
     const item = itemName?.toLowerCase() || '';
     
-    // If category suggests raw material or item suggests raw material film
+    // If category or item suggests raw material film
     if (category.includes('raw') || category.includes('film') || 
-        item.includes('bopp') || item.includes('ldpe') || item.includes('film')) {
+        item.includes('bopp') || item.includes('ldpe') || item.includes('film') ||
+        item.includes('laminate') || item.includes('stiffener')) {
       return 'RAW_MATERIAL';
     }
     
-    // If category suggests finished goods or item suggests finished product
+    // If category or item suggests finished product
     if (category.includes('finished') || category.includes('final') ||
         item.includes('soap') || item.includes('flowrap') || item.includes('ready')) {
       return 'FINISHED_GOOD';
@@ -270,8 +274,8 @@ export class UsageTypeResolver {
     return 'FINISHED_GOOD';
   }
 
-  // Get default usage type for category with wrapper manufacturing context
-  private static getDefaultUsageTypeForCategory(categoryName?: string, itemName?: string): string {
+  // Get default usage type for category with flexible packaging context
+  private static getDefaultUsageTypeForCategory(categoryName?: string, itemName?: string): ValidUsageType {
     if (!categoryName && !itemName) return 'RAW_MATERIAL';
     
     const normalizedCategory = categoryName?.toLowerCase().trim();
@@ -294,10 +298,10 @@ export class UsageTypeResolver {
 
   // Validate usage type
   static validateUsageType(usageType: string): boolean {
-    return this.VALID_USAGE_TYPES.includes(usageType);
+    return this.VALID_USAGE_TYPES.includes(usageType as ValidUsageType);
   }
 
-  // Get validation suggestion with wrapper manufacturing context
+  // Get validation suggestion with flexible packaging context
   static getUsageTypeSuggestion(originalValue: string, categoryName?: string, itemName?: string): string {
     const corrected = this.transformUsageType(originalValue, categoryName, itemName);
     if (corrected !== originalValue.toUpperCase()) {
@@ -306,14 +310,14 @@ export class UsageTypeResolver {
     return '';
   }
 
-  // Enhanced logical validation for wrapper manufacturing
+  // Enhanced logical validation for flexible packaging manufacturing
   static validateCategoryUsageTypeLogic(categoryName: string, usageType: string, itemName?: string): string | null {
     const normalizedCategory = categoryName.toLowerCase().trim();
     const normalizedItem = itemName?.toLowerCase().trim() || '';
     
-    // Wrapper manufacturing specific validations
-    if (normalizedCategory.includes('cylinder') && usageType !== 'CYLINDER') {
-      return `Logical conflict: Cylinder items should have usage type "CYLINDER", not "${usageType}"`;
+    // Flexible packaging specific validations
+    if (normalizedCategory.includes('cylinder') && usageType !== 'CONSUMABLE') {
+      return `Logical conflict: Cylinder items should have usage type "CONSUMABLE" (production tools), not "${usageType}"`;
     }
     
     if (normalizedCategory.includes('raw') && usageType === 'FINISHED_GOOD' && !normalizedItem.includes('ready')) {
@@ -329,6 +333,10 @@ export class UsageTypeResolver {
       return `Logical conflict: Film materials should typically be "RAW_MATERIAL", not "${usageType}"`;
     }
     
+    if (normalizedCategory.includes('spare') && usageType !== 'CONSUMABLE') {
+      return `Logical conflict: Spare parts should be "CONSUMABLE", not "${usageType}"`;
+    }
+    
     return null;
   }
 
@@ -337,13 +345,12 @@ export class UsageTypeResolver {
     return [...this.VALID_USAGE_TYPES];
   }
 
-  // Get wrapper manufacturing guidance
-  static getWrapperManufacturingGuidance(): Record<string, string> {
+  // Get flexible packaging manufacturing guidance
+  static getFlexiblePackagingGuidance(): Record<string, string> {
     return {
-      'Raw Materials': 'Films (BOPP, LDPE, PET), Inks, Solvents, Adhesives, Hot Melts, Stiffeners',
+      'Raw Materials': 'Films (BOPP, LDPE, PET), Inks, Solvents, Adhesives, Hot Melts, Stiffeners, Lamination materials',
       'Finished Goods': 'Soap Wrappers, Flow Wraps, Finished Wrapper Products',
-      'Cylinders': 'Printing Cylinders, Gravure Cylinders',
-      'Consumables': 'Spare Parts, Maintenance Items, General Consumables',
+      'Consumables': 'Printing Cylinders, Gravure Cylinders, Spare Parts, Maintenance Items, General Consumables',
       'WIP': 'Semi-finished wrapper products in production',
       'Packaging': 'Boxes, Cartons for shipping finished wrappers'
     };
