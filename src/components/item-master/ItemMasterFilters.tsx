@@ -10,22 +10,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Filter, X } from "lucide-react";
 
 interface ItemMasterFiltersProps {
-  filters: any;
+  filters: {
+    search: string;
+    category_id: string;
+    status: string;
+    uom: string;
+    usage_type: string;
+  };
   onFiltersChange: (filters: any) => void;
 }
 
 export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFiltersProps) {
-  const [localFilters, setLocalFilters] = useState({
-    search: '',
-    category_id: 'all',
-    status: 'all',
-    uom: 'all',
-    usage_type: 'all'
-  });
+  const [localFilters, setLocalFilters] = useState(filters);
 
   const { data: categories } = useCategories();
   const { usageTypes, uomOptions, statusOptions } = useFilterOptions();
 
+  // Sync with external filters prop changes
+  useEffect(() => {
+    setLocalFilters(filters);
+  }, [filters]);
+
+  // Debounced filter application
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       console.log('Applying debounced search:', localFilters.search);
@@ -33,7 +39,7 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [localFilters, onFiltersChange]);
+  }, [localFilters]);
 
   const handleFilterChange = (key: string, value: string) => {
     setLocalFilters(prev => ({
@@ -43,13 +49,14 @@ export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFilter
   };
 
   const clearFilters = () => {
-    setLocalFilters({
+    const clearedFilters = {
       search: '',
       category_id: 'all',
       status: 'all',
       uom: 'all',
       usage_type: 'all'
-    });
+    };
+    setLocalFilters(clearedFilters);
   };
 
   return (

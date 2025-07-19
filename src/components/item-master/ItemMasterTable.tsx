@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useItemMaster, useItemMasterMutations } from "@/hooks/useItemMaster";
 import { ItemMasterFilters } from "./ItemMasterFilters";
 import { ItemMasterForm } from "./ItemMasterForm";
@@ -26,7 +26,13 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState({
+    search: '',
+    category_id: 'all',
+    status: 'all',
+    uom: 'all',
+    usage_type: 'all'
+  });
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -39,6 +45,12 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
   });
 
   const { deleteItem, deleteMultipleItems } = useItemMasterMutations();
+
+  // Memoize the filters change handler to prevent infinite re-renders
+  const handleFiltersChange = useCallback((newFilters: any) => {
+    setFilters(newFilters);
+    setPage(1); // Reset to first page when filters change
+  }, []);
 
   const handleDelete = (id: string) => {
     setItemToDelete(id);
@@ -172,7 +184,7 @@ export function ItemMasterTable({ onBulkUpload }: ItemMasterTableProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ItemMasterFilters filters={{}} onFiltersChange={setFilters} />
+          <ItemMasterFilters filters={filters} onFiltersChange={handleFiltersChange} />
           
           <div className="rounded-md border mt-6">
             <Table>
