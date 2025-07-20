@@ -1,92 +1,119 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Scissors, Package, Ruler, Package2, CheckCircle, Truck, Settings, Play } from "lucide-react";
+import { Scissors, Package2, Gauge, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
-import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
+import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
+import { useArtworkByUiorn } from "@/hooks/useArtworkData";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SlittingPackaging() {
-  const [slittingLogs, setSlittingLogs] = useState([]);
-  const [dispatchLogs, setDispatchLogs] = useState([]);
-  const [activeJobs, setActiveJobs] = useState([]);
+  const [processLogs, setProcessLogs] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [slittingParams, setSlittingParams] = useState({
+    slitWidth: '',
+    slitCount: '',
+    coreSize: '',
+    tension: '',
+    speed: ''
+  });
   
   const { data: orders = [] } = useManufacturingOrders({
     status: "IN_PROGRESS"
   });
+  
+  const { data: slittingParameters = [] } = useProcessParameters("SLITTING");
+  const { data: slittingAlerts = [] } = useProcessQualityAlerts("SLITTING");
+
+  // Use the enhanced artwork hook for selected order
+  const { data: artworkData, isLoading: isLoadingArtwork } = useArtworkByUiorn(
+    selectedOrder?.uiorn || ""
+  );
 
   useEffect(() => {
-    // Fetch slitting and dispatch process logs
+    // Fetch slitting process logs
     const fetchProcessData = async () => {
-      const { data: slitLogs } = await supabase
+      const { data: logs } = await supabase
         .from('process_logs_se')
         .select('*')
         .eq('stage', 'SLITTING')
         .order('captured_at', { ascending: false })
         .limit(15);
         
-      const { data: dispLogs } = await supabase
-        .from('process_logs_se')
-        .select('*')
-        .eq('stage', 'DISPATCH')
-        .order('captured_at', { ascending: false })
-        .limit(15);
-        
-      setSlittingLogs(slitLogs || []);
-      setDispatchLogs(dispLogs || []);
+      setProcessLogs(logs || []);
     };
 
     fetchProcessData();
   }, []);
 
-  // Mock active slitting and packaging jobs
-  const mockActiveJobs = [
+  // Mock active processes data
+  const mockActiveProcesses = [
     {
       id: 1,
-      uiorn: "250718005",
-      customer: "QuickPack Solutions",
-      process: "SLITTING",
-      width: "1200mm → 300mm",
-      rolls: 4,
-      speed: "150 m/min",
-      blade_life: "85%",
+      uiorn: "250718001",
+      customer: "ABC Packaging Ltd",
+      substrate: "Laminated Film",
+      slitWidth: "250mm",
+      slitCount: 4,
+      coreSize: "76mm",
+      tension: "150N",
+      speed: "300 m/min",
       status: "RUNNING",
-      progress: 75,
-      operator: "Deepak Kumar"
+      progress: 65,
+      operator: "Ramesh Patel"
     },
     {
       id: 2,
-      uiorn: "250718006",
-      customer: "FlexiWrap Corp",
-      process: "PACKAGING",
-      rolls_packed: 12,
-      target_rolls: 20,
-      boxes: 3,
-      weight: "240 kg",
-      status: "PACKING",
-      progress: 60,
-      operator: "Sunita Devi"
+      uiorn: "250718003",
+      customer: "XYZ Foods Pvt Ltd",
+      substrate: "Coated Film",
+      slitWidth: "200mm",
+      slitCount: 6,
+      coreSize: "76mm",
+      tension: "120N",
+      speed: "250 m/min",
+      status: "SETUP",
+      progress: 15,
+      operator: "Prakash Singh"
     }
   ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'RUNNING': return 'text-green-600 bg-green-50 border-green-200';
-      case 'PACKING': return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'SETUP': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'COMPLETED': return 'text-purple-600 bg-purple-50 border-purple-200';
+      case 'PAUSED': return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'MAINTENANCE': return 'text-red-600 bg-red-50 border-red-200';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
 
-  const getProcessColor = (process: string) => {
-    return process === 'SLITTING' ? 'text-orange-600 bg-orange-50' : 'text-blue-600 bg-blue-50';
+  const applyRecommendations = (parameters: any[]) => {
+    const paramMap = new Map(parameters.map(p => [p.metric, p.recommended_value]));
+    
+    setSlittingParams({
+      slitWidth: paramMap.get('slit_width_mm')?.toFixed(0) || '',
+      slitCount: paramMap.get('slit_count')?.toFixed(0) || '',
+      coreSize: paramMap.get('core_size_mm')?.toFixed(0) || '',
+      tension: paramMap.get('tension_n')?.toFixed(0) || '',
+      speed: paramMap.get('line_speed_mpm')?.toFixed(0) || ''
+    });
+  };
+
+  const handleParametersApplied = (parameters: any) => {
+    setSlittingParams({
+      slitWidth: parameters.slit_width_mm?.toString() || '',
+      slitCount: parameters.slit_count?.toString() || '',
+      coreSize: parameters.core_size_mm?.toString() || '76',
+      tension: parameters.tension_n?.toString() || '',
+      speed: parameters.line_speed_mpm?.toString() || ''
+    });
   };
 
   return (
@@ -97,16 +124,16 @@ export default function SlittingPackaging() {
             <Scissors className="w-8 h-8 text-primary" />
             Slitting & Packaging
           </h1>
-          <p className="text-muted-foreground">Final processing, cutting to size, and dispatch preparation</p>
+          <p className="text-muted-foreground">Precision slitting and final packaging with integrated material flow</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
             <Play className="h-4 w-4 mr-2" />
-            Start Job
+            Start Slitting
           </Button>
           <Button variant="outline">
             <Settings className="h-4 w-4 mr-2" />
-            Setup
+            Machine Setup
           </Button>
         </div>
       </div>
@@ -115,73 +142,111 @@ export default function SlittingPackaging() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Slitting Jobs</CardTitle>
             <Scissors className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockActiveJobs.filter(j => j.status === 'RUNNING' || j.status === 'PACKING').length}</div>
+            <div className="text-2xl font-bold">{mockActiveProcesses.filter(p => p.status === 'RUNNING').length}</div>
             <p className="text-xs text-muted-foreground">
-              Currently processing
+              Currently running
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Slitting Records</CardTitle>
-            <Ruler className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Material Flow</CardTitle>
+            <Package2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{slittingLogs.length}</div>
+            <div className="text-2xl font-bold text-green-600">Active</div>
             <p className="text-xs text-muted-foreground">
-              Historical records
+              Continuous tracking
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dispatch Records</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Slitting Precision</CardTitle>
+            <Gauge className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dispatchLogs.length}</div>
+            <div className="text-2xl font-bold text-green-600">±0.1mm</div>
             <p className="text-xs text-muted-foreground">
-              Historical records
+              Width tolerance
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready for Dispatch</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Quality Alerts</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{slittingAlerts.length}</div>
             <p className="text-xs text-muted-foreground">
-              Completed orders
+              AI-detected issues
             </p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="material-flow" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
-          <TabsTrigger value="active">Active Jobs</TabsTrigger>
-          <TabsTrigger value="slitting">Slitting Setup</TabsTrigger>
-          <TabsTrigger value="packaging">Packaging Setup</TabsTrigger>
-          <TabsTrigger value="dispatch">Dispatch Queue</TabsTrigger>
-          <TabsTrigger value="history">Process History</TabsTrigger>
+          <TabsTrigger value="slitting">Slitting Control</TabsTrigger>
+          <TabsTrigger value="packaging">Packaging</TabsTrigger>
+          <TabsTrigger value="monitoring">Real-time Monitor</TabsTrigger>
+          <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
         </TabsList>
 
         <TabsContent value="material-flow" className="space-y-6">
+          {selectedOrder ? (
+            <ProcessMaterialFlow
+              uiorn={selectedOrder.uiorn}
+              currentProcess="SLITTING"
+              previousProcess="ADHESIVE_COATING"
+              artworkData={artworkData}
+              onFlowUpdate={(flowData) => {
+                console.log('Material flow updated:', flowData);
+              }}
+            />
+          ) : (
+            <Card>
+              <CardContent className="text-center p-8">
+                <Package2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Select Order for Material Flow</h3>
+                <p className="text-muted-foreground mb-4">
+                  Choose an order below to track material flow through slitting and packaging
+                </p>
+                <div className="grid gap-3 max-w-md mx-auto">
+                  {orders.slice(0, 3).map((order) => (
+                    <Button
+                      key={order.uiorn}
+                      variant="outline"
+                      className="justify-start"
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="text-left">
+                        <div className="font-medium">{order.uiorn}</div>
+                        <div className="text-sm text-muted-foreground">{order.customer_name}</div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="slitting" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Available Orders</CardTitle>
-                <CardDescription>Select an order to start material flow tracking</CardDescription>
+                <CardDescription>Select an order to start slitting process</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -195,7 +260,10 @@ export default function SlittingPackaging() {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{order.customer_name}</h4>
+                          <h4 className="font-medium">
+                            {selectedOrder?.uiorn === order.uiorn && artworkData?.customer_name ? 
+                              artworkData.customer_name : order.customer_name}
+                          </h4>
                           <p className="text-sm text-muted-foreground">
                             {order.product_description}
                           </p>
@@ -206,6 +274,9 @@ export default function SlittingPackaging() {
                             >
                               {order.priority_level}
                             </Badge>
+                            {selectedOrder?.uiorn === order.uiorn && isLoadingArtwork && (
+                              <Badge variant="secondary">Loading artwork...</Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -225,108 +296,136 @@ export default function SlittingPackaging() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Process Material Flow</CardTitle>
-                <CardDescription>
-                  Integrated material flow tracking for Slitting & Packaging processes
-                </CardDescription>
+                <CardTitle>Slitting Parameters</CardTitle>
+                <CardDescription>Configure slitting parameters for precision cutting</CardDescription>
               </CardHeader>
               <CardContent>
-                {selectedOrder ? (
-                  <ProcessMaterialFlow
-                    uiorn={selectedOrder.uiorn}
-                    currentProcess="SLITTING"
-                    nextProcess="PACKAGING"
-                    previousProcess="ADHESIVE_COATING"
-                    onFlowUpdate={(flowData) => {
-                      console.log('Slitting material flow updated:', flowData);
-                    }}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Select an order to begin material flow tracking
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Slit Width (mm)</label>
+                      <Input 
+                        value={slittingParams.slitWidth}
+                        onChange={(e) => setSlittingParams({...slittingParams, slitWidth: e.target.value})}
+                        placeholder="250"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Number of Slits</label>
+                      <Input 
+                        value={slittingParams.slitCount}
+                        onChange={(e) => setSlittingParams({...slittingParams, slitCount: e.target.value})}
+                        placeholder="4"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Core Size (mm)</label>
+                      <Input 
+                        value={slittingParams.coreSize}
+                        onChange={(e) => setSlittingParams({...slittingParams, coreSize: e.target.value})}
+                        placeholder="76"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Tension (N)</label>
+                      <Input 
+                        value={slittingParams.tension}
+                        onChange={(e) => setSlittingParams({...slittingParams, tension: e.target.value})}
+                        placeholder="150"
+                      />
+                    </div>
                   </div>
-                )}
+                  <div>
+                    <label className="text-sm font-medium">Line Speed (m/min)</label>
+                    <Input 
+                      value={slittingParams.speed}
+                      onChange={(e) => setSlittingParams({...slittingParams, speed: e.target.value})}
+                      placeholder="300"
+                    />
+                  </div>
+                  <Button className="w-full">Apply Parameters & Start Slitting</Button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        <TabsContent value="active">
+        <TabsContent value="packaging" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Active Slitting & Packaging Operations</CardTitle>
+              <CardTitle>Packaging Operations</CardTitle>
+              <CardDescription>Final packaging and quality inspection</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center p-8 text-muted-foreground">
+                <Package2 className="h-12 w-12 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Packaging Module</h3>
+                <p>Packaging operations will be integrated here with quality checkpoints and final inspection.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="monitoring">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Slitting Operations</CardTitle>
               <CardDescription>
-                Real-time monitoring of final processing operations
+                Real-time monitoring of slitting machines
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockActiveJobs.map((job) => (
-                  <div key={job.id} className="p-4 border rounded-lg">
+                {mockActiveProcesses.map((process) => (
+                  <div key={process.id} className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-4">
                         <div>
-                          <h3 className="font-semibold">{job.uiorn}</h3>
-                          <p className="text-sm text-muted-foreground">{job.customer}</p>
+                          <h3 className="font-semibold">{process.uiorn}</h3>
+                          <p className="text-sm text-muted-foreground">{process.customer}</p>
                         </div>
-                        <Badge className={getProcessColor(job.process)}>
-                          {job.process}
-                        </Badge>
-                        <Badge className={getStatusColor(job.status)}>
-                          {job.status}
+                        <Badge className={getStatusColor(process.status)}>
+                          {process.status}
                         </Badge>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">{job.progress}% Complete</p>
-                        <p className="text-xs text-muted-foreground">Operator: {job.operator}</p>
+                        <p className="text-sm font-medium">{process.progress}% Complete</p>
+                        <p className="text-xs text-muted-foreground">Operator: {process.operator}</p>
                       </div>
                     </div>
                     
-                    {job.process === 'SLITTING' ? (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Width Cut</p>
-                          <p className="font-medium">{job.width}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Rolls Output</p>
-                          <p className="font-medium">{job.rolls} rolls</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Speed</p>
-                          <p className="font-medium">{job.speed}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Blade Life</p>
-                          <p className="font-medium">{job.blade_life}</p>
-                        </div>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Substrate</p>
+                        <p className="font-medium">{process.substrate}</p>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Rolls Packed</p>
-                          <p className="font-medium">{job.rolls_packed}/{job.target_rolls}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Boxes</p>
-                          <p className="font-medium">{job.boxes} completed</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Total Weight</p>
-                          <p className="font-medium">{job.weight}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Status</p>
-                          <p className="font-medium">Packaging</p>
-                        </div>
+                      <div>
+                        <p className="text-muted-foreground">Slit Width</p>
+                        <p className="font-medium">{process.slitWidth}</p>
                       </div>
-                    )}
+                      <div>
+                        <p className="text-muted-foreground">Slits</p>
+                        <p className="font-medium">{process.slitCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Core Size</p>
+                        <p className="font-medium">{process.coreSize}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Tension</p>
+                        <p className="font-medium">{process.tension}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Speed</p>
+                        <p className="font-medium">{process.speed}</p>
+                      </div>
+                    </div>
                     
                     <div className="mt-3">
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className="bg-orange-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${job.progress}%` }}
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${process.progress}%` }}
                         />
                       </div>
                     </div>
@@ -337,189 +436,11 @@ export default function SlittingPackaging() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="slitting">
-          <Card>
-            <CardHeader>
-              <CardTitle>Slitting Configuration</CardTitle>
-              <CardDescription>Set cutting parameters and roll specifications</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Parent Roll Width (mm)</label>
-                  <Input type="number" placeholder="1200" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Cut Width (mm)</label>
-                  <Input type="number" placeholder="300" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Number of Rolls</label>
-                  <Input type="number" placeholder="4" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Slitting Speed (m/min)</label>
-                  <Input type="number" placeholder="150" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Core Size (inches)</label>
-                  <Input type="number" placeholder="3" />
-                </div>
-                {selectedOrder && (
-                  <ProcessMaterialFlow
-                    uiorn={selectedOrder.uiorn}
-                    currentProcess="SLITTING"
-                    nextProcess="PACKAGING"
-                    previousProcess="ADHESIVE_COATING"
-                    onFlowUpdate={(flowData) => {
-                      console.log('Slitting setup flow updated:', flowData);
-                    }}
-                  />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="packaging">
-          <Card>
-            <CardHeader>
-              <CardTitle>Packaging Configuration</CardTitle>
-              <CardDescription>Set packaging and labeling requirements</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Rolls per Box</label>
-                  <Input type="number" placeholder="4" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Box Type</label>
-                  <Input placeholder="Corrugated" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Label Format</label>
-                  <Input placeholder="Customer + Specs" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Pallet Configuration</label>
-                  <Input placeholder="20 boxes per pallet" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Special Instructions</label>
-                  <Input placeholder="Handle with care" />
-                </div>
-                {selectedOrder && (
-                  <ProcessMaterialFlow
-                    uiorn={selectedOrder.uiorn}
-                    currentProcess="PACKAGING"
-                    nextProcess="DISPATCH"
-                    previousProcess="SLITTING"
-                    onFlowUpdate={(flowData) => {
-                      console.log('Packaging flow updated:', flowData);
-                    }}
-                  />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="dispatch">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dispatch Queue</CardTitle>
-              <CardDescription>
-                Orders ready for shipment and delivery tracking
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      <div>
-                        <h3 className="font-semibold">25071800{i}</h3>
-                        <p className="text-sm text-muted-foreground">Customer ABC {i}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{20 + i * 5} rolls</p>
-                        <p className="text-xs text-muted-foreground">{150 + i * 50} kg total</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge className="text-green-600 bg-green-50 border-green-200">
-                        READY
-                      </Badge>
-                      <Button size="sm">
-                        <Truck className="w-4 h-4 mr-2" />
-                        Dispatch
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Slitting History</CardTitle>
-                <CardDescription>{slittingLogs.length} records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {slittingLogs.slice(0, 8).map((log: any) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Scissors className="w-4 h-4 text-orange-500" />
-                        <div>
-                          <h4 className="font-medium text-sm">{log.uiorn}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {log.metric}: {log.value || log.txt_value}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {log.captured_at && format(new Date(log.captured_at), 'MMM dd, HH:mm')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Dispatch History</CardTitle>
-                <CardDescription>{dispatchLogs.length} records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {dispatchLogs.slice(0, 8).map((log: any) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Truck className="w-4 h-4 text-blue-500" />
-                        <div>
-                          <h4 className="font-medium text-sm">{log.uiorn}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {log.metric}: {log.value || log.txt_value}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {log.received_at && format(new Date(log.received_at), 'MMM dd, HH:mm')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="intelligence">
+          <ProcessIntelligencePanel 
+            stage="SLITTING"
+            onApplyRecommendations={applyRecommendations}
+          />
         </TabsContent>
       </Tabs>
     </div>

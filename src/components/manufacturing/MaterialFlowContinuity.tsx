@@ -64,7 +64,7 @@ export function MaterialFlowContinuity({
         .from('material_flow_tracking')
         .select('*')
         .eq('uiorn', uiorn)
-        .eq('process_stage', previousProcess)
+        .eq('process_stage', previousProcess as any)
         .gt('output_good_quantity', 0)
         .order('recorded_at', { ascending: false });
       
@@ -96,14 +96,14 @@ export function MaterialFlowContinuity({
     if (materialFlowData && existingTransfers) {
       const transferredMaterialIds = existingTransfers
         .filter(t => t.transfer_status === 'RECEIVED')
-        .map(t => t.source_record_id);
+        .map(t => t.id); // Use transfer id instead of source_record_id
 
       const available = materialFlowData
         .filter(record => !transferredMaterialIds.includes(record.id))
         .map(record => ({
           id: record.id,
           fromProcess: record.process_stage,
-          materialType: record.material_type || 'SUBSTRATE',
+          materialType: record.input_material_type || 'SUBSTRATE', // Use input_material_type
           quantity: record.output_good_quantity,
           qualityGrade: record.quality_grade || 'A',
           recordedAt: record.recorded_at,
@@ -132,7 +132,7 @@ export function MaterialFlowContinuity({
             quality_grade: material.qualityGrade,
             transfer_status: 'SENT',
             sent_at: new Date().toISOString(),
-            source_record_id: material.id
+            unit_of_measure: 'KG'
           })
           .select()
           .single();
@@ -176,7 +176,7 @@ export function MaterialFlowContinuity({
         .update({
           transfer_status: 'RECEIVED',
           received_at: new Date().toISOString(),
-          quantity_received: supabase.raw('quantity_sent') // Assume no loss in transfer
+          quantity_received: supabase.from('process_transfers').select('quantity_sent').eq('id', transferId).single().then(res => res.data?.quantity_sent || 0)
         })
         .eq('id', transferId)
         .select()
@@ -366,7 +366,7 @@ export function MaterialFlowContinuity({
                         <div className="text-right">
                           <div className="font-bold">{transfer.quantity_sent?.toFixed(1)} KG</div>
                           <Badge className="bg-orange-100 text-orange-800 border-orange-200">
-                            Grade {transfer.quality_grade}
+                            Grade {transfer.quality_grade || 'A'}
                           </Badge>
                         </div>
                         <Button
