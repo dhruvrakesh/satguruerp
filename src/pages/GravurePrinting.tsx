@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Palette, Droplets, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings, Brain } from "lucide-react";
+import { Palette, Droplets, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings, Brain, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProces
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
 import { ViscosityTables } from "@/components/manufacturing/ViscosityTables";
-import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
+import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -137,7 +138,7 @@ export default function GravurePrinting() {
             <Palette className="w-8 h-8 text-primary" />
             Gravure Printing
           </h1>
-          <p className="text-muted-foreground">High-quality rotogravure printing with precision color control</p>
+          <p className="text-muted-foreground">High-quality rotogravure printing with integrated material flow tracking</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -168,13 +169,13 @@ export default function GravurePrinting() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Print Records</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Material Flow</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{printingLogs.length}</div>
+            <div className="text-2xl font-bold text-green-600">Active</div>
             <p className="text-xs text-muted-foreground">
-              AI-analyzed records
+              Real-time tracking
             </p>
           </CardContent>
         </Card>
@@ -206,15 +207,54 @@ export default function GravurePrinting() {
         </Card>
       </div>
 
-      <Tabs defaultValue="printing" className="space-y-6">
+      <Tabs defaultValue="material-flow" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
           <TabsTrigger value="printing">Print Control</TabsTrigger>
           <TabsTrigger value="colors">Color Management</TabsTrigger>
-          <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
           <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="material-flow" className="space-y-6">
+          {selectedOrder ? (
+            <ProcessMaterialFlow
+              uiorn={selectedOrder.uiorn}
+              currentProcess="GRAVURE_PRINTING"
+              nextProcess="LAMINATION"
+              artworkData={artworkData}
+              onFlowUpdate={(flowData) => {
+                console.log('Material flow updated:', flowData);
+              }}
+            />
+          ) : (
+            <Card>
+              <CardContent className="text-center p-8">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Select Order for Material Flow</h3>
+                <p className="text-muted-foreground mb-4">
+                  Choose an order below to track material flow through the production process
+                </p>
+                <div className="grid gap-3 max-w-md mx-auto">
+                  {orders.slice(0, 3).map((order) => (
+                    <Button
+                      key={order.uiorn}
+                      variant="outline"
+                      className="justify-start"
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="text-left">
+                        <div className="font-medium">{order.uiorn}</div>
+                        <div className="text-sm text-muted-foreground">{order.customer_name}</div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="printing" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -333,24 +373,6 @@ export default function GravurePrinting() {
             artworkData={artworkData}
             onParametersApplied={handleParametersApplied}
           />
-        </TabsContent>
-
-        <TabsContent value="consumption" className="space-y-6">
-          {selectedOrder ? (
-            <RMConsumptionTracker
-              uiorn={selectedOrder.uiorn}
-              processStage="GRAVURE_PRINTING"
-              artworkData={artworkData}
-            />
-          ) : (
-            <Card>
-              <CardContent className="text-center p-8">
-                <p className="text-muted-foreground">
-                  Select an order to track material consumption
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="artwork" className="space-y-6">
