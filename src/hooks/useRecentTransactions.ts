@@ -23,22 +23,15 @@ export interface RecentIssue {
 export const useRecentTransactions = (limit?: number) => {
   const recentGRN = useQuery({
     queryKey: ["recent-grn", limit],
-    queryFn: async (): Promise<RecentGRN[]> => {
+    queryFn: async () => {
       try {
-        const baseQuery = supabase
+        let query = supabase
           .from("satguru_grn_log")
           .select("grn_number, item_code, qty_received, vendor, date, amount_inr")
           .order("created_at", { ascending: false });
         
-        // Try to exclude opening stock using transaction_type if available
-        let query = baseQuery;
-        try {
-          query = baseQuery.neq('transaction_type', 'OPENING_STOCK');
-        } catch (error) {
-          // Fallback: exclude records that look like opening stock
-          query = baseQuery.not('vendor', 'eq', 'Opening Stock')
-                          .not('upload_source', 'eq', 'OPENING_STOCK');
-        }
+        // Filter out opening stock entries using existing vendor field
+        query = query.not('vendor', 'eq', 'Opening Stock');
         
         if (limit) {
           query = query.limit(limit);
@@ -62,14 +55,16 @@ export const useRecentTransactions = (limit?: number) => {
 
   const recentIssues = useQuery({
     queryKey: ["recent-issues", limit],
-    queryFn: async (): Promise<RecentIssue[]> => {
+    queryFn: async () => {
       try {
-        const baseQuery = supabase
+        let query = supabase
           .from("satguru_issue_log")
           .select("id, item_code, qty_issued, purpose, date, total_issued_qty")
           .order("created_at", { ascending: false });
         
-        const query = limit ? baseQuery.limit(limit) : baseQuery;
+        if (limit) {
+          query = query.limit(limit);
+        }
 
         const { data, error } = await query;
         

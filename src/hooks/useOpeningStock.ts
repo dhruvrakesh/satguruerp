@@ -50,13 +50,8 @@ export function useOpeningStock(options: UseOpeningStockOptions = {}) {
             )
           `, { count: 'exact' });
 
-        // Try to filter by transaction_type if column exists, otherwise use fallback logic
-        try {
-          query = query.eq('transaction_type', 'OPENING_STOCK');
-        } catch (error) {
-          // Fallback: Use existing logic for identifying opening stock
-          query = query.or(`upload_source.eq.OPENING_STOCK,vendor.eq.Opening Stock,remarks.ilike.%opening stock%`);
-        }
+        // Filter by opening stock using existing vendor field
+        query = query.eq('vendor', 'Opening Stock');
 
         // Apply filters
         if (filters.search) {
