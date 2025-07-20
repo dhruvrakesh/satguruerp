@@ -9,8 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Download, Upload, CheckCircle, Info } from "lucide-react";
+import { AlertCircle, Download, Upload, CheckCircle, Info, Eye, FileText } from "lucide-react";
 import { CSVParser } from "@/utils/csvParser";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BulkGRNRow {
   item_code: string;
@@ -24,9 +27,23 @@ interface BulkGRNRow {
   remarks?: string;
 }
 
+interface DuplicateAnalysis {
+  existingRecords: any[];
+  duplicateRows: number[];
+  newRows: number[];
+  duplicateDetails: Array<{
+    rowIndex: number;
+    duplicateKey: string;
+    existingRecord: any;
+    csvRow: any;
+  }>;
+}
+
 interface BulkUploadResult {
   success: number;
+  skipped: number;
   errors: Array<{ row: number; message: string; data?: any }>;
+  duplicateDetails?: DuplicateAnalysis;
 }
 
 interface BulkUploadGRNProps {
@@ -38,14 +55,17 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BulkUploadResult | null>(null);
   const [previewData, setPreviewData] = useState<any>(null);
+  const [duplicateAnalysis, setDuplicateAnalysis] = useState<DuplicateAnalysis | null>(null);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [showDuplicatePreview, setShowDuplicatePreview] = useState(false);
   const queryClient = useQueryClient();
 
   const downloadTemplate = async () => {
     try {
-      // Get sample item codes from satguru_item_master for reference
       const { data: sampleItems } = await supabase
         .from('satguru_item_master')
         .select('item_code')
@@ -96,7 +116,6 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     
     console.log(`🔍 Validating row ${rowNumber}:`, row);
 
-    // Check required fields
     if (!row.item_code || row.item_code.trim() === '') {
       errors.push('Item code is required');
     }
@@ -119,23 +138,18 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       errors.push('Vendor is required');
     }
 
-    // Parse and validate date
     let parsedDate = '';
     if (row.date) {
       try {
-        // Support multiple date formats
         const dateStr = row.date.toString().trim();
         let dateObj: Date;
         
         if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
-          // DD-MM-YYYY format
           const [day, month, year] = dateStr.split('-');
           dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          // YYYY-MM-DD format
           dateObj = new Date(dateStr);
         } else if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-          // DD/MM/YYYY format
           const [day, month, year] = dateStr.split('/');
           dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         } else {
@@ -156,7 +170,6 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       return { isValid: false, errors };
     }
 
-    // Create validated data object
     const validatedData: BulkGRNRow = {
       item_code: row.item_code.trim(),
       grn_number: row.grn_number.trim(),
@@ -170,6 +183,80 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     };
 
     return { isValid: true, errors: [], data: validatedData };
+  };
+
+  const analyzeDuplicates = async (validatedRows: BulkGRNRow[]): Promise<DuplicateAnalysis> => {
+    console.log('🔍 Starting duplicate analysis for', validatedRows.length, 'rows');
+    
+    // Get all existing GRN records for comparison
+    const { data: existingGRNs, error } = await supabase
+      .from('satguru_grn_log')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching existing GRNs:', error);
+      throw new Error('Failed to fetch existing GRN records');
+    }
+
+    const existingRecords = existingGRNs || [];
+    console.log('📊 Found', existingRecords.length, 'existing GRN records');
+
+    // Create lookup maps for faster duplicate detection
+    const grnItemMap = new Map<string, any>();
+    const itemDateVendorMap = new Map<string, any>();
+
+    existingRecords.forEach(record => {
+      // Primary key: grn_number + item_code
+      const primaryKey = `${record.grn_number}_${record.item_code}`;
+      grnItemMap.set(primaryKey, record);
+
+      // Secondary key: item_code + date + vendor + qty_received
+      const secondaryKey = `${record.item_code}_${record.date}_${record.vendor}_${record.qty_received}`;
+      itemDateVendorMap.set(secondaryKey, record);
+    });
+
+    const duplicateRows: number[] = [];
+    const newRows: number[] = [];
+    const duplicateDetails: DuplicateAnalysis['duplicateDetails'] = [];
+
+    validatedRows.forEach((row, index) => {
+      const primaryKey = `${row.grn_number}_${row.item_code}`;
+      const secondaryKey = `${row.item_code}_${row.date}_${row.vendor}_${row.qty_received}`;
+
+      let existingRecord = grnItemMap.get(primaryKey);
+      let duplicateKey = primaryKey;
+
+      // If not found by primary key, check secondary key
+      if (!existingRecord) {
+        existingRecord = itemDateVendorMap.get(secondaryKey);
+        duplicateKey = secondaryKey;
+      }
+
+      if (existingRecord) {
+        duplicateRows.push(index);
+        duplicateDetails.push({
+          rowIndex: index,
+          duplicateKey,
+          existingRecord,
+          csvRow: row
+        });
+      } else {
+        newRows.push(index);
+      }
+    });
+
+    console.log('📈 Duplicate analysis complete:', {
+      totalRows: validatedRows.length,
+      duplicates: duplicateRows.length,
+      newRecords: newRows.length
+    });
+
+    return {
+      existingRecords,
+      duplicateRows,
+      newRows,
+      duplicateDetails
+    };
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,6 +273,8 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
       setFile(selectedFile);
       setResults(null);
+      setDuplicateAnalysis(null);
+      setShowDuplicatePreview(false);
       
       // Preview first few rows
       const reader = new FileReader();
@@ -208,14 +297,6 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             }
           });
           
-          console.log('📊 CSV Preview:', {
-            headers: parseResult.headers,
-            sampleData: parseResult.data.slice(0, 3),
-            totalRows: parseResult.totalRows,
-            validRows: parseResult.validRows,
-            errors: parseResult.errors.slice(0, 3)
-          });
-          
           setPreviewData({
             headers: parseResult.headers,
             sampleRows: parseResult.data.slice(0, 3),
@@ -228,26 +309,12 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     }
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      toast({
-        title: "No File Selected",
-        description: "Please select a CSV file to upload",
-        variant: "destructive"
-      });
-      return;
-    }
+  const analyzeDuplicatesInFile = async () => {
+    if (!file) return;
 
-    setIsUploading(true);
-    setProgress(0);
-    setResults(null);
-
+    setIsAnalyzing(true);
     try {
       const csvContent = await file.text();
-      console.log('📄 Raw CSV content preview:', csvContent.substring(0, 500));
-      
-      setProgress(10);
-
       const parseResult = CSVParser.parseCSV(csvContent, {
         skipEmptyRows: true,
         trimValues: true,
@@ -264,21 +331,85 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         }
       });
 
-      console.log('📊 Parse result:', {
-        totalRows: parseResult.totalRows,
-        validRows: parseResult.validRows,
-        headers: parseResult.headers,
-        parseErrors: parseResult.errors,
-        sampleData: parseResult.data.slice(0, 2)
+      if (!parseResult.data || parseResult.data.length === 0) {
+        throw new Error("No valid data found in CSV file");
+      }
+
+      // Validate all rows
+      const validatedRows: BulkGRNRow[] = [];
+      const errors: Array<{ row: number; message: string; data?: any }> = [];
+
+      for (let i = 0; i < parseResult.data.length; i++) {
+        const validation = validateRow(parseResult.data[i], i + 2);
+        if (validation.isValid && validation.data) {
+          validatedRows.push(validation.data);
+        } else {
+          errors.push({
+            row: i + 2,
+            message: validation.errors.join('; '),
+            data: parseResult.data[i]
+          });
+        }
+      }
+
+      if (validatedRows.length === 0) {
+        throw new Error("No valid rows found after validation");
+      }
+
+      // Analyze duplicates
+      const analysis = await analyzeDuplicates(validatedRows);
+      setDuplicateAnalysis(analysis);
+      setShowDuplicatePreview(true);
+
+      toast({
+        title: "Analysis Complete",
+        description: `Found ${analysis.newRows.length} new records and ${analysis.duplicateRows.length} duplicates`,
       });
 
-      if (parseResult.errors.length > 0) {
-        console.error('🚨 CSV parsing errors:', parseResult.errors);
-      }
+    } catch (error: any) {
+      console.error('💥 Analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze file",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
-      if (!parseResult.data || parseResult.data.length === 0) {
-        throw new Error("No valid data rows found in CSV file. Please check your file format and ensure it has data rows after the header.");
-      }
+  const handleUpload = async () => {
+    if (!file || !duplicateAnalysis) {
+      toast({
+        title: "No Analysis Available",
+        description: "Please analyze the file first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setProgress(0);
+    setResults(null);
+
+    try {
+      // Get CSV content and parse again
+      const csvContent = await file.text();
+      const parseResult = CSVParser.parseCSV(csvContent, {
+        skipEmptyRows: true,
+        trimValues: true,
+        headerMapping: {
+          'item_code': 'item_code',
+          'grn_number': 'grn_number', 
+          'qty_received': 'qty_received',
+          'date': 'date',
+          'uom': 'uom',
+          'vendor': 'vendor',
+          'amount_inr': 'amount_inr',
+          'invoice_number': 'invoice_number',
+          'remarks': 'remarks'
+        }
+      });
 
       setProgress(20);
 
@@ -291,17 +422,15 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         .in('item_code', itemCodes);
 
       const validItemSet = new Set(validItems?.map(i => i.item_code) || []);
-
-      console.log('✅ Valid items found:', validItemSet.size, 'out of', itemCodes.length);
-
       setProgress(40);
 
+      // Process only new records or all records based on user choice
       const processedRows: any[] = [];
       const errors: Array<{ row: number; message: string; data?: any }> = [];
+      let skippedCount = 0;
 
-      // Process each row
       for (let i = 0; i < parseResult.data.length; i++) {
-        const rowNum = i + 2; // Account for header row
+        const rowNum = i + 2;
         const rowData = parseResult.data[i];
         
         try {
@@ -326,6 +455,14 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
               data: rowData
             });
             continue;
+          }
+
+          // Check if this row is a duplicate
+          const isDuplicate = duplicateAnalysis.duplicateRows.includes(i);
+          
+          if (isDuplicate && skipDuplicates) {
+            skippedCount++;
+            continue; // Skip duplicates
           }
 
           // Structure data to match satguru_grn_log schema
@@ -355,12 +492,6 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
       setProgress(80);
 
-      console.log('📈 Processing summary:', {
-        totalRows: parseResult.data.length,
-        processedRows: processedRows.length,
-        errors: errors.length
-      });
-
       // Insert processed rows
       let successCount = 0;
       if (processedRows.length > 0) {
@@ -382,7 +513,9 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
       const result: BulkUploadResult = {
         success: successCount,
-        errors: errors
+        skipped: skippedCount,
+        errors: errors,
+        duplicateDetails: duplicateAnalysis
       };
 
       setResults(result);
@@ -390,9 +523,14 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       if (successCount > 0) {
         queryClient.invalidateQueries({ queryKey: ['grn'] });
         queryClient.invalidateQueries({ queryKey: ['stock'] });
+        
+        const message = skipDuplicates 
+          ? `Successfully uploaded ${successCount} new GRN entries, skipped ${skippedCount} duplicates`
+          : `Successfully uploaded ${successCount} GRN entries`;
+        
         toast({
           title: "Upload Successful",
-          description: `Successfully uploaded ${successCount} GRN entries${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
+          description: message + (errors.length > 0 ? ` with ${errors.length} errors` : ''),
         });
       } else if (errors.length > 0) {
         toast({
@@ -419,22 +557,24 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     setFile(null);
     setResults(null);
     setPreviewData(null);
+    setDuplicateAnalysis(null);
+    setShowDuplicatePreview(false);
     setProgress(0);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Bulk Upload GRN</DialogTitle>
+          <DialogTitle>Smart Bulk Upload GRN</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <strong>Enhanced CSV Processing:</strong> Upload your GRN data with flexible date formats (DD-MM-YYYY, YYYY-MM-DD, DD/MM/YYYY).
-              The system will validate all data and show detailed error reports for any issues.
+              <strong>Enhanced CSV Processing:</strong> Upload your GRN data with intelligent duplicate detection.
+              The system will analyze your data and prevent duplicate entries while preserving existing records.
             </AlertDescription>
           </Alert>
 
@@ -444,9 +584,6 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
               <Download className="h-4 w-4 mr-2" />
               Download GRN Template
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Template includes sample data with correct format (DD-MM-YYYY dates).
-            </p>
           </div>
 
           <div className="space-y-2">
@@ -494,12 +631,108 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             </div>
           )}
 
+          {/* Step 3: Analyze Duplicates */}
+          {file && !showDuplicatePreview && (
+            <div className="space-y-2">
+              <Label className="text-base font-medium">Step 3: Analyze for Duplicates</Label>
+              <Button 
+                onClick={analyzeDuplicatesInFile}
+                disabled={isAnalyzing}
+                className="w-full"
+                variant="outline"
+              >
+                {isAnalyzing ? (
+                  <>Analyzing...</>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Analyze Duplicates
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Duplicate Analysis Results */}
+          {duplicateAnalysis && showDuplicatePreview && (
+            <div className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Duplicate Analysis Complete:</strong> Found {duplicateAnalysis.newRows.length} new records and {duplicateAnalysis.duplicateRows.length} duplicates
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{duplicateAnalysis.newRows.length}</div>
+                  <div className="text-sm text-green-700">New Records</div>
+                </div>
+                <div className="p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">{duplicateAnalysis.duplicateRows.length}</div>
+                  <div className="text-sm text-yellow-700">Duplicates Found</div>
+                </div>
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{duplicateAnalysis.existingRecords.length}</div>
+                  <div className="text-sm text-blue-700">Existing Records</div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="skipDuplicates"
+                  checked={skipDuplicates}
+                  onCheckedChange={setSkipDuplicates}
+                />
+                <Label htmlFor="skipDuplicates" className="text-sm">
+                  Skip duplicates and preserve existing records with their remarks
+                </Label>
+              </div>
+
+              {duplicateAnalysis.duplicateDetails.length > 0 && (
+                <Tabs defaultValue="summary" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="summary">Summary</TabsTrigger>
+                    <TabsTrigger value="details">Duplicate Details</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="summary" className="space-y-2">
+                    <div className="text-sm text-muted-foreground">
+                      {skipDuplicates 
+                        ? `${duplicateAnalysis.newRows.length} records will be inserted, ${duplicateAnalysis.duplicateRows.length} duplicates will be skipped`
+                        : `All ${duplicateAnalysis.newRows.length + duplicateAnalysis.duplicateRows.length} records will be processed`
+                      }
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="details" className="space-y-2">
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {duplicateAnalysis.duplicateDetails.slice(0, 10).map((detail, index) => (
+                        <div key={index} className="p-2 bg-yellow-50 rounded text-xs">
+                          <div className="font-medium">Row {detail.rowIndex + 2}: {detail.csvRow.grn_number} - {detail.csvRow.item_code}</div>
+                          <div className="text-muted-foreground">
+                            Matches existing: {detail.existingRecord.grn_number} from {detail.existingRecord.date}
+                          </div>
+                        </div>
+                      ))}
+                      {duplicateAnalysis.duplicateDetails.length > 10 && (
+                        <div className="text-xs text-muted-foreground">
+                          ... and {duplicateAnalysis.duplicateDetails.length - 10} more duplicates
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
+            </div>
+          )}
+
           {/* Upload Progress */}
           {isUploading && (
             <div className="space-y-2">
               <Progress value={progress} className="w-full" />
               <p className="text-sm text-muted-foreground">
-                Processing CSV data... {progress}%
+                Processing data... {progress}%
               </p>
             </div>
           )}
@@ -511,6 +744,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
                 <CheckCircle className="h-4 w-4" />
                 <AlertDescription>
                   <strong>Upload Results:</strong> {results.success} records uploaded successfully
+                  {results.skipped > 0 && `, ${results.skipped} duplicates skipped`}
                   {results.errors.length > 0 && `, ${results.errors.length} errors found`}
                 </AlertDescription>
               </Alert>
@@ -542,20 +776,22 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             <Button variant="outline" onClick={resetForm}>
               Reset
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={!file || isUploading}
-              className="min-w-[120px]"
-            >
-              {isUploading ? (
-                <>Processing...</>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload GRN Data
-                </>
-              )}
-            </Button>
+            {showDuplicatePreview && (
+              <Button
+                onClick={handleUpload}
+                disabled={!duplicateAnalysis || isUploading}
+                className="min-w-[120px]"
+              >
+                {isUploading ? (
+                  <>Processing...</>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload {duplicateAnalysis?.newRows.length || 0} New Records
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
