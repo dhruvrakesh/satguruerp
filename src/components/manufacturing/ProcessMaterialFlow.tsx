@@ -8,6 +8,7 @@ import { MaterialFlowTracker } from "./MaterialFlowTracker";
 import { ProcessTransferTracker } from "./ProcessTransferTracker";
 import { RMConsumptionTracker } from "./RMConsumptionTracker";
 import { ProcessChainAnalytics } from "./ProcessChainAnalytics";
+import { MaterialFlowContinuity } from "./MaterialFlowContinuity";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -16,7 +17,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Factory,
-  BarChart3
+  BarChart3,
+  Zap
 } from "lucide-react";
 
 interface ProcessMaterialFlowProps {
@@ -46,6 +48,7 @@ export function ProcessMaterialFlow({
 }: ProcessMaterialFlowProps) {
   const [materialFlowSummary, setMaterialFlowSummary] = useState<any>(null);
   const [processChainStatus, setProcessChainStatus] = useState<any[]>([]);
+  const [receivedMaterials, setReceivedMaterials] = useState<any[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -93,6 +96,14 @@ export function ProcessMaterialFlow({
     toast({
       title: "Material Flow Updated",
       description: `Material flow data recorded for ${currentProcess}`,
+    });
+  };
+
+  const handleMaterialReceived = (materials: any[]) => {
+    setReceivedMaterials(materials);
+    toast({
+      title: "Materials Received",
+      description: `${materials.length} material(s) received from upstream process`,
     });
   };
 
@@ -165,17 +176,26 @@ export function ProcessMaterialFlow({
         </CardContent>
       </Card>
 
-      {/* Integrated Material Flow Tabs */}
-      <Tabs defaultValue="flow" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="flow">Material Flow</TabsTrigger>
+      {/* Enhanced Material Flow Tabs */}
+      <Tabs defaultValue="continuity" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="continuity">Material Flow</TabsTrigger>
+          <TabsTrigger value="tracking">Process Data</TabsTrigger>
           <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="transfer">Process Transfer</TabsTrigger>
           <TabsTrigger value="analytics">Chain Analytics</TabsTrigger>
           <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="flow">
+        <TabsContent value="continuity">
+          <MaterialFlowContinuity
+            uiorn={uiorn}
+            currentProcess={currentProcess}
+            onMaterialReceived={handleMaterialReceived}
+          />
+        </TabsContent>
+
+        <TabsContent value="tracking">
           <MaterialFlowTracker
             uiorn={uiorn}
             processStage={currentProcess}
@@ -218,6 +238,7 @@ export function ProcessMaterialFlow({
             uiorn={uiorn}
             currentProcess={currentProcess}
             processChain={processChainStatus}
+            receivedMaterials={receivedMaterials}
           />
         </TabsContent>
       </Tabs>
@@ -229,11 +250,13 @@ export function ProcessMaterialFlow({
 function ProcessChainIntelligence({ 
   uiorn, 
   currentProcess, 
-  processChain 
+  processChain,
+  receivedMaterials = []
 }: { 
   uiorn: string; 
   currentProcess: string; 
   processChain: any[];
+  receivedMaterials?: any[];
 }) {
   return (
     <Card>
@@ -245,6 +268,27 @@ function ProcessChainIntelligence({
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
+          {/* Material Flow Status */}
+          {receivedMaterials.length > 0 && (
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 text-green-800 mb-2">
+                <Zap className="h-4 w-4" />
+                <span className="font-medium">Active Material Flow</span>
+              </div>
+              <div className="text-sm text-green-700">
+                {receivedMaterials.length} material batch(es) received and ready for processing in {currentProcess}
+              </div>
+              <div className="mt-2 space-y-1">
+                {receivedMaterials.slice(0, 3).map((material, index) => (
+                  <div key={index} className="text-xs text-green-600">
+                    • {material.material_type}: {material.quantity_sent?.toFixed(1)} KG (Grade {material.quality_grade})
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Process Chain Status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -275,9 +319,11 @@ function ProcessChainIntelligence({
             </Card>
           </div>
           
+          {/* AI-Powered Recommendations */}
           <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
             <h4 className="font-semibold text-blue-900 mb-2">🚀 AI-Powered Recommendations</h4>
             <ul className="space-y-1 text-sm text-blue-800">
+              <li>• Material flow continuity is now active - {receivedMaterials.length} upstream materials available</li>
               <li>• Optimize material transfer timing between {currentProcess} and next process</li>
               <li>• Reduce setup waste by 15% through predictive parameter adjustment</li>
               <li>• Implement real-time quality monitoring to prevent downstream issues</li>
@@ -285,9 +331,13 @@ function ProcessChainIntelligence({
             </ul>
           </div>
 
+          {/* Process Coverage Status */}
           <div className="text-center text-muted-foreground">
-            <p>Complete process chain intelligence will be available once material flow data is recorded across all processes.</p>
-            <p className="text-sm mt-2">Current Coverage: {processChain.filter(p => p.status !== 'pending').length}/{processChain.length} processes</p>
+            <p>Complete process chain intelligence available with material flow continuity active.</p>
+            <p className="text-sm mt-2">
+              Current Coverage: {processChain.filter(p => p.status !== 'pending').length}/{processChain.length} processes
+              {receivedMaterials.length > 0 && " • Material Flow: Active"}
+            </p>
           </div>
         </div>
       </CardContent>

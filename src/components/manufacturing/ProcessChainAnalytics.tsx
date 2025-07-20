@@ -103,7 +103,7 @@ export function ProcessChainAnalytics({
       const totalWaste = stageData.reduce((sum, item) => sum + (item.output_waste_quantity || 0), 0);
       const totalRework = stageData.reduce((sum, item) => sum + (item.output_rework_quantity || 0), 0);
       
-      const yield = totalInput > 0 ? (totalOutput / totalInput) * 100 : 0;
+      const yieldPercentage = totalInput > 0 ? (totalOutput / totalInput) * 100 : 0;
       const wastePercentage = totalInput > 0 ? (totalWaste / totalInput) * 100 : 0;
       
       // Check material availability from previous process
@@ -119,12 +119,12 @@ export function ProcessChainAnalytics({
         totalOutput,
         totalWaste,
         totalRework,
-        yield: Math.round(yield * 100) / 100,
+        yieldPercentage: Math.round(yieldPercentage * 100) / 100,
         wastePercentage: Math.round(wastePercentage * 100) / 100,
         availableMaterial,
         recordCount: stageData.length,
-        status: yield > 90 ? 'excellent' : yield > 80 ? 'good' : yield > 70 ? 'warning' : 'critical',
-        bottleneck: wastePercentage > 10 || yield < 80,
+        status: yieldPercentage > 90 ? 'excellent' : yieldPercentage > 80 ? 'good' : yieldPercentage > 70 ? 'warning' : 'critical',
+        bottleneck: wastePercentage > 10 || yieldPercentage < 80,
         lastActivity: stageData[0]?.recorded_at || null
       };
     });
@@ -135,13 +135,13 @@ export function ProcessChainAnalytics({
     const totalSystemInput = processAnalysis[0]?.totalInput || 0;
     const totalSystemOutput = processAnalysis[processAnalysis.length - 1]?.totalOutput || 0;
     const totalSystemWaste = processAnalysis.reduce((sum, p) => sum + p.totalWaste, 0);
-    const overallYield = totalSystemInput > 0 ? (totalSystemOutput / totalSystemInput) * 100 : 0;
+    const overallYieldPercentage = totalSystemInput > 0 ? (totalSystemOutput / totalSystemInput) * 100 : 0;
     
     setMaterialFlowSummary({
       totalInput: totalSystemInput,
       totalOutput: totalSystemOutput,
       totalWaste: totalSystemWaste,
-      overallYield: Math.round(overallYield * 100) / 100,
+      overallYieldPercentage: Math.round(overallYieldPercentage * 100) / 100,
       processesActive: processAnalysis.filter(p => p.recordCount > 0).length,
       bottleneckStages: processAnalysis.filter(p => p.bottleneck).map(p => p.stageName)
     });
@@ -207,7 +207,7 @@ export function ProcessChainAnalytics({
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
-                  {materialFlowSummary.overallYield.toFixed(1)}%
+                  {materialFlowSummary.overallYieldPercentage.toFixed(1)}%
                 </div>
                 <div className="text-sm text-muted-foreground">Overall Yield</div>
               </div>
@@ -269,7 +269,7 @@ export function ProcessChainAnalytics({
                     </div>
                     <div>
                       <div className="font-medium text-orange-600">
-                        {process.yield.toFixed(1)}%
+                        {process.yieldPercentage.toFixed(1)}%
                       </div>
                       <div className="text-muted-foreground">Yield</div>
                     </div>
@@ -283,7 +283,7 @@ export function ProcessChainAnalytics({
                   
                   <div className="flex items-center gap-2">
                     <Progress 
-                      value={process.yield} 
+                      value={process.yieldPercentage} 
                       className="w-20" 
                     />
                     <Badge className={getStatusColor(process.status)}>
@@ -329,7 +329,7 @@ export function ProcessChainAnalytics({
                 <span className="font-medium">Efficiency Score</span>
               </div>
               <div className="text-2xl font-bold text-green-600 mt-2">
-                {materialFlowSummary?.overallYield?.toFixed(1) || 0}%
+                {materialFlowSummary?.overallYieldPercentage?.toFixed(1) || 0}%
               </div>
             </div>
             
