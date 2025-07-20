@@ -1,12 +1,11 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Download, 
   FileText, 
@@ -47,9 +46,10 @@ export function CSVCorrectionManager({
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [includeSuggestions, setIncludeSuggestions] = useState(true);
   const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(false);
+  const { toast } = useToast();
 
   // Initialize correction records
-  useState(() => {
+  useEffect(() => {
     const allRecords: CorrectionRecord[] = [];
     
     // Add error records
