@@ -77,7 +77,8 @@ export function useGRN(options: UseGRNOptions = {}) {
             item_name,
             uom
           )
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+        .not('transaction_type', 'eq', 'OPENING_STOCK'); // Exclude opening stock from regular GRN display
 
       // Apply filters
       if (filters.search) {

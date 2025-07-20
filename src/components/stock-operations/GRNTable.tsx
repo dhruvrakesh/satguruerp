@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { MoreHorizontal, Search, Filter, Edit, Trash2, ChevronUp, ChevronDown, Download } from "lucide-react";
+import { MoreHorizontal, Search, Filter, Edit, Trash2, ChevronUp, ChevronDown, Download, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -138,8 +138,9 @@ export function GRNTable({ onEdit }: GRNTableProps) {
     <div className="space-y-4">
       {/* Header with Export */}
       <div className="flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
-          {data?.count || 0} total records
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <TrendingUp className="w-4 h-4" />
+          {data?.count || 0} GRN records (excluding opening stock)
         </div>
         <Button
           variant="outline"

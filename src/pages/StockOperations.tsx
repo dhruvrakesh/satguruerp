@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload } from "lucide-react";
+import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
 import { BulkUploadIssues } from "@/components/stock-operations/BulkUploadIssues";
 import { BulkUploadOpeningStock } from "@/components/stock-operations/BulkUploadOpeningStock";
 import { StockMovementReport } from "@/components/stock-operations/StockMovementReport";
+import { OpeningStockTable } from "@/components/stock-operations/OpeningStockTable";
 
 export default function StockOperations() {
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
@@ -107,22 +108,40 @@ export default function StockOperations() {
         </div>
       </div>
 
-      <Tabs defaultValue="grn" className="space-y-6">
+      <Tabs defaultValue="opening-stock" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="grn">Goods Receipt Notes</TabsTrigger>
+          <TabsTrigger value="opening-stock">Opening Stock</TabsTrigger>
+          <TabsTrigger value="grn">Regular GRNs</TabsTrigger>
           <TabsTrigger value="issues">Stock Issues</TabsTrigger>
           <TabsTrigger value="transactions">All Transactions</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="opening-stock" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Opening Stock
+              </CardTitle>
+              <CardDescription>
+                View and manage opening stock balances (read-only)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OpeningStockTable />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="grn" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
-                Goods Receipt Notes
+                Regular GRNs
               </CardTitle>
               <CardDescription>
-                Manage incoming stock and goods receipt notes
+                Manage operational goods receipt notes (excluding opening stock)
               </CardDescription>
             </CardHeader>
             <CardContent>
