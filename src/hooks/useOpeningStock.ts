@@ -50,8 +50,8 @@ export function useOpeningStock(options: UseOpeningStockOptions = {}) {
             )
           `, { count: 'exact' });
 
-        // Filter by opening stock using existing vendor field
-        query = query.eq('vendor', 'Opening Stock');
+        // Filter by opening stock using transaction_type column
+        query = query.eq('transaction_type', 'OPENING_STOCK');
 
         // Apply filters
         if (filters.search) {

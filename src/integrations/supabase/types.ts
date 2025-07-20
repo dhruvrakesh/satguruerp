@@ -6007,7 +6007,9 @@ export type Database = {
           item_code: string
           qty_received: number
           remarks: string | null
+          transaction_type: string | null
           uom: string
+          upload_source: string | null
           vendor: string | null
         }
         Insert: {
@@ -6020,7 +6022,9 @@ export type Database = {
           item_code: string
           qty_received: number
           remarks?: string | null
+          transaction_type?: string | null
           uom: string
+          upload_source?: string | null
           vendor?: string | null
         }
         Update: {
@@ -6033,7 +6037,9 @@ export type Database = {
           item_code?: string
           qty_received?: number
           remarks?: string | null
+          transaction_type?: string | null
           uom?: string
+          upload_source?: string | null
           vendor?: string | null
         }
         Relationships: [

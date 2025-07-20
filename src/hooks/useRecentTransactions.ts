@@ -30,8 +30,8 @@ export const useRecentTransactions = (limit?: number) => {
           .select("grn_number, item_code, qty_received, vendor, date, amount_inr")
           .order("created_at", { ascending: false });
         
-        // Filter out opening stock entries using existing vendor field
-        query = query.not('vendor', 'eq', 'Opening Stock');
+        // Filter out opening stock entries using transaction_type column
+        query = query.neq('transaction_type', 'OPENING_STOCK');
         
         if (limit) {
           query = query.limit(limit);
