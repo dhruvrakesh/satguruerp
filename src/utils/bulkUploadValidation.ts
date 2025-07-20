@@ -139,24 +139,39 @@ export class BulkUploadValidator {
     return null;
   }
 
-  static validateQuantity(qty: string): string | null {
+  static validateQuantity(qty: string, fieldName: string = 'Quantity'): string | null {
     if (!qty || qty.trim() === '') {
-      return 'Quantity is required';
+      return `${fieldName} is required`;
     }
 
     const numQty = parseFloat(qty);
     if (isNaN(numQty)) {
-      return 'Quantity must be a valid number';
+      return `${fieldName} must be a valid number`;
     }
 
     if (numQty <= 0) {
-      return 'Quantity must be greater than zero';
+      return `${fieldName} must be greater than zero`;
     }
 
     if (numQty > 1000000) {
-      return 'Quantity seems unusually large. Please verify.';
+      return `${fieldName} seems unusually large. Please verify.`;
     }
 
     return null;
+  }
+
+  // New validation method specifically for issue uploads
+  static validateIssueRecord(record: Record<string, string>): ValidationResult {
+    const rules: ValidationRule[] = [
+      { field: 'item_code', required: true, type: 'string' },
+      { field: 'qty_issued', required: true, type: 'number', min: 0.01 },
+      { field: 'date', required: true, type: 'date' },
+      { field: 'issued_to', required: false, type: 'string' },
+      { field: 'issue_number', required: false, type: 'string' },
+      { field: 'reference_number', required: false, type: 'string' },
+      { field: 'remarks', required: false, type: 'string' }
+    ];
+
+    return this.validateRow(record, rules, 0);
   }
 }

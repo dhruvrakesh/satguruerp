@@ -5,12 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
-import { useBulkStockValidation } from "@/hooks/useStockValidation";
+import { useIssueValidation } from "@/hooks/useIssueValidation";
 import { CSVCorrectionManager } from "./CSVCorrectionManager";
 import { GRNUploadDebugger } from "./GRNUploadDebugger";
 import { 
@@ -30,13 +29,12 @@ interface UploadStep {
   title: string;
   description: string;
   status: 'pending' | 'active' | 'completed' | 'error';
-  always_visible?: boolean;
 }
 
 interface ProcessedRecord {
   rowIndex: number;
   data: any;
-  stockStatus?: 'sufficient' | 'insufficient' | 'critical' | 'unknown';
+  stockStatus?: 'sufficient' | 'insufficient' | 'critical' | 'not_found';
   stockAvailable?: number;
   stockRequired?: number;
   errors: string[];
@@ -53,34 +51,31 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [processedRecords, setProcessedRecords] = useState<ProcessedRecord[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [debugAnalysisData, setDebugAnalysisData] = useState<any>(null);
   const [errorRecords, setErrorRecords] = useState<any[]>([]);
   const [correctedRecords, setCorrectedRecords] = useState<any[]>([]);
-  const [stockValidationEnabled, setStockValidationEnabled] = useState(true);
+  const [openingStockDate, setOpeningStockDate] = useState('2024-01-01');
   const { toast } = useToast();
 
   const steps: UploadStep[] = [
     {
       id: 1,
       title: "Select CSV File",
-      description: "Choose your GRN data file",
+      description: "Choose your Issue data file",
       status: uploadFile ? 'completed' : 'active'
     },
     {
       id: 2,
-      title: "Real-time Preview & Validation",
+      title: "Real-time Preview & Stock Validation",
       description: "Automatic stock validation and error detection",
-      status: csvData.length > 0 ? 'completed' : uploadFile ? 'active' : 'pending',
-      always_visible: true
+      status: csvData.length > 0 ? 'completed' : uploadFile ? 'active' : 'pending'
     },
     {
       id: 3,
       title: "Debug Console",
       description: "Advanced debugging and correction tools",
-      status: processedRecords.length > 0 ? 'completed' : csvData.length > 0 ? 'active' : 'pending',
-      always_visible: true
+      status: processedRecords.length > 0 ? 'completed' : csvData.length > 0 ? 'active' : 'pending'
     },
     {
       id: 4,
@@ -90,9 +85,13 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
   ];
 
-  // Extract item codes from CSV data for stock validation
-  const itemCodes = csvData.map(row => row.item_code).filter(Boolean);
-  const { data: stockValidationData } = useBulkStockValidation(itemCodes);
+  // Extract issue items from CSV data for stock validation
+  const issueItems = csvData.map(row => ({
+    item_code: row.item_code || '',
+    qty_issued: Number(row.qty_issued || row.quantity || 0)
+  })).filter(item => item.item_code);
+
+  const { data: validationData, isLoading: validationLoading } = useIssueValidation(issueItems, openingStockDate);
 
   // Process CSV file immediately when selected
   useEffect(() => {
@@ -101,12 +100,12 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
   }, [uploadFile]);
 
-  // Run stock validation when CSV data changes
+  // Run issue validation when CSV data changes
   useEffect(() => {
-    if (csvData.length > 0 && stockValidationData) {
-      performStockValidation();
+    if (csvData.length > 0 && validationData) {
+      performIssueValidation();
     }
-  }, [csvData, stockValidationData]);
+  }, [csvData, validationData]);
 
   const processCSVFile = async (file: File) => {
     setIsProcessing(true);
@@ -142,41 +141,43 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
   };
 
-  const performStockValidation = () => {
-    console.log('🔍 Performing proactive stock validation...');
+  const performIssueValidation = () => {
+    console.log('🔍 Performing issue validation with stock calculation...');
     
     const processed: ProcessedRecord[] = csvData.map((row, index) => {
       const errors: string[] = [];
       const warnings: string[] = [];
       
-      // Basic validation
+      // Basic validation for issue uploads
       if (!row.item_code) errors.push('Missing item code');
-      if (!row.qty_received || isNaN(Number(row.qty_received))) {
-        errors.push('Invalid quantity');
+      
+      const qtyIssued = Number(row.qty_issued || row.quantity || 0);
+      if (!qtyIssued || isNaN(qtyIssued) || qtyIssued <= 0) {
+        errors.push('Invalid or missing quantity to issue');
       }
-      if (!row.grn_number) errors.push('Missing GRN number');
-      if (!row.vendor) warnings.push('Missing vendor name');
-      if (!row.date) warnings.push('Missing date');
       
-      // Stock validation
-      let stockStatus: ProcessedRecord['stockStatus'] = 'unknown';
+      if (!row.issue_number && !row.reference_number) {
+        warnings.push('Missing issue/reference number');
+      }
+      
+      if (!row.issued_to) warnings.push('Missing issued to information');
+      if (!row.date) warnings.push('Missing issue date');
+      
+      // Stock validation using correct calculation
+      let stockStatus: ProcessedRecord['stockStatus'] = 'not_found';
       let stockAvailable = 0;
-      let stockRequired = Number(row.qty_received) || 0;
+      let stockRequired = qtyIssued;
       
-      if (stockValidationData && row.item_code) {
-        const stockInfo = stockValidationData.find(s => s.itemCode === row.item_code);
+      if (validationData && row.item_code) {
+        const stockInfo = validationData.find(v => v.itemCode === row.item_code);
         if (stockInfo) {
-          stockAvailable = stockInfo.available;
+          stockAvailable = stockInfo.availableStock;
+          stockStatus = stockInfo.status;
           
-          if (stockAvailable >= stockRequired) {
-            stockStatus = 'sufficient';
-          } else if (stockAvailable > stockRequired * 0.5) {
-            stockStatus = 'insufficient';
-            warnings.push(`Only ${stockAvailable} available, ${stockRequired} required`);
-            errors.push('Insufficient stock'); // This is the error that was appearing
-          } else {
-            stockStatus = 'critical';
-            errors.push(`Critical stock shortage: ${stockAvailable} available, ${stockRequired} required`);
+          if (stockInfo.status === 'insufficient') {
+            errors.push(`Insufficient stock: Available ${stockAvailable}, Requested ${stockRequired}`);
+          } else if (stockInfo.status === 'critical') {
+            errors.push(`Critical stock shortage: Available ${stockAvailable}, Requested ${stockRequired}`);
           }
         }
       }
@@ -200,9 +201,11 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
       validRecords: processed.filter(r => r.errors.length === 0).length,
       errorRecords: processed.filter(r => r.errors.length > 0).length,
       warningRecords: processed.filter(r => r.warnings.length > 0).length,
-      stockIssues: processed.filter(r => r.stockStatus === 'insufficient' || r.stockStatus === 'critical').length,
+      stockIssues: processed.filter(r => ['insufficient', 'critical'].includes(r.stockStatus || '')).length,
       data: processed.map(r => r.data),
-      records: processed
+      records: processed,
+      uploadType: 'ISSUE', // Key difference from GRN uploads
+      stockCalculationDate: openingStockDate
     };
     
     setDebugAnalysisData(analysisData);
@@ -213,7 +216,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
       .map(r => ({ ...r.data, errors: r.errors, rowIndex: r.rowIndex }));
     setErrorRecords(errors);
     
-    console.log('✅ Stock validation complete:', {
+    console.log('✅ Issue validation complete:', {
       totalRecords: processed.length,
       errors: errors.length,
       stockIssues: analysisData.stockIssues
@@ -234,7 +237,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
 
   const handleBatchReprocess = (correctedRecords: any[]) => {
     // Reprocess with corrections
-    performStockValidation();
+    performIssueValidation();
     toast({
       title: "Batch Reprocessed",
       description: "All corrections have been applied and validated"
@@ -242,7 +245,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   };
 
   const handleDownloadCorrectedCSV = (mode: string) => {
-    console.log(`📥 Downloading CSV in ${mode} mode`);
+    console.log(`📥 Downloading corrected Issue CSV in ${mode} mode`);
   };
 
   const getStepStatus = (step: UploadStep) => {
@@ -265,11 +268,32 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingDown className="h-6 w-6" />
-            Enhanced Stock Issues Upload with Real-time Debugging
+            Enhanced Stock Issues Upload with Real-time Stock Validation
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Opening Stock Date Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Stock Calculation Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium">Opening Stock Date:</label>
+                <input 
+                  type="date" 
+                  value={openingStockDate}
+                  onChange={(e) => setOpeningStockDate(e.target.value)}
+                  className="px-3 py-1 border rounded text-sm"
+                />
+                <span className="text-xs text-muted-foreground">
+                  Stock = Opening Stock + GRNs - Issues (from this date)
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Progress Steps - Always Visible */}
           <div className="grid grid-cols-4 gap-4">
             {steps.map((step) => (
@@ -295,7 +319,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5" />
-                  Select CSV File
+                  Select Issue CSV File
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -325,7 +349,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
-                  Real-time Preview & Stock Validation
+                  Real-time Issue Preview & Stock Validation
                   <Badge variant="outline">
                     {csvData.length} records
                   </Badge>
@@ -351,7 +375,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                   </div>
                   <div className="text-center p-3 bg-yellow-50 rounded-lg">
                     <div className="text-2xl font-bold text-yellow-600">
-                      {processedRecords.filter(r => r.stockStatus === 'insufficient' || r.stockStatus === 'critical').length}
+                      {processedRecords.filter(r => ['insufficient', 'critical'].includes(r.stockStatus || '')).length}
                     </div>
                     <div className="text-sm text-yellow-700">Stock Issues</div>
                   </div>
@@ -375,7 +399,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Stock: {record.stockAvailable}/{record.stockRequired}
+                          Available: {record.stockAvailable} | Requested: {record.stockRequired}
                         </div>
                       </div>
                     ))}
@@ -441,7 +465,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
           {processedRecords.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Ready to Process</CardTitle>
+                <CardTitle>Ready to Process Issues</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
@@ -449,7 +473,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     disabled={errorRecords.length > 0}
                     className="flex-1"
                   >
-                    Process {processedRecords.filter(r => r.errors.length === 0).length} Valid Records
+                    Process {processedRecords.filter(r => r.errors.length === 0).length} Valid Issue Records
                   </Button>
                   <Button variant="outline" disabled={errorRecords.length === 0}>
                     Download Error Report
@@ -458,7 +482,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                 
                 {errorRecords.length > 0 && (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Fix {errorRecords.length} errors before processing
+                    Fix {errorRecords.length} errors before processing issues
                   </p>
                 )}
               </CardContent>
