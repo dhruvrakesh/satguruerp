@@ -37,7 +37,11 @@ export function useOpeningStock(options: UseOpeningStockOptions = {}) {
   
   return useQuery({
     queryKey: ['opening-stock', page, pageSize, filters, sort],
-    queryFn: async () => {
+    queryFn: async (): Promise<{
+      data: OpeningStockRecord[];
+      count: number;
+      totalPages: number;
+    }> => {
       let query = supabase
         .from('satguru_grn_log')
         .select(`
@@ -79,11 +83,10 @@ export function useOpeningStock(options: UseOpeningStockOptions = {}) {
       if (error) throw error;
       
       return {
-        data: data || [],
+        data: (data as any[]) || [],
         count: count || 0,
         totalPages: Math.ceil((count || 0) / pageSize)
       };
     },
-    refetchInterval: 30000,
   });
 }
