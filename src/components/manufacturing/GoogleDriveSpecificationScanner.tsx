@@ -11,6 +11,7 @@ import { Loader2, Scan, CheckCircle, AlertTriangle, ExternalLink } from "lucide-
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { GoogleDriveService, SpecificationParser } from "@/services/googleDriveService";
 
 // Updated interface to match actual database schema
 interface GDriveFile {
@@ -27,72 +28,13 @@ interface GDriveFile {
   updated_at?: string;
 }
 
-// Type for database function response with proper JSONB handling
-interface ParseFilenameResult {
-  item_code?: string | null;
-  customer_code?: string | null;
-  product_name?: string | null;
-  dimensions?: string | null;
-  confidence?: number | null;
-}
-
-// Type guard to safely extract properties from JSONB response
-function extractParseResult(data: any): ParseFilenameResult {
-  // Handle case where data is null or undefined
-  if (!data) {
-    return {
-      item_code: null,
-      customer_code: null,
-      product_name: null,
-      dimensions: null,
-      confidence: 0
-    };
-  }
-
-  // Handle case where data is already an object (most common)
-  if (typeof data === 'object' && !Array.isArray(data)) {
-    return {
-      item_code: data.item_code || null,
-      customer_code: data.customer_code || null,
-      product_name: data.product_name || null,
-      dimensions: data.dimensions || null,
-      confidence: typeof data.confidence === 'number' ? data.confidence : 0
-    };
-  }
-
-  // Handle case where data is a string (JSON string)
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data);
-      return {
-        item_code: parsed.item_code || null,
-        customer_code: parsed.customer_code || null,
-        product_name: parsed.product_name || null,
-        dimensions: parsed.dimensions || null,
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0
-      };
-    } catch (error) {
-      console.error('Failed to parse JSON string from database function:', error);
-    }
-  }
-
-  // Fallback for any other case
-  return {
-    item_code: null,
-    customer_code: null,
-    product_name: null,
-    dimensions: null,
-    confidence: 0
-  };
-}
-
 export function GoogleDriveSpecificationScanner() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [gdriveUrl, setGdriveUrl] = useState('https://drive.google.com/drive/folders/17FalrRGel610MbFhP_hs8mDIvRhelW36');
   const [scanProgress, setScanProgress] = useState(0);
 
-  // Fetch existing Google Drive mappings with proper typing
+  // Fetch existing Google Drive mappings
   const { data: gdriveFiles, isLoading } = useQuery({
     queryKey: ['gdrive-file-mappings'],
     queryFn: async (): Promise<GDriveFile[]> => {
@@ -106,101 +48,76 @@ export function GoogleDriveSpecificationScanner() {
     }
   });
 
-  // Enhanced parse function with proper error handling and type safety
-  const parseFileName = async (fileName: string): Promise<ParseFilenameResult> => {
-    try {
-      const { data, error } = await supabase.rpc('parse_gdrive_filename', {
-        filename: fileName
-      });
-      
-      if (error) {
-        console.error('Database function error:', error);
-        throw error;
-      }
-
-      // Use the type-safe extraction function
-      return extractParseResult(data);
-    } catch (error) {
-      console.error('Error parsing filename:', error);
-      return {
-        item_code: null,
-        customer_code: null,
-        product_name: null,
-        dimensions: null,
-        confidence: 0
-      };
-    }
-  };
-
-  // Extract specification name from filename (remove extension)
-  const getSpecificationName = (fileName: string): string => {
-    return fileName.replace(/\.[^/.]+$/, ''); // Remove file extension
-  };
-
-  // Simulate Google Drive scan (in a real implementation, this would use Google Drive API)
+  // Enhanced scan function using real Google Drive service
   const scanGoogleDrive = useMutation({
     mutationFn: async (folderUrl: string) => {
       setScanProgress(0);
       
-      // Simulate scanning files from your Google Drive folder
-      const sampleFiles = [
-        '1510239794-EMAMI-Fair & Handsome-100g.pdf',
-        '1510239795-EMAMI-BoroPlus-75ml.pdf',
-        'PS20250264-DABUR-Red Paste-200g.pdf',
-        'PS20250265-DABUR-Chyawanprash-500g.pdf',
-        'VV20250101-VIVEL-Body Lotion-400ml.pdf',
-        'HUL20250201-PONDS-Cold Cream-100g.pdf',
-        'SP001-SUPERIA-Premium-50g.pdf',
-        'ITM001-PATANJALI-Toothpaste-150g.pdf',
-        '2024001-GCPL-Hand Wash-250ml.pdf',
-        'RB2024-DETTOL-Soap-75g.pdf'
-      ];
-
+      console.log('Starting Google Drive scan...');
+      
+      // Get files from Google Drive
+      const driveFiles = await GoogleDriveService.listFiles();
+      console.log('Found files:', driveFiles);
+      
       const processedFiles = [];
       const errors = [];
       
-      for (let i = 0; i < sampleFiles.length; i++) {
-        const fileName = sampleFiles[i];
-        setScanProgress(((i + 1) / sampleFiles.length) * 100);
+      for (let i = 0; i < driveFiles.length; i++) {
+        const driveFile = driveFiles[i];
+        setScanProgress(((i + 1) / driveFiles.length) * 100);
         
         try {
-          // Parse file name with enhanced error handling
-          const parseResult = await parseFileName(fileName);
+          console.log(`Processing file ${i + 1}/${driveFiles.length}: ${driveFile.name}`);
           
-          // Generate unique Google Drive URL (in real implementation, this would come from API)
-          const fileId = `gdrive_${Date.now()}_${i}`;
-          const gdriveFileUrl = `https://drive.google.com/file/d/${fileId}/view`;
+          // Parse filename using underscore delimiter logic
+          const parseResult = SpecificationParser.parseUnderscoreDelimitedFilename(driveFile.name);
+          console.log('Parse result:', parseResult);
           
-          // Determine mapping status based on confidence
-          const confidence = parseResult.confidence || 0;
+          // Try to find matching artwork item
+          let finalItemCode = parseResult.item_code;
+          if (parseResult.item_code) {
+            const matchingItem = await SpecificationParser.findMatchingArtworkItem(parseResult.item_code);
+            if (matchingItem) {
+              finalItemCode = matchingItem;
+              parseResult.confidence_score += 0.2; // Boost confidence for valid artwork match
+            }
+          }
+          
+          // Determine mapping status based on confidence and artwork match
           let mappingStatus = 'pending';
-          if (confidence > 0.8) {
+          if (parseResult.confidence_score > 0.8 && finalItemCode) {
             mappingStatus = 'mapped';
-          } else if (confidence < 0.3) {
+          } else if (parseResult.confidence_score < 0.3) {
             mappingStatus = 'failed';
           }
           
           processedFiles.push({
-            file_name: fileName,
-            gdrive_url: gdriveFileUrl,
-            parsed_item_code: parseResult.item_code || null,
-            parsed_customer_code: parseResult.customer_code || null,
-            parsed_product_name: parseResult.product_name || null,
-            parsed_dimensions: parseResult.dimensions || null,
-            confidence_score: confidence,
+            file_name: driveFile.name,
+            gdrive_url: driveFile.webViewLink,
+            parsed_item_code: finalItemCode,
+            parsed_customer_code: parseResult.customer_name,
+            parsed_product_name: parseResult.product_name,
+            parsed_dimensions: parseResult.dimensions,
+            confidence_score: parseResult.confidence_score,
             mapping_status: mappingStatus
           });
+          
         } catch (error) {
-          console.error(`Error processing file ${fileName}:`, error);
-          errors.push({ fileName, error: error instanceof Error ? error.message : 'Unknown error' });
+          console.error(`Error processing file ${driveFile.name}:`, error);
+          errors.push({ 
+            fileName: driveFile.name, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          });
         }
         
         // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // Insert the mapped files into database with proper conflict resolution
+      // Insert the mapped files into database
       if (processedFiles.length > 0) {
+        console.log('Inserting processed files:', processedFiles);
+        
         const { error } = await supabase
           .from('gdrive_file_mappings')
           .upsert(processedFiles, { 
@@ -256,9 +173,9 @@ export function GoogleDriveSpecificationScanner() {
         }
         
         try {
-          const specificationName = getSpecificationName(file.file_name);
+          const specificationName = file.file_name.replace(/\.[^/.]+$/, ''); // Remove extension
           
-          // Create customer specification record with proper conflict resolution
+          // Create customer specification record
           const { error } = await supabase
             .from('customer_specifications')
             .upsert({
@@ -266,14 +183,15 @@ export function GoogleDriveSpecificationScanner() {
               customer_code: file.parsed_customer_code,
               specification_name: specificationName,
               file_path: file.gdrive_url,
-              file_size: 0,
+              file_size: 0, // We don't have size info from Drive API yet
               version: 1,
               status: 'ACTIVE',
               notes: JSON.stringify({
                 dimensions: file.parsed_dimensions,
                 confidence_score: file.confidence_score,
                 original_filename: file.file_name,
-                source: 'google_drive_scanner'
+                source: 'google_drive_scanner',
+                product_name: file.parsed_product_name
               })
             }, {
               onConflict: 'item_code,customer_code,specification_name',
@@ -292,26 +210,6 @@ export function GoogleDriveSpecificationScanner() {
         }
       }
       
-      // Update item master specification status for successfully mapped items
-      const successfulItemCodes = mappedFiles
-        .filter((_, index) => !errors.find(e => e.fileName === mappedFiles[index]?.file_name))
-        .map(f => f.parsed_item_code)
-        .filter(Boolean);
-      
-      if (successfulItemCodes.length > 0) {
-        try {
-          await supabase
-            .from('satguru_item_master')
-            .update({
-              specifications: 'HAS_SPEC',
-              updated_at: new Date().toISOString()
-            })
-            .in('item_code', successfulItemCodes);
-        } catch (error) {
-          console.error('Error updating item master:', error);
-        }
-      }
-
       return { successCount, errors };
     },
     onSuccess: ({ successCount, errors }) => {
