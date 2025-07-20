@@ -6,9 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 export interface StockValidationResult {
   itemCode: string;
   available: number;
+  current_qty: number; // Alias for available
   required: number;
   status: 'sufficient' | 'insufficient' | 'critical' | 'unknown';
   itemExists: boolean;
+  isAvailable: boolean; // Computed property
   itemName?: string;
   uom?: string;
   lastUpdated?: string;
@@ -49,9 +51,11 @@ export function useStockValidation(itemCode?: string) {
         return {
           itemCode: '',
           available: 0,
+          current_qty: 0,
           required: 0,
           status: 'unknown',
-          itemExists: false
+          itemExists: false,
+          isAvailable: false
         };
       }
       
@@ -80,12 +84,16 @@ export function useStockValidation(itemCode?: string) {
       if (stockResult.error && stockResult.error.code !== 'PGRST116') throw stockResult.error;
       if (itemResult.error && itemResult.error.code !== 'PGRST116') throw itemResult.error;
       
+      const availableQty = stockData?.current_qty || 0;
+      
       return {
         itemCode,
-        available: stockData?.current_qty || 0,
+        available: availableQty,
+        current_qty: availableQty,
         required: 0, // Will be set by component
         status: 'unknown', // Will be calculated by component
         itemExists: !!itemData,
+        isAvailable: availableQty > 0,
         itemName: itemData?.item_name,
         uom: itemData?.uom,
         lastUpdated: stockData?.last_updated
@@ -93,6 +101,27 @@ export function useStockValidation(itemCode?: string) {
     },
     enabled: !!itemCode,
     refetchInterval: 30000, // Refresh every 30 seconds
+  });
+}
+
+// Add the missing useItemCodeValidation hook
+export function useItemCodeValidation(itemCode?: string) {
+  return useQuery({
+    queryKey: ['item-validation', itemCode],
+    queryFn: async () => {
+      if (!itemCode) return null;
+      
+      const { data, error } = await supabase
+        .from('satguru_item_master')
+        .select('item_name, uom')
+        .eq('item_code', itemCode)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      return data;
+    },
+    enabled: !!itemCode,
   });
 }
 
@@ -126,13 +155,16 @@ export function useBulkStockValidation(itemCodes: string[]) {
       return itemCodes.map(itemCode => {
         const stock = stockMap.get(itemCode);
         const item = itemMap.get(itemCode);
+        const availableQty = stock?.current_qty || 0;
         
         return {
           itemCode,
-          available: stock?.current_qty || 0,
+          available: availableQty,
+          current_qty: availableQty,
           required: 0,
           status: 'unknown' as const,
           itemExists: !!item,
+          isAvailable: availableQty > 0,
           itemName: item?.item_name,
           uom: item?.uom,
           lastUpdated: stock?.last_updated

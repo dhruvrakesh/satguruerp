@@ -71,8 +71,8 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
   const { data: itemValidation } = useItemCodeValidation(watchedItemCode);
   const { data: stockData } = useStockValidation(watchedItemCode);
 
-  const hasInsufficientStock = stockData && watchedQtyIssued > stockData.current_qty;
-  const availableStock = stockData?.current_qty || 0;
+  const hasInsufficientStock = stockData && watchedQtyIssued > stockData.available;
+  const availableStock = stockData?.available || 0;
 
   const onSubmit = async (values: z.infer<typeof issueSchema>) => {
     if (hasInsufficientStock) {
@@ -83,7 +83,7 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
       await createIssue.mutateAsync(values as StockIssueFormData);
       form.reset();
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       toast({ 
         title: "Error", 
         description: error.message || "Failed to create issue",
@@ -181,7 +181,7 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
                   {itemValidation.item_name} ({itemValidation.uom})
                   {stockData && (
                     <div className="text-sm font-medium mt-1">
-                      Available Stock: {stockData.current_qty} {itemValidation.uom}
+                      Available Stock: {stockData.available} {itemValidation.uom}
                     </div>
                   )}
                 </div>

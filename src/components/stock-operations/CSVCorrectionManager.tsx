@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/hooks/use-toast";
 import { 
   Download, 
   FileText, 
@@ -209,6 +210,11 @@ export function CSVCorrectionManager({
     window.URL.revokeObjectURL(url);
     
     onDownload(mode, csvData);
+    
+    toast({
+      title: "Download Complete",
+      description: `${filename} has been downloaded successfully.`
+    });
   };
 
   const handleReupload = () => {
@@ -235,6 +241,12 @@ export function CSVCorrectionManager({
       default:
         return 0;
     }
+  };
+
+  // Handle checkbox state properly
+  const handleCheckboxChange = (checked: boolean | "indeterminate", setter: (value: boolean) => void) => {
+    if (checked === "indeterminate") return;
+    setter(checked as boolean);
   };
 
   return (
@@ -282,7 +294,7 @@ export function CSVCorrectionManager({
                   <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
                     <Checkbox
                       checked={record.included}
-                      onCheckedChange={() => toggleRecordIncluded(index)}
+                      onCheckedChange={(checked) => toggleRecordIncluded(index)}
                     />
                     <div className="flex-1">
                       <div className="font-medium">Row {record.rowIndex + 2}</div>
@@ -323,7 +335,7 @@ export function CSVCorrectionManager({
                 <Checkbox
                   id="include-suggestions"
                   checked={includeSuggestions}
-                  onCheckedChange={setIncludeSuggestions}
+                  onCheckedChange={(checked) => handleCheckboxChange(checked, setIncludeSuggestions)}
                 />
                 <label htmlFor="include-suggestions" className="text-sm">
                   Include correction suggestions in CSV
@@ -334,7 +346,7 @@ export function CSVCorrectionManager({
                 <Checkbox
                   id="auto-correct"
                   checked={autoCorrectEnabled}
-                  onCheckedChange={setAutoCorrectEnabled}
+                  onCheckedChange={(checked) => handleCheckboxChange(checked, setAutoCorrectEnabled)}
                 />
                 <label htmlFor="auto-correct" className="text-sm">
                   Apply automatic corrections where possible
