@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,23 +37,28 @@ export function GoogleDriveSpecificationScanner() {
     queryKey: ['gdrive-file-mappings'],
     queryFn: async (): Promise<GDriveFile[]> => {
       const { data, error } = await supabase
-        .from('gdrive_file_mappings' as any)
+        .from('gdrive_file_mappings')
         .select('*')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return (data as any[]) || [];
+      return data || [];
     }
   });
 
   // Parse Google Drive file names using the database function
   const parseFileName = async (fileName: string) => {
-    const { data, error } = await supabase.rpc('parse_gdrive_filename' as any, {
+    const { data, error } = await supabase.rpc('parse_gdrive_filename', {
       filename: fileName
     });
     
     if (error) throw error;
-    return data as any;
+    return data;
+  };
+
+  // Extract specification name from filename (remove extension)
+  const getSpecificationName = (fileName: string): string => {
+    return fileName.replace(/\.[^/.]+$/, ''); // Remove file extension
   };
 
   // Simulate Google Drive scan (in a real implementation, this would use Google Drive API)
@@ -75,59 +81,77 @@ export function GoogleDriveSpecificationScanner() {
       ];
 
       const processedFiles = [];
+      const errors = [];
       
       for (let i = 0; i < sampleFiles.length; i++) {
         const fileName = sampleFiles[i];
         setScanProgress(((i + 1) / sampleFiles.length) * 100);
         
-        // Parse file name
-        const parseResult = await parseFileName(fileName);
-        
-        // Generate unique Google Drive URL (in real implementation, this would come from API)
-        const fileId = `gdrive_${Date.now()}_${i}`;
-        const gdriveFileUrl = `https://drive.google.com/file/d/${fileId}/view`;
-        
-        processedFiles.push({
-          file_name: fileName,
-          gdrive_url: gdriveFileUrl,
-          parsed_item_code: parseResult?.item_code || null,
-          parsed_customer_code: parseResult?.customer_code || null,
-          parsed_product_name: parseResult?.product_name || null,
-          parsed_dimensions: parseResult?.dimensions || null,
-          confidence_score: parseResult?.confidence || 0,
-          mapping_status: (parseResult?.confidence || 0) > 0.8 ? 'mapped' : 'pending'
-        });
+        try {
+          // Parse file name
+          const parseResult = await parseFileName(fileName);
+          
+          // Generate unique Google Drive URL (in real implementation, this would come from API)
+          const fileId = `gdrive_${Date.now()}_${i}`;
+          const gdriveFileUrl = `https://drive.google.com/file/d/${fileId}/view`;
+          
+          processedFiles.push({
+            file_name: fileName,
+            gdrive_url: gdriveFileUrl,
+            parsed_item_code: parseResult?.item_code || null,
+            parsed_customer_code: parseResult?.customer_code || null,
+            parsed_product_name: parseResult?.product_name || null,
+            parsed_dimensions: parseResult?.dimensions || null,
+            confidence_score: parseResult?.confidence || 0,
+            mapping_status: (parseResult?.confidence || 0) > 0.8 ? 'mapped' : 'pending'
+          });
+        } catch (error) {
+          console.error(`Error processing file ${fileName}:`, error);
+          errors.push({ fileName, error: error.message });
+        }
         
         // Small delay to show progress
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      // Insert the mapped files into database
-      const { error } = await supabase
-        .from('gdrive_file_mappings' as any)
-        .upsert(processedFiles, { 
-          onConflict: 'file_name',
-          ignoreDuplicates: false 
-        });
+      // Insert the mapped files into database with proper conflict resolution
+      if (processedFiles.length > 0) {
+        const { error } = await supabase
+          .from('gdrive_file_mappings')
+          .upsert(processedFiles, { 
+            onConflict: 'file_name',
+            ignoreDuplicates: false 
+          });
 
-      if (error) throw error;
+        if (error) {
+          console.error('Database upsert error:', error);
+          throw new Error(`Failed to save file mappings: ${error.message}`);
+        }
+      }
       
-      return processedFiles;
+      return { processedFiles, errors };
     },
-    onSuccess: (files) => {
+    onSuccess: ({ processedFiles, errors }) => {
       queryClient.invalidateQueries({ queryKey: ['gdrive-file-mappings'] });
       queryClient.invalidateQueries({ queryKey: ['customer-specifications'] });
       
+      let message = `Successfully scanned ${processedFiles.length} files from Google Drive`;
+      if (errors.length > 0) {
+        message += `. ${errors.length} files had parsing errors.`;
+      }
+      
       toast({
         title: "Scan Complete",
-        description: `Successfully scanned ${files.length} files from Google Drive`,
+        description: message,
+        variant: errors.length > 0 ? "destructive" : "default"
       });
       setScanProgress(0);
     },
     onError: (error: any) => {
+      console.error('Scan error:', error);
       toast({
         title: "Scan Failed",
-        description: error.message,
+        description: `Error: ${error.message}`,
         variant: "destructive",
       });
       setScanProgress(0);
@@ -138,58 +162,94 @@ export function GoogleDriveSpecificationScanner() {
   const mapToSpecifications = useMutation({
     mutationFn: async () => {
       const mappedFiles = gdriveFiles?.filter(f => f.mapping_status === 'mapped') || [];
+      const errors = [];
+      let successCount = 0;
       
       for (const file of mappedFiles) {
-        if (!file.parsed_item_code || !file.parsed_customer_code) continue;
+        if (!file.parsed_item_code || !file.parsed_customer_code) {
+          errors.push({ fileName: file.file_name, error: 'Missing item code or customer code' });
+          continue;
+        }
         
-        // Create customer specification record
-        await supabase
-          .from('customer_specifications')
-          .upsert({
-            item_code: file.parsed_item_code,
-            customer_code: file.parsed_customer_code,
-            specification_name: `${file.parsed_product_name || 'Specification'}`,
-            file_path: file.gdrive_url,
-            file_size: 0,
-            version: 1,
-            status: 'ACTIVE',
-            notes: JSON.stringify({
-              dimensions: file.parsed_dimensions,
-              confidence_score: file.confidence_score,
-              original_filename: file.file_name
-            })
-          }, {
-            onConflict: 'item_code,customer_code',
-            ignoreDuplicates: false
-          });
+        try {
+          const specificationName = getSpecificationName(file.file_name);
+          
+          // Create customer specification record with proper conflict resolution
+          const { error } = await supabase
+            .from('customer_specifications')
+            .upsert({
+              item_code: file.parsed_item_code,
+              customer_code: file.parsed_customer_code,
+              specification_name: specificationName,
+              file_path: file.gdrive_url,
+              file_size: 0,
+              version: 1,
+              status: 'ACTIVE',
+              notes: JSON.stringify({
+                dimensions: file.parsed_dimensions,
+                confidence_score: file.confidence_score,
+                original_filename: file.file_name,
+                source: 'google_drive_scanner'
+              })
+            }, {
+              onConflict: 'item_code,customer_code,specification_name',
+              ignoreDuplicates: false
+            });
+
+          if (error) {
+            console.error(`Error creating specification for ${file.file_name}:`, error);
+            errors.push({ fileName: file.file_name, error: error.message });
+          } else {
+            successCount++;
+          }
+        } catch (error) {
+          console.error(`Unexpected error for ${file.file_name}:`, error);
+          errors.push({ fileName: file.file_name, error: error.message });
+        }
       }
       
-      // Update item master specification status
-      const itemCodes = mappedFiles
+      // Update item master specification status for successfully mapped items
+      const successfulItemCodes = mappedFiles
+        .filter((_, index) => !errors.find(e => e.fileName === mappedFiles[index]?.file_name))
         .map(f => f.parsed_item_code)
         .filter(Boolean);
       
-      if (itemCodes.length > 0) {
-        await supabase
-          .from('satguru_item_master' as any)
-          .update({
-            specifications: 'HAS_SPEC', // Using correct column name
-            updated_at: new Date().toISOString()
-          })
-          .in('item_code', itemCodes);
+      if (successfulItemCodes.length > 0) {
+        try {
+          await supabase
+            .from('satguru_item_master')
+            .update({
+              specifications: 'HAS_SPEC',
+              updated_at: new Date().toISOString()
+            })
+            .in('item_code', successfulItemCodes);
+        } catch (error) {
+          console.error('Error updating item master:', error);
+        }
       }
+
+      return { successCount, errors };
     },
-    onSuccess: () => {
+    onSuccess: ({ successCount, errors }) => {
       queryClient.invalidateQueries({ queryKey: ['customer-specifications'] });
+      
+      let message = `Successfully mapped ${successCount} specifications`;
+      if (errors.length > 0) {
+        message += `. ${errors.length} files failed to map.`;
+        console.log('Mapping errors:', errors);
+      }
+      
       toast({
         title: "Mapping Complete",
-        description: "Google Drive files mapped to specifications successfully",
+        description: message,
+        variant: errors.length > 0 ? "destructive" : "default"
       });
     },
     onError: (error: any) => {
+      console.error('Mapping error:', error);
       toast({
         title: "Mapping Failed",
-        description: error.message,
+        description: `Error: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -198,7 +258,7 @@ export function GoogleDriveSpecificationScanner() {
   const getStatusBadge = (status: string, confidence: number) => {
     switch (status) {
       case 'mapped':
-        return <Badge variant="default" className="bg-success/10 text-success">Mapped</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800">Mapped</Badge>;
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       default:
