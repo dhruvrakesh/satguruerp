@@ -9,6 +9,7 @@ import { ProcessTransferTracker } from "./ProcessTransferTracker";
 import { RMConsumptionTracker } from "./RMConsumptionTracker";
 import { ProcessChainAnalytics } from "./ProcessChainAnalytics";
 import { MaterialFlowContinuity } from "./MaterialFlowContinuity";
+import { MaterialFlowEndToEndTest } from "./MaterialFlowEndToEndTest";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -18,7 +19,8 @@ import {
   CheckCircle,
   Factory,
   BarChart3,
-  Zap
+  Zap,
+  TestTube
 } from "lucide-react";
 
 interface ProcessMaterialFlowProps {
@@ -178,13 +180,14 @@ export function ProcessMaterialFlow({
 
       {/* Enhanced Material Flow Tabs */}
       <Tabs defaultValue="continuity" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="continuity">Material Flow</TabsTrigger>
           <TabsTrigger value="tracking">Process Data</TabsTrigger>
           <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="transfer">Process Transfer</TabsTrigger>
           <TabsTrigger value="analytics">Chain Analytics</TabsTrigger>
           <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
+          <TabsTrigger value="testing">System Test</TabsTrigger>
         </TabsList>
 
         <TabsContent value="continuity">
@@ -241,6 +244,12 @@ export function ProcessMaterialFlow({
             receivedMaterials={receivedMaterials}
           />
         </TabsContent>
+
+        <TabsContent value="testing">
+          <MaterialFlowEndToEndTest 
+            uiorn={uiorn}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -281,7 +290,7 @@ function ProcessChainIntelligence({
               <div className="mt-2 space-y-1">
                 {receivedMaterials.slice(0, 3).map((material, index) => (
                   <div key={index} className="text-xs text-green-600">
-                    • {material.material_type}: {material.quantity_sent?.toFixed(1)} KG (Grade {material.quality_grade})
+                    • {material.material_type}: {material.quantity_sent?.toFixed(1)} KG (Quality: {material.quality_notes || 'Grade A'})
                   </div>
                 ))}
               </div>

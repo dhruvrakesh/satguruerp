@@ -129,7 +129,7 @@ export function MaterialFlowContinuity({
             to_process: currentProcess,
             material_type: material.materialType,
             quantity_sent: material.quantity,
-            quality_grade: material.qualityGrade,
+            quality_notes: `Grade ${material.qualityGrade}`,
             transfer_status: 'SENT',
             sent_at: new Date().toISOString(),
             unit_of_measure: 'KG'
@@ -171,12 +171,22 @@ export function MaterialFlowContinuity({
   // Receive material mutation
   const receiveMaterialMutation = useMutation({
     mutationFn: async (transferId: string) => {
+      // First get the transfer record to get quantity_sent
+      const { data: transfer, error: fetchError } = await supabase
+        .from('process_transfers')
+        .select('quantity_sent')
+        .eq('id', transferId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Then update the transfer with received status
       const { data, error } = await supabase
         .from('process_transfers')
         .update({
           transfer_status: 'RECEIVED',
           received_at: new Date().toISOString(),
-          quantity_received: supabase.from('process_transfers').select('quantity_sent').eq('id', transferId).single().then(res => res.data?.quantity_sent || 0)
+          quantity_received: transfer.quantity_sent || 0
         })
         .eq('id', transferId)
         .select()
@@ -366,7 +376,7 @@ export function MaterialFlowContinuity({
                         <div className="text-right">
                           <div className="font-bold">{transfer.quantity_sent?.toFixed(1)} KG</div>
                           <Badge className="bg-orange-100 text-orange-800 border-orange-200">
-                            Grade {transfer.quality_grade || 'A'}
+                            {transfer.quality_notes || 'Grade A'}
                           </Badge>
                         </div>
                         <Button

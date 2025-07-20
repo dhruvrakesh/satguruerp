@@ -1,170 +1,116 @@
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   TrendingUp, 
   AlertTriangle, 
   CheckCircle, 
-  Factory, 
-  ArrowRight,
-  Package,
-  Zap,
-  DollarSign
+  Package, 
+  DollarSign,
+  BarChart3,
+  Activity
 } from "lucide-react";
 
 interface ProcessChainAnalyticsProps {
-  uiorn?: string;
+  uiorn: string;
   timeRange?: 'today' | 'week' | 'month';
 }
 
-export function ProcessChainAnalytics({ 
-  uiorn, 
-  timeRange = 'today' 
-}: ProcessChainAnalyticsProps) {
-  const [processChainData, setProcessChainData] = useState<any[]>([]);
-  const [materialFlowSummary, setMaterialFlowSummary] = useState<any>(null);
+interface ProcessData {
+  process_stage: string;
+  input_quantity: number;
+  output_good_quantity: number;
+  output_waste_quantity: number;
+  output_rework_quantity: number;
+  total_input_cost: number;
+  waste_cost_impact: number;
+  yieldPercentage: number;
+  wastePercentage: number;
+  costPerKg: number;
+}
 
-  // Fetch process chain material flow data
-  const { data: materialFlowData, isLoading } = useQuery({
+export function ProcessChainAnalytics({ uiorn, timeRange = 'today' }: ProcessChainAnalyticsProps) {
+  const { data: analyticsData, isLoading, error } = useQuery({
     queryKey: ['process-chain-analytics', uiorn, timeRange],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('material_flow_tracking')
-        .select('*');
-      
-      if (uiorn) {
-        query = query.eq('uiorn', uiorn);
-      }
-      
-      // Add time range filter
-      const now = new Date();
-      let startDate = new Date();
-      
-      switch (timeRange) {
-        case 'today':
-          startDate.setHours(0, 0, 0, 0);
-          break;
-        case 'week':
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-      }
-      
-      query = query.gte('recorded_at', startDate.toISOString());
-      
-      const { data, error } = await query.order('recorded_at', { ascending: false });
-      
+        .select('*')
+        .eq('uiorn', uiorn)
+        .order('recorded_at', { ascending: true });
+
       if (error) throw error;
-      return data || [];
+
+      // Process the data to calculate analytics
+      const processData: ProcessData[] = [];
+      const processMap = new Map<string, any>();
+
+      data.forEach(record => {
+        const existing = processMap.get(record.process_stage) || {
+          process_stage: record.process_stage,
+          input_quantity: 0,
+          output_good_quantity: 0,
+          output_waste_quantity: 0,
+          output_rework_quantity: 0,
+          total_input_cost: 0,
+          waste_cost_impact: 0
+        };
+
+        existing.input_quantity += record.input_quantity || 0;
+        existing.output_good_quantity += record.output_good_quantity || 0;
+        existing.output_waste_quantity += record.output_waste_quantity || 0;
+        existing.output_rework_quantity += record.output_rework_quantity || 0;
+        existing.total_input_cost += record.total_input_cost || 0;
+        existing.waste_cost_impact += record.waste_cost_impact || 0;
+
+        processMap.set(record.process_stage, existing);
+      });
+
+      // Calculate derived metrics
+      processMap.forEach((process, key) => {
+        const totalOutput = process.output_good_quantity + process.output_waste_quantity + process.output_rework_quantity;
+        process.yieldPercentage = process.input_quantity > 0 ? (process.output_good_quantity / process.input_quantity) * 100 : 0;
+        process.wastePercentage = process.input_quantity > 0 ? (process.output_waste_quantity / process.input_quantity) * 100 : 0;
+        process.costPerKg = process.output_good_quantity > 0 ? process.total_input_cost / process.output_good_quantity : 0;
+        
+        processData.push(process);
+      });
+
+      return processData;
     },
-    enabled: true,
+    enabled: !!uiorn,
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Fetch process transfers for flow analysis
-  const { data: transferData } = useQuery({
-    queryKey: ['process-transfers', uiorn, timeRange],
-    queryFn: async () => {
-      let query = supabase
-        .from('process_transfers')
-        .select('*');
-      
-      if (uiorn) {
-        query = query.eq('uiorn', uiorn);
-      }
-      
-      const { data, error } = await query.order('sent_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: true
-  });
+  // Calculate overall metrics
+  const overallMetrics = analyticsData ? {
+    totalInput: analyticsData.reduce((sum, p) => sum + p.input_quantity, 0),
+    totalGoodOutput: analyticsData.reduce((sum, p) => sum + p.output_good_quantity, 0),
+    totalWaste: analyticsData.reduce((sum, p) => sum + p.output_waste_quantity, 0),
+    totalCost: analyticsData.reduce((sum, p) => sum + p.total_input_cost, 0),
+    totalWasteCost: analyticsData.reduce((sum, p) => sum + p.waste_cost_impact, 0),
+    overallYieldPercentage: 0,
+    overallWastePercentage: 0
+  } : null;
 
-  useEffect(() => {
-    if (materialFlowData) {
-      analyzeProcessChain(materialFlowData, transferData || []);
-    }
-  }, [materialFlowData, transferData]);
+  if (overallMetrics && overallMetrics.totalInput > 0) {
+    overallMetrics.overallYieldPercentage = (overallMetrics.totalGoodOutput / overallMetrics.totalInput) * 100;
+    overallMetrics.overallWastePercentage = (overallMetrics.totalWaste / overallMetrics.totalInput) * 100;
+  }
 
-  const analyzeProcessChain = (flowData: any[], transfers: any[]) => {
-    const processStages = ['GRAVURE_PRINTING', 'LAMINATION', 'ADHESIVE_COATING', 'SLITTING', 'PACKAGING'];
-    
-    const processAnalysis = processStages.map((stage, index) => {
-      const stageData = flowData.filter(item => item.process_stage === stage);
-      const totalInput = stageData.reduce((sum, item) => sum + (item.input_quantity || 0), 0);
-      const totalOutput = stageData.reduce((sum, item) => sum + (item.output_good_quantity || 0), 0);
-      const totalWaste = stageData.reduce((sum, item) => sum + (item.output_waste_quantity || 0), 0);
-      const totalRework = stageData.reduce((sum, item) => sum + (item.output_rework_quantity || 0), 0);
-      
-      const yieldPercentage = totalInput > 0 ? (totalOutput / totalInput) * 100 : 0;
-      const wastePercentage = totalInput > 0 ? (totalWaste / totalInput) * 100 : 0;
-      
-      // Check material availability from previous process
-      const previousStage = index > 0 ? processStages[index - 1] : null;
-      const availableMaterial = previousStage ? 
-        transfers.filter(t => t.from_process === previousStage && t.to_process === stage && t.transfer_status === 'RECEIVED')
-          .reduce((sum, t) => sum + (t.quantity_received || 0), 0) : totalInput;
-      
-      return {
-        stage,
-        stageName: stage.replace('_', ' '),
-        totalInput,
-        totalOutput,
-        totalWaste,
-        totalRework,
-        yieldPercentage: Math.round(yieldPercentage * 100) / 100,
-        wastePercentage: Math.round(wastePercentage * 100) / 100,
-        availableMaterial,
-        recordCount: stageData.length,
-        status: yieldPercentage > 90 ? 'excellent' : yieldPercentage > 80 ? 'good' : yieldPercentage > 70 ? 'warning' : 'critical',
-        bottleneck: wastePercentage > 10 || yieldPercentage < 80,
-        lastActivity: stageData[0]?.recorded_at || null
-      };
-    });
-    
-    setProcessChainData(processAnalysis);
-    
-    // Calculate overall summary
-    const totalSystemInput = processAnalysis[0]?.totalInput || 0;
-    const totalSystemOutput = processAnalysis[processAnalysis.length - 1]?.totalOutput || 0;
-    const totalSystemWaste = processAnalysis.reduce((sum, p) => sum + p.totalWaste, 0);
-    const overallYieldPercentage = totalSystemInput > 0 ? (totalSystemOutput / totalSystemInput) * 100 : 0;
-    
-    setMaterialFlowSummary({
-      totalInput: totalSystemInput,
-      totalOutput: totalSystemOutput,
-      totalWaste: totalSystemWaste,
-      overallYieldPercentage: Math.round(overallYieldPercentage * 100) / 100,
-      processesActive: processAnalysis.filter(p => p.recordCount > 0).length,
-      bottleneckStages: processAnalysis.filter(p => p.bottleneck).map(p => p.stageName)
-    });
+  const getYieldPercentageColor = (yieldPercentage: number) => {
+    if (yieldPercentage >= 95) return 'text-green-600 bg-green-50 border-green-200';
+    if (yieldPercentage >= 90) return 'text-blue-600 bg-blue-50 border-blue-200';
+    if (yieldPercentage >= 85) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    return 'text-red-600 bg-red-50 border-red-200';
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'excellent': return 'bg-green-500';
-      case 'good': return 'bg-blue-500';
-      case 'warning': return 'bg-yellow-500';
-      case 'critical': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'excellent': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'good': return <CheckCircle className="h-4 w-4 text-blue-600" />;
-      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-      case 'critical': return <AlertTriangle className="h-4 w-4 text-red-600" />;
-      default: return <Factory className="h-4 w-4 text-gray-600" />;
-    }
+  const getYieldPercentageIcon = (yieldPercentage: number) => {
+    if (yieldPercentage >= 90) return <CheckCircle className="h-4 w-4 text-green-600" />;
+    if (yieldPercentage >= 85) return <TrendingUp className="h-4 w-4 text-blue-600" />;
+    return <AlertTriangle className="h-4 w-4 text-red-600" />;
   };
 
   if (isLoading) {
@@ -172,8 +118,34 @@ export function ProcessChainAnalytics({
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <Activity className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Loading process chain analytics...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+            <p>Error loading analytics: {error.message}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!analyticsData || analyticsData.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            <BarChart3 className="h-8 w-8 mx-auto mb-2" />
+            <p>No process data available for UIORN {uiorn}</p>
           </div>
         </CardContent>
       </Card>
@@ -182,119 +154,106 @@ export function ProcessChainAnalytics({
 
   return (
     <div className="space-y-6">
-      {/* Overall Summary */}
-      {materialFlowSummary && (
+      {/* Overall Metrics */}
+      {overallMetrics && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              Process Chain Summary {uiorn && `- ${uiorn}`}
+              Overall Process Chain Performance - {uiorn}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {materialFlowSummary.totalInput.toFixed(1)} KG
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-xl font-bold text-blue-600">
+                  {overallMetrics.overallYieldPercentage.toFixed(1)}%
                 </div>
-                <div className="text-sm text-muted-foreground">Total Input</div>
+                <div className="text-xs text-muted-foreground">Overall Yield</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {materialFlowSummary.totalOutput.toFixed(1)} KG
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-xl font-bold text-red-600">
+                  {overallMetrics.overallWastePercentage.toFixed(1)}%
                 </div>
-                <div className="text-sm text-muted-foreground">Final Output</div>
+                <div className="text-xs text-muted-foreground">Overall Waste</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {materialFlowSummary.overallYieldPercentage.toFixed(1)}%
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-xl font-bold text-green-600">
+                  ₹{overallMetrics.totalCost.toFixed(0)}
                 </div>
-                <div className="text-sm text-muted-foreground">Overall Yield</div>
+                <div className="text-xs text-muted-foreground">Total Cost</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  {materialFlowSummary.totalWaste.toFixed(1)} KG
+              <div className="text-center p-3 bg-orange-50 rounded-lg">
+                <div className="text-xl font-bold text-orange-600">
+                  ₹{overallMetrics.totalWasteCost.toFixed(0)}
                 </div>
-                <div className="text-sm text-muted-foreground">Total Waste</div>
+                <div className="text-xs text-muted-foreground">Waste Cost</div>
               </div>
             </div>
-            
-            {materialFlowSummary.bottleneckStages.length > 0 && (
-              <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex items-center gap-2 text-yellow-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="font-medium">Bottleneck Alert</span>
-                </div>
-                <div className="text-sm text-yellow-700 mt-1">
-                  Performance issues detected in: {materialFlowSummary.bottleneckStages.join(', ')}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Process Chain Flow */}
+      {/* Process-wise Analytics */}
       <Card>
         <CardHeader>
-          <CardTitle>Process Chain Material Flow</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Process-wise Performance Analysis
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {processChainData.map((process, index) => (
-              <div key={process.stage} className="relative">
-                <div className="flex items-center gap-4 p-4 border rounded-lg">
+            {analyticsData.map((process, index) => (
+              <div key={process.process_stage} className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    {getStatusIcon(process.status)}
-                    <div>
-                      <h4 className="font-medium">{process.stageName}</h4>
-                      <div className="text-sm text-muted-foreground">
-                        {process.recordCount} records recorded
-                      </div>
-                    </div>
+                    {getYieldPercentageIcon(process.yieldPercentage)}
+                    <h4 className="font-semibold">{process.process_stage.replace('_', ' ')}</h4>
                   </div>
-                  
-                  <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <div className="font-medium text-blue-600">
-                        {process.totalInput.toFixed(1)} KG
-                      </div>
-                      <div className="text-muted-foreground">Input</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-green-600">
-                        {process.totalOutput.toFixed(1)} KG
-                      </div>
-                      <div className="text-muted-foreground">Output</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-orange-600">
-                        {process.yieldPercentage.toFixed(1)}%
-                      </div>
-                      <div className="text-muted-foreground">Yield</div>
-                    </div>
-                    <div>
-                      <div className="font-medium text-red-600">
-                        {process.totalWaste.toFixed(1)} KG
-                      </div>
-                      <div className="text-muted-foreground">Waste</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Progress 
-                      value={process.yieldPercentage} 
-                      className="w-20" 
-                    />
-                    <Badge className={getStatusColor(process.status)}>
-                      {process.status.toUpperCase()}
-                    </Badge>
-                  </div>
+                  <Badge className={getYieldPercentageColor(process.yieldPercentage)}>
+                    {process.yieldPercentage.toFixed(1)}% Yield
+                  </Badge>
                 </div>
                 
-                {index < processChainData.length - 1 && (
-                  <div className="flex justify-center my-2">
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                  <div className="text-center">
+                    <div className="font-semibold text-blue-600">
+                      {process.input_quantity.toFixed(1)} KG
+                    </div>
+                    <div className="text-muted-foreground">Input</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-green-600">
+                      {process.output_good_quantity.toFixed(1)} KG
+                    </div>
+                    <div className="text-muted-foreground">Good Output</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-red-600">
+                      {process.output_waste_quantity.toFixed(1)} KG
+                    </div>
+                    <div className="text-muted-foreground">Waste</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-orange-600">
+                      {process.wastePercentage.toFixed(1)}%
+                    </div>
+                    <div className="text-muted-foreground">Waste %</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-purple-600">
+                      ₹{process.costPerKg.toFixed(2)}/KG
+                    </div>
+                    <div className="text-muted-foreground">Cost/KG</div>
+                  </div>
+                </div>
+
+                {process.output_rework_quantity > 0 && (
+                  <div className="mt-2 p-2 bg-yellow-50 rounded text-sm">
+                    <span className="font-medium text-yellow-800">
+                      Rework: {process.output_rework_quantity.toFixed(1)} KG
+                    </span>
                   </div>
                 )}
               </div>
@@ -303,45 +262,32 @@ export function ProcessChainAnalytics({
         </CardContent>
       </Card>
 
-      {/* Real-time Status */}
+      {/* Cost Analysis */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-500" />
-            Real-time Process Status
+            <DollarSign className="h-5 w-5 text-primary" />
+            Cost Impact Analysis
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-2 text-blue-800">
-                <Factory className="h-4 w-4" />
-                <span className="font-medium">Active Processes</span>
+          <div className="space-y-3">
+            {analyticsData.map((process) => (
+              <div key={process.process_stage} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium">{process.process_stage.replace('_', ' ')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Input Cost: ₹{process.total_input_cost.toFixed(2)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold text-red-600">
+                    -₹{process.waste_cost_impact.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Waste Impact</div>
+                </div>
               </div>
-              <div className="text-2xl font-bold text-blue-600 mt-2">
-                {materialFlowSummary?.processesActive || 0}
-              </div>
-            </div>
-            
-            <div className="p-4 bg-green-50 rounded-lg">
-              <div className="flex items-center gap-2 text-green-800">
-                <CheckCircle className="h-4 w-4" />
-                <span className="font-medium">Efficiency Score</span>
-              </div>
-              <div className="text-2xl font-bold text-green-600 mt-2">
-                {materialFlowSummary?.overallYieldPercentage?.toFixed(1) || 0}%
-              </div>
-            </div>
-            
-            <div className="p-4 bg-orange-50 rounded-lg">
-              <div className="flex items-center gap-2 text-orange-800">
-                <DollarSign className="h-4 w-4" />
-                <span className="font-medium">Cost Impact</span>
-              </div>
-              <div className="text-2xl font-bold text-orange-600 mt-2">
-                ₹{((materialFlowSummary?.totalWaste || 0) * 150).toFixed(0)}
-              </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>
