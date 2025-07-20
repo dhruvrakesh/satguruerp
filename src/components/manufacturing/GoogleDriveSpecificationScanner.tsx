@@ -22,23 +22,68 @@ interface GDriveFile {
   parsed_product_name: string | null;
   parsed_dimensions: string | null;
   confidence_score: number;
-  mapping_status: string; // Changed from union type to string to match database
+  mapping_status: string;
   created_at?: string;
   updated_at?: string;
 }
 
-// Type for database function response
+// Type for database function response with proper JSONB handling
 interface ParseFilenameResult {
-  item_code?: string;
-  customer_code?: string;
-  product_name?: string;
-  dimensions?: string;
-  confidence?: number;
+  item_code?: string | null;
+  customer_code?: string | null;
+  product_name?: string | null;
+  dimensions?: string | null;
+  confidence?: number | null;
 }
 
-// Type guard to validate database function response
-function isValidParseResult(data: any): data is ParseFilenameResult {
-  return data && typeof data === 'object';
+// Type guard to safely extract properties from JSONB response
+function extractParseResult(data: any): ParseFilenameResult {
+  // Handle case where data is null or undefined
+  if (!data) {
+    return {
+      item_code: null,
+      customer_code: null,
+      product_name: null,
+      dimensions: null,
+      confidence: 0
+    };
+  }
+
+  // Handle case where data is already an object (most common)
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    return {
+      item_code: data.item_code || null,
+      customer_code: data.customer_code || null,
+      product_name: data.product_name || null,
+      dimensions: data.dimensions || null,
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0
+    };
+  }
+
+  // Handle case where data is a string (JSON string)
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return {
+        item_code: parsed.item_code || null,
+        customer_code: parsed.customer_code || null,
+        product_name: parsed.product_name || null,
+        dimensions: parsed.dimensions || null,
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0
+      };
+    } catch (error) {
+      console.error('Failed to parse JSON string from database function:', error);
+    }
+  }
+
+  // Fallback for any other case
+  return {
+    item_code: null,
+    customer_code: null,
+    product_name: null,
+    dimensions: null,
+    confidence: 0
+  };
 }
 
 export function GoogleDriveSpecificationScanner() {
@@ -73,27 +118,8 @@ export function GoogleDriveSpecificationScanner() {
         throw error;
       }
 
-      // Handle null or undefined response
-      if (!data) {
-        return {
-          item_code: null,
-          customer_code: null,
-          product_name: null,
-          dimensions: null,
-          confidence: 0
-        };
-      }
-
-      // Type-safe property access with fallbacks
-      const parseResult: ParseFilenameResult = {
-        item_code: data?.item_code || null,
-        customer_code: data?.customer_code || null,
-        product_name: data?.product_name || null,
-        dimensions: data?.dimensions || null,
-        confidence: data?.confidence || 0
-      };
-
-      return parseResult;
+      // Use the type-safe extraction function
+      return extractParseResult(data);
     } catch (error) {
       console.error('Error parsing filename:', error);
       return {
