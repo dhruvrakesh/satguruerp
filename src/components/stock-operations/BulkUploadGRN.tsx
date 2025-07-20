@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ItemMasterQuickAdd } from "./ItemMasterQuickAdd";
 
 interface BulkGRNRow {
   item_code: string;
@@ -78,7 +79,8 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   const [duplicateAnalysis, setDuplicateAnalysis] = useState<DuplicateAnalysis | null>(null);
   const [uploadMode, setUploadMode] = useState<'skip' | 'update-safe' | 'force'>('skip');
   const [showDuplicatePreview, setShowDuplicatePreview] = useState(false);
-  const [batchSize] = useState(100); // Process in batches for performance
+  const [showItemMasterQuickAdd, setShowItemMasterQuickAdd] = useState(false);
+  const [batchSize] = useState(100);
   const queryClient = useQueryClient();
 
   const downloadTemplate = async () => {
@@ -226,7 +228,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   };
 
   const analyzeDuplicates = async (validatedRows: BulkGRNRow[]): Promise<DuplicateAnalysis> => {
-    console.log('🔍 Starting enhanced duplicate analysis for', validatedRows.length, 'rows');
+    console.log('🔍 Starting FIXED duplicate analysis for', validatedRows.length, 'rows');
     
     // Get unique item codes and vendors for validation
     const itemCodes = [...new Set(validatedRows.map(row => row.item_code))];
@@ -258,57 +260,59 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
           .slice(0, 3)
       }));
 
-    // Get existing GRN records with optimized query
-    const grnNumbers = [...new Set(validatedRows.map(row => row.grn_number))];
-    const { data: existingGRNs, error } = await supabase
-      .from('satguru_grn_log')
-      .select('grn_number, item_code, date, vendor, qty_received, remarks, created_at')
-      .or(`grn_number.in.(${grnNumbers.join(',')}),item_code.in.(${itemCodes.join(',')})`);
-
-    if (error) {
-      console.error('Error fetching existing GRNs:', error);
-      throw new Error('Failed to fetch existing GRN records');
+    // FIXED: Create precise composite key queries instead of OR query
+    const compositeKeys = validatedRows.map(row => `(grn_number.eq.${row.grn_number},item_code.eq.${row.item_code})`);
+    
+    // Split into chunks to avoid URL length limits
+    const existingRecords: any[] = [];
+    const chunkSize = 50;
+    
+    for (let i = 0; i < compositeKeys.length; i += chunkSize) {
+      const chunk = compositeKeys.slice(i, i + chunkSize);
+      
+      // For each composite key, make individual precise queries
+      const chunkPromises = chunk.map(async (_, chunkIndex) => {
+        const actualIndex = i + chunkIndex;
+        if (actualIndex >= validatedRows.length) return [];
+        
+        const row = validatedRows[actualIndex];
+        
+        const { data } = await supabase
+          .from('satguru_grn_log')
+          .select('grn_number, item_code, date, vendor, qty_received, remarks, created_at')
+          .eq('grn_number', row.grn_number)
+          .eq('item_code', row.item_code);
+        
+        return data || [];
+      });
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      existingRecords.push(...chunkResults.flat());
     }
 
-    const existingRecords = existingGRNs || [];
-    console.log('📊 Found', existingRecords.length, 'existing GRN records');
+    console.log('📊 FIXED analysis found', existingRecords.length, 'actual duplicate records');
 
-    // Create lookup maps for faster duplicate detection
-    const grnItemMap = new Map<string, any>();
-    const itemDateVendorMap = new Map<string, any>();
-
-    existingRecords.forEach(record => {
-      // Primary key: grn_number + item_code
-      const primaryKey = `${record.grn_number}_${record.item_code}`;
-      grnItemMap.set(primaryKey, record);
-
-      // Secondary key: item_code + date + vendor + qty_received
-      const secondaryKey = `${record.item_code}_${record.date}_${record.vendor}_${record.qty_received}`;
-      itemDateVendorMap.set(secondaryKey, record);
-    });
+    // Create lookup map for exact composite key matching
+    const existingCompositeKeys = new Set(
+      existingRecords.map(record => `${record.grn_number}_${record.item_code}`)
+    );
 
     const duplicateRows: number[] = [];
     const newRows: number[] = [];
     const duplicateDetails: DuplicateAnalysis['duplicateDetails'] = [];
 
     validatedRows.forEach((row, index) => {
-      const primaryKey = `${row.grn_number}_${row.item_code}`;
-      const secondaryKey = `${row.item_code}_${row.date}_${row.vendor}_${row.qty_received}`;
-
-      let existingRecord = grnItemMap.get(primaryKey);
-      let duplicateKey = primaryKey;
-
-      // If not found by primary key, check secondary key
-      if (!existingRecord) {
-        existingRecord = itemDateVendorMap.get(secondaryKey);
-        duplicateKey = secondaryKey;
-      }
-
-      if (existingRecord) {
+      const compositeKey = `${row.grn_number}_${row.item_code}`;
+      
+      if (existingCompositeKeys.has(compositeKey)) {
         duplicateRows.push(index);
+        const existingRecord = existingRecords.find(
+          r => r.grn_number === row.grn_number && r.item_code === row.item_code
+        );
+        
         duplicateDetails.push({
           rowIndex: index,
-          duplicateKey,
+          duplicateKey: compositeKey,
           existingRecord,
           csvRow: row
         });
@@ -317,7 +321,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       }
     });
 
-    console.log('📈 Enhanced duplicate analysis complete:', {
+    console.log('📈 FIXED duplicate analysis complete:', {
       totalRows: validatedRows.length,
       duplicates: duplicateRows.length,
       newRecords: newRows.length,
@@ -333,6 +337,13 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       invalidItemCodes,
       invalidVendors
     };
+  };
+
+  const handleItemMasterUpdate = () => {
+    // Refresh analysis after items are added to master
+    if (file && duplicateAnalysis) {
+      analyzeDuplicatesInFile();
+    }
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -740,344 +751,363 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-green-600" />
-            Production-Ready GRN Bulk Upload
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-green-600" />
+              Production-Ready GRN Bulk Upload
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-6">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Enterprise-Grade Processing:</strong> Enhanced with batch processing, remarks preservation, 
-              rollback capability, and comprehensive duplicate detection. Your valuable manual remarks will be protected.
-            </AlertDescription>
-          </Alert>
+          <div className="space-y-6">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Enterprise-Grade Processing:</strong> Enhanced with precise duplicate detection, 
+                remarks preservation, rollback capability, and missing item management.
+              </AlertDescription>
+            </Alert>
 
-          <div className="space-y-2">
-            <Label className="text-base font-medium">Step 1: Download Template</Label>
-            <Button onClick={downloadTemplate} variant="outline" className="w-full">
-              <Download className="h-4 w-4 mr-2" />
-              Download GRN Template
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-base font-medium">Step 2: Upload Your CSV File</Label>
-            <Input
-              type="file"
-              accept=".csv"
-              onChange={handleFileSelect}
-            />
-            
-            {file && (
-              <div className="p-3 bg-muted rounded text-sm">
-                <p className="font-medium text-green-600">
-                  ✅ Selected: {file.name} ({Math.round(file.size / 1024)} KB)
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* CSV Preview */}
-          {previewData && (
-            <div className="space-y-4">
-              <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>CSV Preview:</strong> Found {previewData.totalRows} total rows with headers: {previewData.headers.join(', ')}
-                </AlertDescription>
-              </Alert>
-              
-              {previewData.errors.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Parsing Issues Found:</strong>
-                    <ul className="mt-2 space-y-1">
-                      {previewData.errors.map((error: any, index: number) => (
-                        <li key={index} className="text-xs">
-                          Row {error.rowNumber}: {error.error}
-                        </li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          )}
-
-          {/* Step 3: Analyze Duplicates */}
-          {file && !showDuplicatePreview && (
             <div className="space-y-2">
-              <Label className="text-base font-medium">Step 3: Enhanced Analysis</Label>
-              <Button 
-                onClick={analyzeDuplicatesInFile}
-                disabled={isAnalyzing}
-                className="w-full"
-                variant="outline"
-              >
-                {isAnalyzing ? (
-                  <>Analyzing...</>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Analyze Duplicates & Validate Data
-                  </>
-                )}
+              <Label className="text-base font-medium">Step 1: Download Template</Label>
+              <Button onClick={downloadTemplate} variant="outline" className="w-full">
+                <Download className="h-4 w-4 mr-2" />
+                Download GRN Template
               </Button>
             </div>
-          )}
 
-          {/* Enhanced Analysis Results */}
-          {duplicateAnalysis && showDuplicatePreview && (
-            <div className="space-y-4">
-              <Alert>
-                <Shield className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Enhanced Analysis Complete:</strong> Found {duplicateAnalysis.newRows.length} new records, 
-                  {duplicateAnalysis.duplicateRows.length} duplicates, {duplicateAnalysis.invalidItemCodes.length} invalid item codes
-                </AlertDescription>
-              </Alert>
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{duplicateAnalysis.newRows.length}</div>
-                  <div className="text-sm text-green-700">New Records</div>
+            <div className="space-y-2">
+              <Label className="text-base font-medium">Step 2: Upload Your CSV File</Label>
+              <Input
+                type="file"
+                accept=".csv"
+                onChange={handleFileSelect}
+              />
+              
+              {file && (
+                <div className="p-3 bg-muted rounded text-sm">
+                  <p className="font-medium text-green-600">
+                    ✅ Selected: {file.name} ({Math.round(file.size / 1024)} KB)
+                  </p>
                 </div>
-                <div className="p-4 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">{duplicateAnalysis.duplicateRows.length}</div>
-                  <div className="text-sm text-yellow-700">Duplicates Found</div>
-                </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">{duplicateAnalysis.invalidItemCodes.length}</div>
-                  <div className="text-sm text-red-700">Invalid Item Codes</div>
-                </div>
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{duplicateAnalysis.existingRecords.length}</div>
-                  <div className="text-sm text-blue-700">Existing Records</div>
-                </div>
-              </div>
+              )}
+            </div>
 
-              {/* Upload Mode Selection */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Step 4: Choose Upload Strategy</Label>
-                <RadioGroup value={uploadMode} onValueChange={(value: any) => setUploadMode(value)}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="skip" id="skip" />
-                    <Label htmlFor="skip" className="text-sm">
-                      <Badge variant="outline" className="mr-2">Recommended</Badge>
-                      Skip duplicates - Preserve ALL existing remarks (safest)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="update-safe" id="update-safe" />
-                    <Label htmlFor="update-safe" className="text-sm">
-                      Smart update - Only update records with empty/default remarks
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="force" id="force" />
-                    <Label htmlFor="force" className="text-sm text-red-600">
-                      ⚠️ Force update - Overwrite existing data (use with caution)
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {/* Enhanced Preview Tabs */}
-              {(duplicateAnalysis.duplicateDetails.length > 0 || duplicateAnalysis.invalidItemCodes.length > 0) && (
-                <Tabs defaultValue="summary" className="w-full">
-                  <TabsList>
-                    <TabsTrigger value="summary">Summary</TabsTrigger>
-                    <TabsTrigger value="duplicates">Duplicates ({duplicateAnalysis.duplicateDetails.length})</TabsTrigger>
-                    {duplicateAnalysis.invalidItemCodes.length > 0 && (
-                      <TabsTrigger value="invalid">Invalid Items ({duplicateAnalysis.invalidItemCodes.length})</TabsTrigger>
-                    )}
-                    {duplicateAnalysis.invalidVendors.length > 0 && (
-                      <TabsTrigger value="vendors">New Vendors ({duplicateAnalysis.invalidVendors.length})</TabsTrigger>
-                    )}
-                  </TabsList>
-                  
-                  <TabsContent value="summary" className="space-y-2">
-                    <div className="text-sm text-muted-foreground">
-                      {uploadMode === 'skip' && `${duplicateAnalysis.newRows.length} records will be inserted, ${duplicateAnalysis.duplicateRows.length} duplicates will be skipped to preserve remarks`}
-                      {uploadMode === 'update-safe' && `${duplicateAnalysis.newRows.length} new records + selective updates where safe (preserving manual remarks)`}
-                      {uploadMode === 'force' && `⚠️ All ${duplicateAnalysis.newRows.length + duplicateAnalysis.duplicateRows.length} valid records will be processed (may overwrite existing data)`}
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="duplicates" className="space-y-2">
-                    <div className="max-h-40 overflow-y-auto space-y-2">
-                      {duplicateAnalysis.duplicateDetails.slice(0, 10).map((detail, index) => (
-                        <div key={index} className="p-2 bg-yellow-50 rounded text-xs">
-                          <div className="font-medium">Row {detail.rowIndex + 2}: {detail.csvRow.grn_number} - {detail.csvRow.item_code}</div>
-                          <div className="text-muted-foreground">
-                            Matches existing: {detail.existingRecord.grn_number} from {detail.existingRecord.date}
-                          </div>
-                          {detail.existingRecord.remarks && (
-                            <div className="text-green-700 text-xs mt-1">
-                              Existing remarks: "{detail.existingRecord.remarks}" → Will be preserved
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {duplicateAnalysis.duplicateDetails.length > 10 && (
-                        <div className="text-xs text-muted-foreground">
-                          ... and {duplicateAnalysis.duplicateDetails.length - 10} more duplicates
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  {duplicateAnalysis.invalidItemCodes.length > 0 && (
-                    <TabsContent value="invalid" className="space-y-2">
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          These item codes are not found in the master data and will be rejected:
-                        </AlertDescription>
-                      </Alert>
-                      <div className="max-h-32 overflow-y-auto">
-                        {duplicateAnalysis.invalidItemCodes.map((code, index) => (
-                          <Badge key={index} variant="destructive" className="mr-1 mb-1">{code}</Badge>
+            {/* CSV Preview */}
+            {previewData && (
+              <div className="space-y-4">
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>CSV Preview:</strong> Found {previewData.totalRows} total rows with headers: {previewData.headers.join(', ')}
+                  </AlertDescription>
+                </Alert>
+                
+                {previewData.errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Parsing Issues Found:</strong>
+                      <ul className="mt-2 space-y-1">
+                        {previewData.errors.map((error: any, index: number) => (
+                          <li key={index} className="text-xs">
+                            Row {error.rowNumber}: {error.error}
+                          </li>
                         ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Analyze Duplicates */}
+            {file && !showDuplicatePreview && (
+              <div className="space-y-2">
+                <Label className="text-base font-medium">Step 3: Enhanced Analysis</Label>
+                <Button 
+                  onClick={analyzeDuplicatesInFile}
+                  disabled={isAnalyzing}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {isAnalyzing ? (
+                    <>Analyzing...</>
+                  ) : (
+                    <>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Analyze Duplicates & Validate Data
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* Enhanced Analysis Results */}
+            {duplicateAnalysis && showDuplicatePreview && (
+              <div className="space-y-4">
+                <Alert>
+                  <Shield className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>FIXED Analysis Complete:</strong> Found {duplicateAnalysis.newRows.length} new records, 
+                    {duplicateAnalysis.duplicateRows.length} exact duplicates, {duplicateAnalysis.invalidItemCodes.length} missing item codes
+                  </AlertDescription>
+                </Alert>
+
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{duplicateAnalysis.newRows.length}</div>
+                    <div className="text-sm text-green-700">New Records</div>
+                  </div>
+                  <div className="p-4 bg-yellow-50 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600">{duplicateAnalysis.duplicateRows.length}</div>
+                    <div className="text-sm text-yellow-700">Exact Duplicates</div>
+                  </div>
+                  <div className="p-4 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">{duplicateAnalysis.invalidItemCodes.length}</div>
+                    <div className="text-sm text-red-700">Missing Item Codes</div>
+                    {duplicateAnalysis.invalidItemCodes.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="mt-2"
+                        onClick={() => setShowItemMasterQuickAdd(true)}
+                      >
+                        Quick Add Items
+                      </Button>
+                    )}
+                  </div>
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{duplicateAnalysis.existingRecords.length}</div>
+                    <div className="text-sm text-blue-700">Existing Records</div>
+                  </div>
+                </div>
+
+                {/* Upload Mode Selection */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Step 4: Choose Upload Strategy</Label>
+                  <RadioGroup value={uploadMode} onValueChange={(value: any) => setUploadMode(value)}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="skip" id="skip" />
+                      <Label htmlFor="skip" className="text-sm">
+                        <Badge variant="outline" className="mr-2">Recommended</Badge>
+                        Skip duplicates - Preserve ALL existing remarks (safest)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="update-safe" id="update-safe" />
+                      <Label htmlFor="update-safe" className="text-sm">
+                        Smart update - Only update records with empty/default remarks
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="force" id="force" />
+                      <Label htmlFor="force" className="text-sm text-red-600">
+                        ⚠️ Force update - Overwrite existing data (use with caution)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Enhanced Preview Tabs */}
+                {(duplicateAnalysis.duplicateDetails.length > 0 || duplicateAnalysis.invalidItemCodes.length > 0) && (
+                  <Tabs defaultValue="summary" className="w-full">
+                    <TabsList>
+                      <TabsTrigger value="summary">Summary</TabsTrigger>
+                      <TabsTrigger value="duplicates">Duplicates ({duplicateAnalysis.duplicateDetails.length})</TabsTrigger>
+                      {duplicateAnalysis.invalidItemCodes.length > 0 && (
+                        <TabsTrigger value="invalid">Invalid Items ({duplicateAnalysis.invalidItemCodes.length})</TabsTrigger>
+                      )}
+                      {duplicateAnalysis.invalidVendors.length > 0 && (
+                        <TabsTrigger value="vendors">New Vendors ({duplicateAnalysis.invalidVendors.length})</TabsTrigger>
+                      )}
+                    </TabsList>
+                    
+                    <TabsContent value="summary" className="space-y-2">
+                      <div className="text-sm text-muted-foreground">
+                        {uploadMode === 'skip' && `${duplicateAnalysis.newRows.length} records will be inserted, ${duplicateAnalysis.duplicateRows.length} duplicates will be skipped to preserve remarks`}
+                        {uploadMode === 'update-safe' && `${duplicateAnalysis.newRows.length} new records + selective updates where safe (preserving manual remarks)`}
+                        {uploadMode === 'force' && `⚠️ All ${duplicateAnalysis.newRows.length + duplicateAnalysis.duplicateRows.length} valid records will be processed (may overwrite existing data)`}
                       </div>
                     </TabsContent>
-                  )}
-
-                  {duplicateAnalysis.invalidVendors.length > 0 && (
-                    <TabsContent value="vendors" className="space-y-2">
-                      <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                          New vendor names detected. Check if these are typos:
-                        </AlertDescription>
-                      </Alert>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {duplicateAnalysis.invalidVendors.map((vendor, index) => (
-                          <div key={index} className="text-xs p-2 bg-blue-50 rounded">
-                            <div className="font-medium">{vendor.vendor}</div>
-                            {vendor.suggestions.length > 0 && (
-                              <div className="text-muted-foreground">
-                                Similar: {vendor.suggestions.join(', ')}
+                    
+                    <TabsContent value="duplicates" className="space-y-2">
+                      <div className="max-h-40 overflow-y-auto space-y-2">
+                        {duplicateAnalysis.duplicateDetails.slice(0, 10).map((detail, index) => (
+                          <div key={index} className="p-2 bg-yellow-50 rounded text-xs">
+                            <div className="font-medium">Row {detail.rowIndex + 2}: {detail.csvRow.grn_number} - {detail.csvRow.item_code}</div>
+                            <div className="text-muted-foreground">
+                              Matches existing: {detail.existingRecord.grn_number} from {detail.existingRecord.date}
+                            </div>
+                            {detail.existingRecord.remarks && (
+                              <div className="text-green-700 text-xs mt-1">
+                                Existing remarks: "{detail.existingRecord.remarks}" → Will be preserved
                               </div>
                             )}
                           </div>
                         ))}
-                      </div>
-                    </TabsContent>
-                  )}
-                </Tabs>
-              )}
-            </div>
-          )}
-
-          {/* Upload Progress */}
-          {isUploading && (
-            <div className="space-y-2">
-              <Progress value={progress} className="w-full" />
-              <p className="text-sm text-muted-foreground">
-                Processing in secure batches... {progress}%
-              </p>
-            </div>
-          )}
-
-          {/* Enhanced Upload Results */}
-          {results && (
-            <div className="space-y-4">
-              <Alert variant={results.success ? "default" : "destructive"}>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Upload Results:</strong> {results.successCount} records uploaded successfully
-                  {results.skippedCount > 0 && `, ${results.skippedCount} duplicates skipped`}
-                  {results.errorCount > 0 && `, ${results.errorCount} errors found`}
-                </AlertDescription>
-              </Alert>
-
-              {/* Rollback Option */}
-              {results.canUndo && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm">Upload successful! You can undo this upload if needed.</span>
-                  <Button size="sm" variant="outline" onClick={undoLastUpload}>
-                    <Undo className="h-4 w-4 mr-1" />
-                    Undo Upload
-                  </Button>
-                </div>
-              )}
-
-              {/* Download Skipped Records Report */}
-              {results.skippedRecords.length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded">
-                  <FileText className="h-4 w-4 text-yellow-600" />
-                  <span className="text-sm">{results.skippedRecords.length} records were skipped.</span>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => downloadSkippedReport(results.skippedRecords)}
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Download Report
-                  </Button>
-                </div>
-              )}
-
-              {results.errors.length > 0 && (
-                <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-3">
-                  <h4 className="font-medium text-destructive">Validation Errors:</h4>
-                  {results.errors.slice(0, 10).map((error, index) => (
-                    <Alert key={index} variant="destructive" className="text-xs">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div>
-                          <strong>Row {error.row}:</strong> {error.message}
-                        </div>
-                        {error.data && (
-                          <div className="mt-1 text-muted-foreground">
-                            Data: {JSON.stringify(error.data).substring(0, 100)}...
+                        {duplicateAnalysis.duplicateDetails.length > 10 && (
+                          <div className="text-xs text-muted-foreground">
+                            ... and {duplicateAnalysis.duplicateDetails.length - 10} more duplicates
                           </div>
                         )}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                  {results.errors.length > 10 && (
-                    <div className="text-xs text-muted-foreground">
-                      ... and {results.errors.length - 10} more errors
-                    </div>
+                      </div>
+                    </TabsContent>
+
+                    {duplicateAnalysis.invalidItemCodes.length > 0 && (
+                      <TabsContent value="invalid" className="space-y-2">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            These item codes are not found in the master data and will be rejected:
+                          </AlertDescription>
+                        </Alert>
+                        <div className="max-h-32 overflow-y-auto">
+                          {duplicateAnalysis.invalidItemCodes.map((code, index) => (
+                            <Badge key={index} variant="destructive" className="mr-1 mb-1">{code}</Badge>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    )}
+
+                    {duplicateAnalysis.invalidVendors.length > 0 && (
+                      <TabsContent value="vendors" className="space-y-2">
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription>
+                            New vendor names detected. Check if these are typos:
+                          </AlertDescription>
+                        </Alert>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {duplicateAnalysis.invalidVendors.map((vendor, index) => (
+                            <div key={index} className="text-xs p-2 bg-blue-50 rounded">
+                              <div className="font-medium">{vendor.vendor}</div>
+                              {vendor.suggestions.length > 0 && (
+                                <div className="text-muted-foreground">
+                                  Similar: {vendor.suggestions.join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                )}
+              </div>
+            )}
+
+            {/* Upload Progress */}
+            {isUploading && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-muted-foreground">
+                  Processing in secure batches... {progress}%
+                </p>
+              </div>
+            )}
+
+            {/* Enhanced Upload Results */}
+            {results && (
+              <div className="space-y-4">
+                <Alert variant={results.success ? "default" : "destructive"}>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Upload Results:</strong> {results.successCount} records uploaded successfully
+                    {results.skippedCount > 0 && `, ${results.skippedCount} duplicates skipped`}
+                    {results.errorCount > 0 && `, ${results.errorCount} errors found`}
+                  </AlertDescription>
+                </Alert>
+
+                {/* Rollback Option */}
+                {results.canUndo && (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 rounded">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm">Upload successful! You can undo this upload if needed.</span>
+                    <Button size="sm" variant="outline" onClick={undoLastUpload}>
+                      <Undo className="h-4 w-4 mr-1" />
+                      Undo Upload
+                    </Button>
+                  </div>
+                )}
+
+                {/* Download Skipped Records Report */}
+                {results.skippedRecords.length > 0 && (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded">
+                    <FileText className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm">{results.skippedRecords.length} records were skipped.</span>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => downloadSkippedReport(results.skippedRecords)}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download Report
+                    </Button>
+                  </div>
+                )}
+
+                {results.errors.length > 0 && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto border rounded p-3">
+                    <h4 className="font-medium text-destructive">Validation Errors:</h4>
+                    {results.errors.slice(0, 10).map((error, index) => (
+                      <Alert key={index} variant="destructive" className="text-xs">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div>
+                            <strong>Row {error.row}:</strong> {error.message}
+                          </div>
+                          {error.data && (
+                            <div className="mt-1 text-muted-foreground">
+                              Data: {JSON.stringify(error.data).substring(0, 100)}...
+                            </div>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    ))}
+                    {results.errors.length > 10 && (
+                      <div className="text-xs text-muted-foreground">
+                        ... and {results.errors.length - 10} more errors
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={resetForm}>
+                Reset
+              </Button>
+              {showDuplicatePreview && (
+                <Button
+                  onClick={handleUpload}
+                  disabled={!duplicateAnalysis || isUploading || duplicateAnalysis.newRows.length === 0}
+                  className="min-w-[140px]"
+                >
+                  {isUploading ? (
+                    <>Processing...</>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload {duplicateAnalysis?.newRows.length || 0} Records
+                    </>
                   )}
-                </div>
+                </Button>
               )}
             </div>
-          )}
-
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={resetForm}>
-              Reset
-            </Button>
-            {showDuplicatePreview && (
-              <Button
-                onClick={handleUpload}
-                disabled={!duplicateAnalysis || isUploading || duplicateAnalysis.newRows.length === 0}
-                className="min-w-[140px]"
-              >
-                {isUploading ? (
-                  <>Processing...</>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload {duplicateAnalysis?.newRows.length || 0} Records
-                  </>
-                )}
-              </Button>
-            )}
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <ItemMasterQuickAdd
+        open={showItemMasterQuickAdd}
+        onOpenChange={setShowItemMasterQuickAdd}
+        missingItemCodes={duplicateAnalysis?.invalidItemCodes || []}
+        onItemsAdded={handleItemMasterUpdate}
+      />
+    </>
   );
 }
