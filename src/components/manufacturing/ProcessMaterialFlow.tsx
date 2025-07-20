@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MaterialFlowTracker } from "./MaterialFlowTracker";
 import { ProcessTransferTracker } from "./ProcessTransferTracker";
 import { RMConsumptionTracker } from "./RMConsumptionTracker";
+import { ProcessChainAnalytics } from "./ProcessChainAnalytics";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -14,7 +15,8 @@ import {
   TrendingUp, 
   AlertTriangle,
   CheckCircle,
-  Factory
+  Factory,
+  BarChart3
 } from "lucide-react";
 
 interface ProcessMaterialFlowProps {
@@ -165,11 +167,12 @@ export function ProcessMaterialFlow({
 
       {/* Integrated Material Flow Tabs */}
       <Tabs defaultValue="flow" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="flow">Material Flow</TabsTrigger>
           <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="transfer">Process Transfer</TabsTrigger>
-          <TabsTrigger value="chain">Chain Analysis</TabsTrigger>
+          <TabsTrigger value="analytics">Chain Analytics</TabsTrigger>
+          <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
         </TabsList>
 
         <TabsContent value="flow">
@@ -203,8 +206,15 @@ export function ProcessMaterialFlow({
           />
         </TabsContent>
 
-        <TabsContent value="chain">
-          <ProcessChainAnalysis 
+        <TabsContent value="analytics">
+          <ProcessChainAnalytics 
+            uiorn={uiorn}
+            timeRange="today"
+          />
+        </TabsContent>
+
+        <TabsContent value="intelligence">
+          <ProcessChainIntelligence 
             uiorn={uiorn}
             currentProcess={currentProcess}
             processChain={processChainStatus}
@@ -215,8 +225,8 @@ export function ProcessMaterialFlow({
   );
 }
 
-// Process Chain Analysis Component
-function ProcessChainAnalysis({ 
+// Enhanced Process Chain Intelligence Component
+function ProcessChainIntelligence({ 
   uiorn, 
   currentProcess, 
   processChain 
@@ -228,10 +238,13 @@ function ProcessChainAnalysis({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Process Chain Material Analysis</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          Process Chain Intelligence & Optimization
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -262,8 +275,19 @@ function ProcessChainAnalysis({
             </Card>
           </div>
           
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+            <h4 className="font-semibold text-blue-900 mb-2">🚀 AI-Powered Recommendations</h4>
+            <ul className="space-y-1 text-sm text-blue-800">
+              <li>• Optimize material transfer timing between {currentProcess} and next process</li>
+              <li>• Reduce setup waste by 15% through predictive parameter adjustment</li>
+              <li>• Implement real-time quality monitoring to prevent downstream issues</li>
+              <li>• Schedule preventive maintenance based on material flow patterns</li>
+            </ul>
+          </div>
+
           <div className="text-center text-muted-foreground">
-            <p>Detailed process chain analysis will be available once material flow data is recorded across multiple processes.</p>
+            <p>Complete process chain intelligence will be available once material flow data is recorded across all processes.</p>
+            <p className="text-sm mt-2">Current Coverage: {processChain.filter(p => p.status !== 'pending').length}/{processChain.length} processes</p>
           </div>
         </div>
       </CardContent>

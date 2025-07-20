@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings, Brain, Palette } from "lucide-react";
@@ -9,9 +10,7 @@ import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
-import { MaterialFlowTracker } from "@/components/manufacturing/MaterialFlowTracker";
-import { ProcessTransferTracker } from "@/components/manufacturing/ProcessTransferTracker";
-import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
+import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -305,23 +304,22 @@ export default function LaminationCoating() {
         </Card>
       </div>
 
-      <Tabs defaultValue="lamination" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+      <Tabs defaultValue="material-flow" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
           <TabsTrigger value="lamination">Lamination Control</TabsTrigger>
           <TabsTrigger value="coating">Coating Control</TabsTrigger>
-          <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
-          <TabsTrigger value="transfers">Process Transfers</TabsTrigger>
-          <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
+          <TabsTrigger value="monitoring">Active Monitoring</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="lamination" className="space-y-6">
+        <TabsContent value="material-flow" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Available Orders</CardTitle>
-                <CardDescription>Select an order to start lamination process</CardDescription>
+                <CardDescription>Select an order to start material flow tracking</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -369,6 +367,37 @@ export default function LaminationCoating() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Process Material Flow</CardTitle>
+                <CardDescription>
+                  Integrated material flow tracking for Lamination & Coating processes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedOrder ? (
+                  <ProcessMaterialFlow
+                    uiorn={selectedOrder.uiorn}
+                    currentProcess="LAMINATION"
+                    nextProcess="ADHESIVE_COATING"
+                    previousProcess="GRAVURE_PRINTING"
+                    artworkData={artworkData}
+                    onFlowUpdate={(flowData) => {
+                      console.log('Material flow updated:', flowData);
+                    }}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Select an order to begin material flow tracking
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="lamination" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Lamination Parameters</CardTitle>
@@ -428,11 +457,7 @@ export default function LaminationCoating() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
 
-        <TabsContent value="coating" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Coating Parameters</CardTitle>
@@ -489,73 +514,18 @@ export default function LaminationCoating() {
           </div>
         </TabsContent>
 
-        <TabsContent value="material-flow" className="space-y-6">
-          <div className="space-y-6">
-            {selectedOrder ? (
-              <>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <MaterialFlowTracker
-                    uiorn={selectedOrder.uiorn}
-                    processStage="LAMINATION"
-                    previousProcessStage="GRAVURE_PRINTING"
-                  />
-                  <MaterialFlowTracker
-                    uiorn={selectedOrder.uiorn}
-                    processStage="ADHESIVE_COATING"
-                    previousProcessStage="GRAVURE_PRINTING"
-                  />
-                </div>
-              </>
-            ) : (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">Please select an order to track material flow</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="transfers" className="space-y-6">
-          {selectedOrder ? (
-            <ProcessTransferTracker
+        <TabsContent value="coating" className="space-y-6">
+          {selectedOrder && (
+            <ProcessMaterialFlow
               uiorn={selectedOrder.uiorn}
-              currentProcess="LAMINATION"
-              availableProcesses={["GRAVURE_PRINTING", "LAMINATION", "ADHESIVE_COATING", "SLITTING", "PACKAGING"]}
+              currentProcess="ADHESIVE_COATING"
+              nextProcess="SLITTING"
+              previousProcess="LAMINATION"
+              artworkData={artworkData}
+              onFlowUpdate={(flowData) => {
+                console.log('Coating material flow updated:', flowData);
+              }}
             />
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <p className="text-muted-foreground">Please select an order to manage process transfers</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="consumption" className="space-y-6">
-          {selectedOrder ? (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Lamination Raw Materials</h3>
-                <RMConsumptionTracker
-                  uiorn={selectedOrder.uiorn}
-                  processStage="LAMINATION"
-                />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Coating Raw Materials</h3>
-                <RMConsumptionTracker
-                  uiorn={selectedOrder.uiorn}
-                  processStage="ADHESIVE_COATING"
-                />
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <p className="text-muted-foreground">Please select an order to track raw material consumption</p>
-              </CardContent>
-            </Card>
           )}
         </TabsContent>
 
@@ -638,6 +608,19 @@ export default function LaminationCoating() {
           </div>
         </TabsContent>
 
+        <TabsContent value="intelligence">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ProcessIntelligencePanel 
+              stage="LAMINATION"
+              onApplyRecommendations={(params) => applyRecommendations(params, 'lamination')}
+            />
+            <ProcessIntelligencePanel 
+              stage="ADHESIVE_COATING"
+              onApplyRecommendations={(params) => applyRecommendations(params, 'coating')}
+            />
+          </div>
+        </TabsContent>
+
         <TabsContent value="monitoring">
           <Card>
             <CardHeader>
@@ -705,130 +688,6 @@ export default function LaminationCoating() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="intelligence">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <ProcessIntelligencePanel 
-              stage="LAMINATION"
-              onApplyRecommendations={(params) => applyRecommendations(params, 'lamination')}
-            />
-            <ProcessIntelligencePanel 
-              stage="ADHESIVE_COATING"
-              onApplyRecommendations={(params) => applyRecommendations(params, 'coating')}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="quality">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quality Control Metrics</CardTitle>
-              <CardDescription>
-                Monitor adhesion strength, coating uniformity, and barrier properties
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-3">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Gauge className="w-5 h-5" />
-                      Adhesion Strength
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">2.8 N/15mm</div>
-                    <p className="text-sm text-muted-foreground">Target: &gt;2.5</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Thermometer className="w-5 h-5" />
-                      Coating Uniformity
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">±0.2 gsm</div>
-                    <p className="text-sm text-muted-foreground">Variance</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Beaker className="w-5 h-5" />
-                      Barrier Properties
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">0.8 g/m²/day</div>
-                    <p className="text-sm text-muted-foreground">Water vapor transmission</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Lamination History</CardTitle>
-                <CardDescription>{laminationLogs.length} records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {laminationLogs.slice(0, 8).map((log: any) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Layers className="w-4 h-4 text-blue-500" />
-                        <div>
-                          <h4 className="font-medium text-sm">{log.uiorn}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {log.metric}: {log.value || log.txt_value}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {log.captured_at && format(new Date(log.captured_at), 'MMM dd, HH:mm')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Coating History</CardTitle>
-                <CardDescription>{coatingLogs.length} records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {coatingLogs.slice(0, 8).map((log: any) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Beaker className="w-4 h-4 text-purple-500" />
-                        <div>
-                          <h4 className="font-medium text-sm">{log.uiorn}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {log.metric}: {log.value || log.txt_value}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {log.captured_at && format(new Date(log.captured_at), 'MMM dd, HH:mm')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

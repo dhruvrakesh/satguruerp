@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Scissors, Package, Ruler, Package2, CheckCircle, Truck, Settings, Play } from "lucide-react";
@@ -8,14 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { MaterialFlowTracker } from "@/components/manufacturing/MaterialFlowTracker";
-import { ProcessTransferTracker } from "@/components/manufacturing/ProcessTransferTracker";
-import { RMConsumptionTracker } from "@/components/manufacturing/RMConsumptionTracker";
+import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
 
 export default function SlittingPackaging() {
   const [slittingLogs, setSlittingLogs] = useState([]);
   const [dispatchLogs, setDispatchLogs] = useState([]);
   const [activeJobs, setActiveJobs] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   
   const { data: orders = [] } = useManufacturingOrders({
     status: "IN_PROGRESS"
@@ -89,16 +89,6 @@ export default function SlittingPackaging() {
     return process === 'SLITTING' ? 'text-orange-600 bg-orange-50' : 'text-blue-600 bg-blue-50';
   };
 
-  const allProcessStages = [
-    'ARTWORK_UPLOAD',
-    'GRAVURE_PRINTING', 
-    'LAMINATION',
-    'ADHESIVE_COATING',
-    'SLITTING',
-    'PACKAGING',
-    'DISPATCH'
-  ];
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -142,7 +132,7 @@ export default function SlittingPackaging() {
             <Ruler className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">84</div>
+            <div className="text-2xl font-bold">{slittingLogs.length}</div>
             <p className="text-xs text-muted-foreground">
               Historical records
             </p>
@@ -155,7 +145,7 @@ export default function SlittingPackaging() {
             <Truck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">42</div>
+            <div className="text-2xl font-bold">{dispatchLogs.length}</div>
             <p className="text-xs text-muted-foreground">
               Historical records
             </p>
@@ -176,15 +166,90 @@ export default function SlittingPackaging() {
         </Card>
       </div>
 
-      <Tabs defaultValue="active" className="space-y-6">
+      <Tabs defaultValue="material-flow" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="active">Active Jobs</TabsTrigger>
           <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
-          <TabsTrigger value="rm-consumption">RM Consumption</TabsTrigger>
-          <TabsTrigger value="transfers">Process Transfers</TabsTrigger>
-          <TabsTrigger value="setup">Job Setup</TabsTrigger>
+          <TabsTrigger value="active">Active Jobs</TabsTrigger>
+          <TabsTrigger value="slitting">Slitting Setup</TabsTrigger>
+          <TabsTrigger value="packaging">Packaging Setup</TabsTrigger>
+          <TabsTrigger value="dispatch">Dispatch Queue</TabsTrigger>
           <TabsTrigger value="history">Process History</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="material-flow" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Orders</CardTitle>
+                <CardDescription>Select an order to start material flow tracking</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <Card 
+                      key={order.uiorn} 
+                      className={`p-4 cursor-pointer transition-colors ${
+                        selectedOrder?.uiorn === order.uiorn ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{order.customer_name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {order.product_description}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <Badge variant="outline">{order.uiorn}</Badge>
+                            <Badge 
+                              variant={order.priority_level === 'URGENT' ? 'destructive' : 'default'}
+                            >
+                              {order.priority_level}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant={selectedOrder?.uiorn === order.uiorn ? "default" : "outline"}
+                          >
+                            {selectedOrder?.uiorn === order.uiorn ? "Selected" : "Select"}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Process Material Flow</CardTitle>
+                <CardDescription>
+                  Integrated material flow tracking for Slitting & Packaging processes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {selectedOrder ? (
+                  <ProcessMaterialFlow
+                    uiorn={selectedOrder.uiorn}
+                    currentProcess="SLITTING"
+                    nextProcess="PACKAGING"
+                    previousProcess="ADHESIVE_COATING"
+                    onFlowUpdate={(flowData) => {
+                      console.log('Slitting material flow updated:', flowData);
+                    }}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Select an order to begin material flow tracking
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="active">
           <Card>
@@ -272,160 +337,92 @@ export default function SlittingPackaging() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="material-flow">
+        <TabsContent value="slitting">
           <Card>
             <CardHeader>
-              <CardTitle>Material Flow Tracking - Slitting & Packaging</CardTitle>
-              <CardDescription>
-                Track input materials, output production, waste, and rework quantities
-              </CardDescription>
+              <CardTitle>Slitting Configuration</CardTitle>
+              <CardDescription>Set cutting parameters and roll specifications</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Slitting Material Flow */}
+              <div className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Scissors className="h-5 w-5 text-orange-500" />
-                    Slitting Process
-                  </h3>
-                  <MaterialFlowTracker
-                    uiorn="250718005" // This should come from selected order
-                    processStage="SLITTING"
-                    previousProcessStage="LAMINATION"
-                  />
+                  <label className="text-sm font-medium">Parent Roll Width (mm)</label>
+                  <Input type="number" placeholder="1200" />
                 </div>
-
-                {/* Packaging Material Flow */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-blue-500" />
-                    Packaging Process
-                  </h3>
-                  <MaterialFlowTracker
-                    uiorn="250718005" // This should come from selected order
-                    processStage="PACKAGING"
-                    previousProcessStage="SLITTING"
-                  />
+                  <label className="text-sm font-medium">Cut Width (mm)</label>
+                  <Input type="number" placeholder="300" />
                 </div>
+                <div>
+                  <label className="text-sm font-medium">Number of Rolls</label>
+                  <Input type="number" placeholder="4" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Slitting Speed (m/min)</label>
+                  <Input type="number" placeholder="150" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Core Size (inches)</label>
+                  <Input type="number" placeholder="3" />
+                </div>
+                {selectedOrder && (
+                  <ProcessMaterialFlow
+                    uiorn={selectedOrder.uiorn}
+                    currentProcess="SLITTING"
+                    nextProcess="PACKAGING"
+                    previousProcess="ADHESIVE_COATING"
+                    onFlowUpdate={(flowData) => {
+                      console.log('Slitting setup flow updated:', flowData);
+                    }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="rm-consumption">
+        <TabsContent value="packaging">
           <Card>
             <CardHeader>
-              <CardTitle>Raw Material Consumption</CardTitle>
-              <CardDescription>
-                Track packaging materials, adhesives, and other consumables
-              </CardDescription>
+              <CardTitle>Packaging Configuration</CardTitle>
+              <CardDescription>Set packaging and labeling requirements</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Slitting RM Consumption */}
+              <div className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Slitting Materials</h3>
-                  <RMConsumptionTracker
-                    uiorn="250718005"
-                    processStage="SLITTING"
-                  />
+                  <label className="text-sm font-medium">Rolls per Box</label>
+                  <Input type="number" placeholder="4" />
                 </div>
-
-                {/* Packaging RM Consumption */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Packaging Materials</h3>
-                  <RMConsumptionTracker
-                    uiorn="250718005"
-                    processStage="PACKAGING"
-                  />
+                  <label className="text-sm font-medium">Box Type</label>
+                  <Input placeholder="Corrugated" />
                 </div>
+                <div>
+                  <label className="text-sm font-medium">Label Format</label>
+                  <Input placeholder="Customer + Specs" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Pallet Configuration</label>
+                  <Input placeholder="20 boxes per pallet" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Special Instructions</label>
+                  <Input placeholder="Handle with care" />
+                </div>
+                {selectedOrder && (
+                  <ProcessMaterialFlow
+                    uiorn={selectedOrder.uiorn}
+                    currentProcess="PACKAGING"
+                    nextProcess="DISPATCH"
+                    previousProcess="SLITTING"
+                    onFlowUpdate={(flowData) => {
+                      console.log('Packaging flow updated:', flowData);
+                    }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="transfers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Process Material Transfers</CardTitle>
-              <CardDescription>
-                Manage material handoffs between processes and track quantities
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ProcessTransferTracker
-                uiorn="250718005"
-                currentProcess="SLITTING"
-                availableProcesses={allProcessStages}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="setup">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Slitting Configuration</CardTitle>
-                <CardDescription>Set cutting parameters and roll specifications</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Parent Roll Width (mm)</label>
-                    <Input type="number" placeholder="1200" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Cut Width (mm)</label>
-                    <Input type="number" placeholder="300" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Number of Rolls</label>
-                    <Input type="number" placeholder="4" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Slitting Speed (m/min)</label>
-                    <Input type="number" placeholder="150" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Core Size (inches)</label>
-                    <Input type="number" placeholder="3" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Packaging Configuration</CardTitle>
-                <CardDescription>Set packaging and labeling requirements</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Rolls per Box</label>
-                    <Input type="number" placeholder="4" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Box Type</label>
-                    <Input placeholder="Corrugated" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Label Format</label>
-                    <Input placeholder="Customer + Specs" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Pallet Configuration</label>
-                    <Input placeholder="20 boxes per pallet" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Special Instructions</label>
-                    <Input placeholder="Handle with care" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="dispatch">
@@ -438,7 +435,6 @@ export default function SlittingPackaging() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Mock dispatch ready orders */}
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
                     <div className="flex items-center gap-4">
@@ -516,7 +512,7 @@ export default function SlittingPackaging() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {log.captured_at && format(new Date(log.captured_at), 'MMM dd, HH:mm')}
+                        {log.received_at && format(new Date(log.received_at), 'MMM dd, HH:mm')}
                       </div>
                     </div>
                   ))}
