@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload, Package } from "lucide-react";
@@ -12,7 +11,7 @@ import { IssueForm } from "@/components/stock-operations/IssueForm";
 import { IssueTable } from "@/components/stock-operations/IssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
 import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
-import { BulkUploadIssues } from "@/components/stock-operations/BulkUploadIssues";
+import { EnhancedBulkUploadIssues } from "@/components/stock-operations/EnhancedBulkUploadIssues";
 import { BulkUploadOpeningStock } from "@/components/stock-operations/BulkUploadOpeningStock";
 import { StockMovementReport } from "@/components/stock-operations/StockMovementReport";
 import { OpeningStockTable } from "@/components/stock-operations/OpeningStockTable";
@@ -21,7 +20,7 @@ export default function StockOperations() {
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [bulkGRNOpen, setBulkGRNOpen] = useState(false);
-  const [bulkIssuesOpen, setBulkIssuesOpen] = useState(false);
+  const [enhancedBulkIssuesOpen, setEnhancedBulkIssuesOpen] = useState(false);
   const [bulkOpeningStockOpen, setBulkOpeningStockOpen] = useState(false);
 
   return (
@@ -78,9 +77,9 @@ export default function StockOperations() {
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Upload GRNs
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBulkIssuesOpen(true)}>
+              <DropdownMenuItem onClick={() => setEnhancedBulkIssuesOpen(true)}>
                 <TrendingDown className="w-4 h-4 mr-2" />
-                Upload Issues
+                Upload Issues (Enhanced)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -101,9 +100,9 @@ export default function StockOperations() {
             onOpenChange={setBulkGRNOpen}
           />
           
-          <BulkUploadIssues
-            open={bulkIssuesOpen}
-            onOpenChange={setBulkIssuesOpen}
+          <EnhancedBulkUploadIssues
+            open={enhancedBulkIssuesOpen}
+            onOpenChange={setEnhancedBulkIssuesOpen}
           />
         </div>
       </div>
