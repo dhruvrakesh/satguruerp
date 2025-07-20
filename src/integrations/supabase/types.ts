@@ -3773,7 +3773,11 @@ export type Database = {
       }
       material_flow_tracking: {
         Row: {
+          actual_vs_planned_variance: number | null
+          bom_variance_percentage: number | null
           created_at: string | null
+          customer_code: string | null
+          fg_item_code: string | null
           id: string
           input_material_type: string
           input_quantity: number
@@ -3782,9 +3786,11 @@ export type Database = {
           material_cost_per_unit: number
           notes: string | null
           operator_id: string | null
+          order_quantity: number | null
           output_good_quantity: number
           output_rework_quantity: number
           output_waste_quantity: number
+          planned_consumption: number | null
           process_stage: Database["public"]["Enums"]["process_stage"]
           quality_grade: string
           recorded_at: string
@@ -3797,7 +3803,11 @@ export type Database = {
           yield_percentage: number
         }
         Insert: {
+          actual_vs_planned_variance?: number | null
+          bom_variance_percentage?: number | null
           created_at?: string | null
+          customer_code?: string | null
+          fg_item_code?: string | null
           id?: string
           input_material_type: string
           input_quantity?: number
@@ -3806,9 +3816,11 @@ export type Database = {
           material_cost_per_unit?: number
           notes?: string | null
           operator_id?: string | null
+          order_quantity?: number | null
           output_good_quantity?: number
           output_rework_quantity?: number
           output_waste_quantity?: number
+          planned_consumption?: number | null
           process_stage: Database["public"]["Enums"]["process_stage"]
           quality_grade?: string
           recorded_at?: string
@@ -3821,7 +3833,11 @@ export type Database = {
           yield_percentage?: number
         }
         Update: {
+          actual_vs_planned_variance?: number | null
+          bom_variance_percentage?: number | null
           created_at?: string | null
+          customer_code?: string | null
+          fg_item_code?: string | null
           id?: string
           input_material_type?: string
           input_quantity?: number
@@ -3830,9 +3846,11 @@ export type Database = {
           material_cost_per_unit?: number
           notes?: string | null
           operator_id?: string | null
+          order_quantity?: number | null
           output_good_quantity?: number
           output_rework_quantity?: number
           output_waste_quantity?: number
+          planned_consumption?: number | null
           process_stage?: Database["public"]["Enums"]["process_stage"]
           quality_grade?: string
           recorded_at?: string
@@ -7250,6 +7268,36 @@ export type Database = {
         }
         Relationships: []
       }
+      material_availability_view: {
+        Row: {
+          availability_status: string | null
+          available_quantity: number | null
+          operator_id: string | null
+          process_stage: Database["public"]["Enums"]["process_stage"] | null
+          quality_grade: string | null
+          recorded_at: string | null
+          uiorn: string | null
+        }
+        Insert: {
+          availability_status?: never
+          available_quantity?: number | null
+          operator_id?: string | null
+          process_stage?: Database["public"]["Enums"]["process_stage"] | null
+          quality_grade?: string | null
+          recorded_at?: string | null
+          uiorn?: string | null
+        }
+        Update: {
+          availability_status?: never
+          available_quantity?: number | null
+          operator_id?: string | null
+          process_stage?: Database["public"]["Enums"]["process_stage"] | null
+          quality_grade?: string | null
+          recorded_at?: string | null
+          uiorn?: string | null
+        }
+        Relationships: []
+      }
       order_process_history: {
         Row: {
           captured_at: string | null
@@ -7494,6 +7542,10 @@ export type Database = {
         Args: { data: string }
         Returns: string
       }
+      calculate_bom_variance: {
+        Args: { p_uiorn: string; p_process_stage: string }
+        Returns: Json
+      }
       calculate_order_progress: {
         Args: Record<PropertyKey, never> | { p_uiorn: string }
         Returns: {
@@ -7714,6 +7766,10 @@ export type Database = {
           p_current_status: Database["public"]["Enums"]["process_status"]
         }
         Returns: Database["public"]["Enums"]["process_status"]
+      }
+      get_order_material_progress: {
+        Args: { p_uiorn: string }
+        Returns: Json
       }
       get_order_process_history: {
         Args: { p_uiorn: string }

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useMaterialAvailability } from "@/hooks/useMaterialAvailability";
 import { 
   ArrowRight, 
   Package, 
@@ -54,26 +55,11 @@ export function MaterialFlowContinuity({
   const currentProcessIndex = PROCESS_SEQUENCE.indexOf(currentProcess);
   const previousProcess = currentProcessIndex > 0 ? PROCESS_SEQUENCE[currentProcessIndex - 1] : null;
 
-  // Fetch available materials from previous process
-  const { data: materialFlowData, isLoading } = useQuery({
-    queryKey: ['available-materials', uiorn, previousProcess],
-    queryFn: async () => {
-      if (!previousProcess) return [];
-      
-      const { data, error } = await supabase
-        .from('material_flow_tracking')
-        .select('*')
-        .eq('uiorn', uiorn)
-        .eq('process_stage', previousProcess as any)
-        .gt('output_good_quantity', 0)
-        .order('recorded_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!previousProcess,
-    refetchInterval: 10000 // Refresh every 10 seconds
-  });
+  // Use the new material availability hook for real-time data
+  const { data: materialAvailabilityData, isLoading } = useMaterialAvailability(
+    uiorn, 
+    previousProcess || undefined
+  );
 
   // Check for existing transfers
   const { data: existingTransfers } = useQuery({
@@ -93,26 +79,22 @@ export function MaterialFlowContinuity({
 
   // Process material availability
   useEffect(() => {
-    if (materialFlowData && existingTransfers) {
-      const transferredMaterialIds = existingTransfers
-        .filter(t => t.transfer_status === 'RECEIVED')
-        .map(t => t.id); // Use transfer id instead of source_record_id
-
-      const available = materialFlowData
-        .filter(record => !transferredMaterialIds.includes(record.id))
-        .map(record => ({
-          id: record.id,
-          fromProcess: record.process_stage,
-          materialType: record.input_material_type || 'SUBSTRATE', // Use input_material_type
-          quantity: record.output_good_quantity,
-          qualityGrade: record.quality_grade || 'A',
-          recordedAt: record.recorded_at,
+    if (materialAvailabilityData && existingTransfers) {
+      const available = materialAvailabilityData
+        .filter(material => material.availability_status === 'AVAILABLE')
+        .map(material => ({
+          id: material.uiorn + '_' + material.process_stage,
+          fromProcess: material.process_stage,
+          materialType: 'Material', // Default type, can be enhanced later
+          quantity: material.available_quantity,
+          qualityGrade: material.quality_grade,
+          recordedAt: material.recorded_at,
           transferStatus: 'AVAILABLE' as const
         }));
 
       setAvailableMaterials(available);
     }
-  }, [materialFlowData, existingTransfers]);
+  }, [materialAvailabilityData, existingTransfers]);
 
   // Create material transfer mutation
   const createTransferMutation = useMutation({

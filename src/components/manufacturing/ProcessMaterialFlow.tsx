@@ -10,6 +10,8 @@ import { RMConsumptionTracker } from "./RMConsumptionTracker";
 import { ProcessChainAnalytics } from "./ProcessChainAnalytics";
 import { MaterialFlowContinuity } from "./MaterialFlowContinuity";
 import { MaterialFlowEndToEndTest } from "./MaterialFlowEndToEndTest";
+import { BOMVariancePanel } from "./BOMVariancePanel";
+import { OrderProgressTracker } from "./OrderProgressTracker";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -180,7 +182,7 @@ export function ProcessMaterialFlow({
 
       {/* Enhanced Material Flow Tabs */}
       <Tabs defaultValue="continuity" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="continuity">Material Flow</TabsTrigger>
           <TabsTrigger value="tracking">Process Data</TabsTrigger>
           <TabsTrigger value="consumption">RM Consumption</TabsTrigger>
@@ -188,6 +190,7 @@ export function ProcessMaterialFlow({
           <TabsTrigger value="analytics">Chain Analytics</TabsTrigger>
           <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
           <TabsTrigger value="testing">System Test</TabsTrigger>
+          <TabsTrigger value="bom-analysis">BOM Analysis</TabsTrigger>
         </TabsList>
 
         <TabsContent value="continuity">
@@ -249,6 +252,13 @@ export function ProcessMaterialFlow({
           <MaterialFlowEndToEndTest 
             uiorn={uiorn}
           />
+        </TabsContent>
+
+        <TabsContent value="bom-analysis">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <BOMVariancePanel uiorn={uiorn} processStage={currentProcess} />
+            <OrderProgressTracker uiorn={uiorn} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
