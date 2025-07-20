@@ -1736,7 +1736,15 @@ export type Database = {
           uploaded_by?: string | null
           version?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customer_specifications_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "master_data_artworks_se"
+            referencedColumns: ["item_code"]
+          },
+        ]
       }
       daily_stock_snapshots: {
         Row: {

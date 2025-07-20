@@ -30,9 +30,9 @@ interface CustomerSpecification {
   upload_date: string;
   version: number;
   status: string;
-  satguru_item_master?: {
+  master_data_artworks_se?: {
     item_name: string;
-    dimensions?: string;
+    customer_name?: string;
   };
 }
 
@@ -70,8 +70,9 @@ export default function SpecificationMaster() {
           upload_date,
           version,
           status,
-          satguru_item_master (
-            item_name
+          master_data_artworks_se (
+            item_name,
+            customer_name
           )
         `)
         .order('upload_date', { ascending: false });
@@ -92,14 +93,13 @@ export default function SpecificationMaster() {
     }
   });
 
-  // Fetch satguru_item_master for FG items only
+  // Fetch master_data_artworks_se for artwork items
   const { data: itemMaster } = useQuery({
-    queryKey: ['satguru-item-master-fg'],
+    queryKey: ['master-data-artworks-se'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('satguru_item_master')
-        .select('item_code, item_name')
-        .eq('usage_type', 'FINISHED_GOOD')
+        .from('master_data_artworks_se')
+        .select('item_code, item_name, customer_name')
         .order('item_code');
       if (error) throw error;
       return data;
@@ -292,7 +292,7 @@ export default function SpecificationMaster() {
 
     const csvData = specifications.map(spec => ({
       item_code: spec.item_code,
-      item_name: spec.satguru_item_master?.item_name || '',
+      item_name: spec.master_data_artworks_se?.item_name || '',
       customer_code: spec.customer_code,
       specification_name: spec.specification_name,
       version: spec.version,
@@ -403,10 +403,10 @@ export default function SpecificationMaster() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Item Code (FG Only)</Label>
+                        <Label>Item Code (Artwork Items)</Label>
                         <Select value={newSpecification.item_code} onValueChange={(value) => setNewSpecification({...newSpecification, item_code: value})}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select FG item code" />
+                            <SelectValue placeholder="Select artwork item code" />
                           </SelectTrigger>
                           <SelectContent>
                             {itemMaster?.map((item) => (
@@ -544,7 +544,7 @@ export default function SpecificationMaster() {
                 {filteredSpecs.map((spec) => (
                   <TableRow key={spec.id}>
                     <TableCell className="font-medium">{spec.item_code}</TableCell>
-                    <TableCell>{spec.satguru_item_master?.item_name || '-'}</TableCell>
+                    <TableCell>{spec.master_data_artworks_se?.item_name || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{spec.customer_code}</Badge>
                     </TableCell>

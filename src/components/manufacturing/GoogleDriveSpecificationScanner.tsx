@@ -204,8 +204,7 @@ export function GoogleDriveSpecificationScanner() {
         const { error } = await supabase
           .from('gdrive_file_mappings')
           .upsert(processedFiles, { 
-            onConflict: 'file_name',
-            ignoreDuplicates: false 
+            onConflict: 'file_name'
           });
 
         if (error) {
