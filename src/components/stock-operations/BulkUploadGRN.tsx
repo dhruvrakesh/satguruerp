@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -682,7 +681,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
                 <Checkbox
                   id="skipDuplicates"
                   checked={skipDuplicates}
-                  onCheckedChange={setSkipDuplicates}
+                  onCheckedChange={(checked) => setSkipDuplicates(checked === true)}
                 />
                 <Label htmlFor="skipDuplicates" className="text-sm">
                   Skip duplicates and preserve existing records with their remarks
