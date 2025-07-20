@@ -15,12 +15,14 @@ interface GDriveFile {
   id: string;
   file_name: string;
   gdrive_url: string;
+  parsed_customer_code: string | null;
   parsed_item_code: string | null;
-  parsed_customer: string | null;
   parsed_product_name: string | null;
   parsed_dimensions: string | null;
   confidence_score: number;
-  mapping_status: 'PENDING' | 'MAPPED' | 'UNMAPPED' | 'CONFLICT';
+  mapping_status: 'pending' | 'mapped' | 'failed';
+  created_at?: string;
+  updated_at?: string;
 }
 
 export function GoogleDriveSpecificationScanner() {
@@ -89,11 +91,11 @@ export function GoogleDriveSpecificationScanner() {
           file_name: fileName,
           gdrive_url: gdriveFileUrl,
           parsed_item_code: parseResult?.item_code || null,
-          parsed_customer: parseResult?.customer || null,
+          parsed_customer_code: parseResult?.customer_code || null,
           parsed_product_name: parseResult?.product_name || null,
           parsed_dimensions: parseResult?.dimensions || null,
           confidence_score: parseResult?.confidence || 0,
-          mapping_status: (parseResult?.confidence || 0) > 0.8 ? 'MAPPED' : 'PENDING'
+          mapping_status: (parseResult?.confidence || 0) > 0.8 ? 'mapped' : 'pending'
         });
         
         // Small delay to show progress
@@ -135,32 +137,29 @@ export function GoogleDriveSpecificationScanner() {
   // Map Google Drive files to customer specifications
   const mapToSpecifications = useMutation({
     mutationFn: async () => {
-      const mappedFiles = gdriveFiles?.filter(f => f.mapping_status === 'MAPPED') || [];
+      const mappedFiles = gdriveFiles?.filter(f => f.mapping_status === 'mapped') || [];
       
       for (const file of mappedFiles) {
-        if (!file.parsed_item_code || !file.parsed_customer) continue;
+        if (!file.parsed_item_code || !file.parsed_customer_code) continue;
         
         // Create customer specification record
         await supabase
-          .from('customer_specifications' as any)
+          .from('customer_specifications')
           .upsert({
             item_code: file.parsed_item_code,
-            customer_code: file.parsed_customer,
-            specification_name: `${file.parsed_product_name} Specification`,
+            customer_code: file.parsed_customer_code,
+            specification_name: `${file.parsed_product_name || 'Specification'}`,
             file_path: file.gdrive_url,
-            external_url: file.gdrive_url,
-            source_type: 'GOOGLE_DRIVE',
             file_size: 0,
             version: 1,
-            status: 'APPROVED',
-            parsed_metadata: {
+            status: 'ACTIVE',
+            notes: JSON.stringify({
               dimensions: file.parsed_dimensions,
               confidence_score: file.confidence_score,
               original_filename: file.file_name
-            },
-            sync_status: 'ACTIVE'
+            })
           }, {
-            onConflict: 'item_code,customer_code,specification_name',
+            onConflict: 'item_code,customer_code',
             ignoreDuplicates: false
           });
       }
@@ -198,12 +197,10 @@ export function GoogleDriveSpecificationScanner() {
 
   const getStatusBadge = (status: string, confidence: number) => {
     switch (status) {
-      case 'MAPPED':
-        return <Badge variant="default" className="bg-green-100 text-green-700">Mapped</Badge>;
-      case 'CONFLICT':
-        return <Badge variant="destructive">Conflict</Badge>;
-      case 'UNMAPPED':
-        return <Badge variant="secondary">Unmapped</Badge>;
+      case 'mapped':
+        return <Badge variant="default" className="bg-success/10 text-success">Mapped</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">Failed</Badge>;
       default:
         return <Badge variant="outline">Pending</Badge>;
     }
@@ -259,10 +256,10 @@ export function GoogleDriveSpecificationScanner() {
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-semibold">Found {gdriveFiles.length} files</p>
-                <p className="text-sm text-muted-foreground">
-                  {gdriveFiles.filter(f => f.mapping_status === 'MAPPED').length} mapped, {' '}
-                  {gdriveFiles.filter(f => f.mapping_status === 'PENDING').length} pending
-                </p>
+                 <p className="text-sm text-muted-foreground">
+                   {gdriveFiles.filter(f => f.mapping_status === 'mapped').length} mapped, {' '}
+                   {gdriveFiles.filter(f => f.mapping_status === 'pending').length} pending
+                 </p>
               </div>
               <Button
                 onClick={() => mapToSpecifications.mutate()}
@@ -311,7 +308,7 @@ export function GoogleDriveSpecificationScanner() {
                     <TableRow key={file.id}>
                       <TableCell className="font-mono text-sm">{file.file_name}</TableCell>
                       <TableCell>{file.parsed_item_code || '-'}</TableCell>
-                      <TableCell>{file.parsed_customer || '-'}</TableCell>
+                      <TableCell>{file.parsed_customer_code || '-'}</TableCell>
                       <TableCell>{file.parsed_product_name || '-'}</TableCell>
                       <TableCell>{file.parsed_dimensions || '-'}</TableCell>
                       <TableCell>

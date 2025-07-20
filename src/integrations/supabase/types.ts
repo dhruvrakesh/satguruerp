@@ -2645,6 +2645,48 @@ export type Database = {
         }
         Relationships: []
       }
+      gdrive_file_mappings: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          file_name: string
+          gdrive_url: string
+          id: string
+          mapping_status: string | null
+          parsed_customer_code: string | null
+          parsed_dimensions: string | null
+          parsed_item_code: string | null
+          parsed_product_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          file_name: string
+          gdrive_url: string
+          id?: string
+          mapping_status?: string | null
+          parsed_customer_code?: string | null
+          parsed_dimensions?: string | null
+          parsed_item_code?: string | null
+          parsed_product_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          file_name?: string
+          gdrive_url?: string
+          id?: string
+          mapping_status?: string | null
+          parsed_customer_code?: string | null
+          parsed_dimensions?: string | null
+          parsed_item_code?: string | null
+          parsed_product_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       gravure_printing: {
         Row: {
           actual_quantity: number | null
@@ -7868,6 +7910,10 @@ export type Database = {
           total_cost_reduction: number
           implementation_priority: string
         }[]
+      }
+      parse_gdrive_filename: {
+        Args: { filename: string }
+        Returns: Json
       }
       pre_populate_d_kegl_master_items: {
         Args: Record<PropertyKey, never>
