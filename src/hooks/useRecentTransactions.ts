@@ -19,16 +19,19 @@ export interface RecentIssue {
   total_issued_qty: number;
 }
 
-export const useRecentTransactions = (limit: number = 5) => {
+export const useRecentTransactions = (limit?: number) => {
   const recentGRN = useQuery({
     queryKey: ["recent-grn", limit],
     queryFn: async (): Promise<RecentGRN[]> => {
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("satguru_grn_log")
         .select("grn_number, item_code, qty_received, vendor, date, amount_inr")
-        .order("created_at", { ascending: false })
-        .limit(limit);
+        .or('transaction_type.is.null,transaction_type.neq.OPENING_STOCK')
+        .order("created_at", { ascending: false });
+      
+      const query = limit ? baseQuery.limit(limit) : baseQuery;
 
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -38,12 +41,14 @@ export const useRecentTransactions = (limit: number = 5) => {
   const recentIssues = useQuery({
     queryKey: ["recent-issues", limit],
     queryFn: async (): Promise<RecentIssue[]> => {
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("satguru_issue_log")
         .select("id, item_code, qty_issued, purpose, date, total_issued_qty")
-        .order("created_at", { ascending: false })
-        .limit(limit);
+        .order("created_at", { ascending: false });
+      
+      const query = limit ? baseQuery.limit(limit) : baseQuery;
 
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

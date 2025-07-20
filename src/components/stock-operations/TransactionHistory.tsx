@@ -25,7 +25,7 @@ export function TransactionHistory() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
-  const { recentGRN, recentIssues } = useRecentTransactions(100);
+  const { recentGRN, recentIssues } = useRecentTransactions();
 
   // Combine and transform data
   const allTransactions: Transaction[] = [
