@@ -16,10 +16,11 @@ interface BulkGRNRow {
   item_code: string;
   grn_number: string;
   qty_received: number;
-  received_date: string;
-  supplier_name?: string;
-  rate?: number;
-  batch_number?: string;
+  date: string;
+  uom: string;
+  vendor: string;
+  amount_inr?: number;
+  invoice_number?: string;
   remarks?: string;
 }
 
@@ -49,25 +50,28 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         .select('item_code')
         .limit(3);
 
+      // Updated headers to match exact satguru_grn_log schema
       const headers = [
-        'Item Code',
-        'GRN Number',
-        'Qty Received',
-        'Received Date',
-        'Supplier Name',
-        'Rate',
-        'Batch Number',
-        'Remarks'
+        'item_code',
+        'grn_number', 
+        'qty_received',
+        'date',
+        'uom',
+        'vendor',
+        'amount_inr',
+        'invoice_number',
+        'remarks'
       ];
 
       const sampleCodes = sampleItems && sampleItems.length > 0 
         ? sampleItems.map(item => item.item_code)
         : ['RAW_ADH_117', 'PAC_ADH_110', 'FIN_001'];
 
+      // Updated sample data to match database schema exactly
       const sampleData = [
-        `${sampleCodes[0] || 'RAW_ADH_117'},GRN-2025-001,1000,2025-01-15,Supplier A,25.50,BATCH001,Raw material receipt`,
-        `${sampleCodes[1] || 'PAC_ADH_110'},GRN-2025-002,500,2025-01-15,Supplier B,12.00,BATCH002,Packaging material receipt`,
-        `${sampleCodes[2] || 'FIN_001'},GRN-2025-003,200,2025-01-15,Internal,0,BATCH003,Internal transfer`
+        `${sampleCodes[0] || 'RAW_ADH_117'},GRN-2025-001,1000,2025-01-15,KG,Supplier A,25500.00,INV-2025-001,Raw material receipt`,
+        `${sampleCodes[1] || 'PAC_ADH_110'},GRN-2025-002,500,2025-01-15,KG,Supplier B,6000.00,INV-2025-002,Packaging material receipt`,
+        `${sampleCodes[2] || 'FIN_001'},GRN-2025-003,200,2025-01-15,KG,Internal Transfer,0,,Internal stock transfer`
       ];
 
       const csvContent = [headers.join(','), ...sampleData].join('\n');
@@ -106,23 +110,30 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       min: 0
     },
     {
-      field: 'received_date',
+      field: 'date',
       required: true,
       type: 'date'
     },
     {
-      field: 'supplier_name',
-      required: false,
+      field: 'uom',
+      required: true,
+      type: 'string',
+      defaultValue: 'KG'
+    },
+    {
+      field: 'vendor',
+      required: true,
       type: 'string'
     },
     {
-      field: 'rate',
+      field: 'amount_inr',
       required: false,
       type: 'number',
-      min: 0
+      min: 0,
+      defaultValue: 0
     },
     {
-      field: 'batch_number',
+      field: 'invoice_number',
       required: false,
       type: 'string'
     },
@@ -142,15 +153,16 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
     const data: any[] = [];
 
-    // Flexible header mapping
+    // Updated header mapping to match exact database schema
     const headerMap: Record<string, string[]> = {
       'item_code': ['item_code', 'itemcode', 'item', 'code'],
       'grn_number': ['grn_number', 'grnnumber', 'grn', 'receipt_number'],
       'qty_received': ['qty_received', 'qtyreceived', 'quantity', 'qty'],
-      'received_date': ['received_date', 'receiveddate', 'date', 'receipt_date'],
-      'supplier_name': ['supplier_name', 'suppliername', 'supplier', 'vendor'],
-      'rate': ['rate', 'price', 'unit_price', 'cost'],
-      'batch_number': ['batch_number', 'batchnumber', 'batch', 'lot'],
+      'date': ['date', 'received_date', 'receiveddate', 'receipt_date'],
+      'uom': ['uom', 'unit', 'unit_of_measure'],
+      'vendor': ['vendor', 'supplier_name', 'suppliername', 'supplier'],
+      'amount_inr': ['amount_inr', 'amount', 'total_amount', 'value'],
+      'invoice_number': ['invoice_number', 'invoicenumber', 'invoice', 'invoice_no'],
       'remarks': ['remarks', 'notes', 'comment', 'description']
     };
 
@@ -255,14 +267,16 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             );
           }
 
+          // Structure data to match exact satguru_grn_log schema
           processedRows.push({
             item_code: validatedData.item_code,
             grn_number: validatedData.grn_number,
             qty_received: validatedData.qty_received,
-            received_date: validatedData.received_date,
-            supplier_name: validatedData.supplier_name || 'Unknown',
-            rate: validatedData.rate || 0,
-            batch_number: validatedData.batch_number || null,
+            date: validatedData.date,
+            uom: validatedData.uom || 'KG',
+            vendor: validatedData.vendor,
+            amount_inr: validatedData.amount_inr || 0,
+            invoice_number: validatedData.invoice_number || null,
             remarks: validatedData.remarks || 'Bulk GRN upload',
             created_at: new Date().toISOString()
           });
@@ -277,7 +291,7 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
 
       setProgress(60);
 
-      // Insert into satguru_grn_log
+      // Insert into satguru_grn_log with exact schema match
       let successCount = 0;
       if (processedRows.length > 0) {
         const { data, error } = await supabase
@@ -337,14 +351,23 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Updated CSV Format:</strong> This template now matches the exact database schema. 
+              Required fields: item_code, grn_number, qty_received, date, uom, vendor.
+              Optional: amount_inr, invoice_number, remarks.
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-2">
-            <Label className="text-base font-medium">Step 1: Download Template</Label>
+            <Label className="text-base font-medium">Step 1: Download Updated Template</Label>
             <Button onClick={downloadTemplate} variant="outline" className="w-full">
               <Download className="h-4 w-4 mr-2" />
-              Download Template
+              Download Updated Template
             </Button>
             <p className="text-sm text-muted-foreground">
-              Download the CSV template with sample GRN data format.
+              Download the updated CSV template with exact database field mapping.
             </p>
           </div>
 

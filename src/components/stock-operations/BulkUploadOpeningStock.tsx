@@ -15,9 +15,10 @@ import * as XLSX from 'xlsx';
 
 interface StockRow {
   item_code: string;
-  opening_qty: number;
-  rate?: number;
-  date?: string;
+  current_qty: number;
+  min_stock_level?: number;
+  max_stock_level?: number;
+  reorder_level?: number;
 }
 
 interface ValidationResult {
@@ -37,12 +38,13 @@ export function BulkUploadOpeningStock() {
   const [results, setResults] = useState<any>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
 
-  // Header mapping for different possible column names
+  // Updated header mapping for satguru_stock schema
   const headerMap: Record<string, string[]> = {
     item_code: ['item_code', 'item code', 'itemcode', 'Item Code', 'ITEM_CODE'],
-    opening_qty: ['opening_qty', 'opening qty', 'quantity', 'qty', 'Opening Qty', 'OPENING_QTY'],
-    rate: ['rate', 'price', 'unit_rate', 'Rate', 'RATE'],
-    date: ['date', 'opening_date', 'Date', 'DATE']
+    current_qty: ['current_qty', 'opening_qty', 'opening qty', 'quantity', 'qty', 'Current Qty', 'CURRENT_QTY'],
+    min_stock_level: ['min_stock_level', 'min_level', 'minimum', 'Min Stock Level', 'MIN_STOCK_LEVEL'],
+    max_stock_level: ['max_stock_level', 'max_level', 'maximum', 'Max Stock Level', 'MAX_STOCK_LEVEL'],
+    reorder_level: ['reorder_level', 'reorder', 'reorder_point', 'Reorder Level', 'REORDER_LEVEL']
   };
 
   const normalizeHeaders = (headers: string[]): Record<string, string> => {
@@ -85,20 +87,21 @@ export function BulkUploadOpeningStock() {
         errors.push('Item code does not exist in item master');
       }
 
-      if (!row.opening_qty && row.opening_qty !== 0) {
-        errors.push('Opening quantity is required');
-      } else if (isNaN(Number(row.opening_qty))) {
-        errors.push('Opening quantity must be a number');
-      } else if (Number(row.opening_qty) < 0) {
-        errors.push('Opening quantity cannot be negative');
+      if (!row.current_qty && row.current_qty !== 0) {
+        errors.push('Current quantity is required');
+      } else if (isNaN(Number(row.current_qty))) {
+        errors.push('Current quantity must be a number');
+      } else if (Number(row.current_qty) < 0) {
+        errors.push('Current quantity cannot be negative');
       }
 
       if (errors.length === 0) {
         valid.push({
           item_code: row.item_code.toString().trim(),
-          opening_qty: Number(row.opening_qty),
-          rate: row.rate ? Number(row.rate) : undefined,
-          date: row.date || new Date().toISOString().split('T')[0]
+          current_qty: Number(row.current_qty),
+          min_stock_level: row.min_stock_level ? Number(row.min_stock_level) : 0,
+          max_stock_level: row.max_stock_level ? Number(row.max_stock_level) : 0,
+          reorder_level: row.reorder_level ? Number(row.reorder_level) : 0
         });
       } else {
         invalid.push({
@@ -203,36 +206,40 @@ export function BulkUploadOpeningStock() {
         throw new Error('No valid records found');
       }
 
-      // Insert valid records in batches
+      // Insert valid records in batches - Updated to match satguru_stock schema exactly
       const batchSize = 100;
       let successCount = 0;
       
       for (let i = 0; i < validation.valid.length; i += batchSize) {
         const batch = validation.valid.slice(i, i + batchSize);
         
+        // Structure data to match exact satguru_stock schema
         const stockData = batch.map(item => ({
           item_code: item.item_code,
-          current_qty: item.opening_qty,
+          current_qty: item.current_qty,
+          min_stock_level: item.min_stock_level || 0,
+          max_stock_level: item.max_stock_level || 0,
+          reorder_level: item.reorder_level || 0,
           last_updated: new Date().toISOString()
         }));
 
-        // Upsert to satguru_stock table
+        // Upsert to satguru_stock table with exact schema match
         const { error: stockError } = await supabase
           .from('satguru_stock')
           .upsert(stockData, { onConflict: 'item_code' });
 
         if (stockError) throw stockError;
 
-        // Log opening stock entries
+        // Create corresponding GRN log entries for audit trail
         const logData = batch.map(item => ({
           item_code: item.item_code,
           grn_number: `OPENING-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          qty_received: item.opening_qty,
+          qty_received: item.current_qty,
+          date: new Date().toISOString().split('T')[0],
           uom: 'KG',
-          amount_inr: item.rate ? item.rate * item.opening_qty : 0,
-          date: item.date || new Date().toISOString().split('T')[0],
-          remarks: 'Opening stock upload',
-          vendor: 'Opening Stock'
+          vendor: 'Opening Stock',
+          amount_inr: 0,
+          remarks: 'Opening stock upload'
         }));
 
         const { error: logError } = await supabase
@@ -269,10 +276,11 @@ export function BulkUploadOpeningStock() {
   };
 
   const downloadTemplate = () => {
+    // Updated template to match exact satguru_stock schema
     const template = [
-      ['item_code', 'opening_qty', 'rate', 'date'],
-      ['SAMPLE001', '100', '50.00', '2024-01-01'],
-      ['SAMPLE002', '200', '75.50', '2024-01-01']
+      ['item_code', 'current_qty', 'min_stock_level', 'max_stock_level', 'reorder_level'],
+      ['SAMPLE001', '100', '10', '500', '25'],
+      ['SAMPLE002', '200', '20', '1000', '50']
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(template);
@@ -297,11 +305,19 @@ export function BulkUploadOpeningStock() {
           </TabsList>
 
           <TabsContent value="upload" className="space-y-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Updated CSV Format:</strong> This template now matches the exact satguru_stock database schema. 
+                Required: item_code, current_qty. Optional: min_stock_level, max_stock_level, reorder_level.
+              </AlertDescription>
+            </Alert>
+
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <Button onClick={downloadTemplate} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
-                  Download Template
+                  Download Updated Template
                 </Button>
               </div>
 

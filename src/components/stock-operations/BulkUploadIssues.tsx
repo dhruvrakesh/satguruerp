@@ -14,10 +14,8 @@ import { BulkUploadValidator, ValidationRule } from "@/utils/bulkUploadValidatio
 
 interface BulkIssueRow {
   item_code: string;
-  issue_number: string;
   qty_issued: number;
-  issue_date: string;
-  issued_to?: string;
+  date: string;
   purpose?: string;
   remarks?: string;
 }
@@ -48,24 +46,24 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
         .select('item_code')
         .limit(3);
 
+      // Updated headers to match exact satguru_issue_log schema
       const headers = [
-        'Item Code',
-        'Issue Number',
-        'Qty Issued',
-        'Issue Date',
-        'Issued To',
-        'Purpose',
-        'Remarks'
+        'item_code',
+        'qty_issued',
+        'date',
+        'purpose',
+        'remarks'
       ];
 
       const sampleCodes = sampleItems && sampleItems.length > 0 
         ? sampleItems.map(item => item.item_code)
         : ['RAW_ADH_117', 'PAC_ADH_110', 'FIN_001'];
 
+      // Updated sample data to match database schema exactly
       const sampleData = [
-        `${sampleCodes[0] || 'RAW_ADH_117'},ISS-2025-001,500,2025-01-15,Production Dept,Manufacturing,Raw material for production`,
-        `${sampleCodes[1] || 'PAC_ADH_110'},ISS-2025-002,100,2025-01-15,Packaging Dept,Packaging,Packaging material issue`,
-        `${sampleCodes[2] || 'FIN_001'},ISS-2025-003,50,2025-01-15,Quality Dept,Testing,Sample for quality testing`
+        `${sampleCodes[0] || 'RAW_ADH_117'},500,2025-01-15,Production,Raw material for production`,
+        `${sampleCodes[1] || 'PAC_ADH_110'},100,2025-01-15,Packaging,Packaging material issue`,
+        `${sampleCodes[2] || 'FIN_001'},50,2025-01-15,Quality Testing,Sample for quality testing`
       ];
 
       const csvContent = [headers.join(','), ...sampleData].join('\n');
@@ -93,30 +91,21 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       type: 'string'
     },
     {
-      field: 'issue_number',
-      required: true,
-      type: 'string'
-    },
-    {
       field: 'qty_issued',
       required: true,
       type: 'number',
       min: 0
     },
     {
-      field: 'issue_date',
+      field: 'date',
       required: true,
       type: 'date'
     },
     {
-      field: 'issued_to',
-      required: false,
-      type: 'string'
-    },
-    {
       field: 'purpose',
       required: false,
-      type: 'string'
+      type: 'string',
+      defaultValue: 'General Issue'
     },
     {
       field: 'remarks',
@@ -134,14 +123,12 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
     const data: any[] = [];
 
-    // Flexible header mapping
+    // Updated header mapping to match exact database schema
     const headerMap: Record<string, string[]> = {
       'item_code': ['item_code', 'itemcode', 'item', 'code'],
-      'issue_number': ['issue_number', 'issuenumber', 'issue', 'issue_no'],
       'qty_issued': ['qty_issued', 'qtyissued', 'quantity', 'qty'],
-      'issue_date': ['issue_date', 'issuedate', 'date'],
-      'issued_to': ['issued_to', 'issuedto', 'recipient', 'department'],
-      'purpose': ['purpose', 'reason', 'usage'],
+      'date': ['date', 'issue_date', 'issuedate'],
+      'purpose': ['purpose', 'reason', 'usage', 'issued_to'],
       'remarks': ['remarks', 'notes', 'comment', 'description']
     };
 
@@ -165,7 +152,7 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
         }
       });
 
-      if (row.item_code && row.issue_number) {
+      if (row.item_code) {
         data.push(row);
       }
     }
@@ -246,12 +233,11 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
             );
           }
 
+          // Structure data to match exact satguru_issue_log schema
           processedRows.push({
             item_code: validatedData.item_code,
-            issue_number: validatedData.issue_number,
             qty_issued: validatedData.qty_issued,
-            issue_date: validatedData.issue_date,
-            issued_to: validatedData.issued_to || 'Unknown',
+            date: validatedData.date,
             purpose: validatedData.purpose || 'General Issue',
             remarks: validatedData.remarks || 'Bulk issue upload',
             created_at: new Date().toISOString()
@@ -267,7 +253,7 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
 
       setProgress(60);
 
-      // Insert into satguru_issue_log
+      // Insert into satguru_issue_log with exact schema match
       let successCount = 0;
       if (processedRows.length > 0) {
         const { data, error } = await supabase
@@ -327,14 +313,23 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
         </DialogHeader>
 
         <div className="space-y-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Updated CSV Format:</strong> This template now matches the exact database schema. 
+              Required fields: item_code, qty_issued, date.
+              Optional: purpose, remarks.
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-2">
-            <Label className="text-base font-medium">Step 1: Download Template</Label>
+            <Label className="text-base font-medium">Step 1: Download Updated Template</Label>
             <Button onClick={downloadTemplate} variant="outline" className="w-full">
               <Download className="h-4 w-4 mr-2" />
-              Download Template
+              Download Updated Template
             </Button>
             <p className="text-sm text-muted-foreground">
-              Download the CSV template with sample issue data format.
+              Download the updated CSV template with exact database field mapping.
             </p>
           </div>
 
