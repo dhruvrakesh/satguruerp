@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ItemMasterQuickAdd } from "./ItemMasterQuickAdd";
+import { GRNUploadDebugger } from "./GRNUploadDebugger";
+import { CSVCorrectionManager } from "./CSVCorrectionManager";
 
 interface BulkGRNRow {
   item_code: string;
@@ -68,6 +70,15 @@ interface BulkUploadGRNProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface EnhancedBulkUploadResult extends BulkUploadResult {
+  debugData?: {
+    totalAnalyzed: number;
+    stockIssues: number;
+    correctionsSuggested: number;
+    processingTime: number;
+  };
+}
+
 export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -82,6 +93,12 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
   const [showItemMasterQuickAdd, setShowItemMasterQuickAdd] = useState(false);
   const [batchSize] = useState(100);
   const queryClient = useQueryClient();
+
+  const [showDebugConsole, setShowDebugConsole] = useState(false);
+  const [showCorrectionManager, setShowCorrectionManager] = useState(false);
+  const [debugAnalysisData, setDebugAnalysisData] = useState<any>(null);
+  const [correctedRecords, setCorrectedRecords] = useState<any[]>([]);
+  const [processingErrors, setProcessingErrors] = useState<any[]>([]);
 
   const downloadTemplate = async () => {
     try {
@@ -400,6 +417,8 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     if (!file) return;
 
     setIsAnalyzing(true);
+    const startTime = Date.now();
+    
     try {
       const csvContent = await file.text();
       const parseResult = CSVParser.parseCSV(csvContent, {
@@ -448,9 +467,27 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
       setDuplicateAnalysis(analysis);
       setShowDuplicatePreview(true);
 
+      // Prepare debug analysis data
+      const debugData = {
+        data: validatedRows,
+        duplicateAnalysis: analysis,
+        errors: errors,
+        processingTime: Date.now() - startTime,
+        metadata: {
+          fileName: file.name,
+          fileSize: file.size,
+          totalRows: parseResult.totalRows,
+          validRows: validatedRows.length,
+          errorRows: errors.length
+        }
+      };
+      
+      setDebugAnalysisData(debugData);
+      setProcessingErrors(errors);
+
       toast({
-        title: "Analysis Complete",
-        description: `Found ${analysis.newRows.length} new records, ${analysis.duplicateRows.length} duplicates, ${analysis.invalidItemCodes.length} invalid item codes`,
+        title: "Enhanced Analysis Complete",
+        description: `Found ${analysis.newRows.length} new records, ${analysis.duplicateRows.length} duplicates. Debug console available.`,
       });
 
     } catch (error: any) {
@@ -748,6 +785,67 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
     setShowDuplicatePreview(false);
     setProgress(0);
     setUploadMode('skip');
+    setShowDebugConsole(false);
+    setShowCorrectionManager(false);
+    setDebugAnalysisData(null);
+    setCorrectedRecords([]);
+    setProcessingErrors([]);
+  };
+
+  const handleRecordCorrection = (rowIndex: number, correctedData: any) => {
+    setCorrectedRecords(prev => {
+      const updated = [...prev];
+      const existingIndex = updated.findIndex(r => r.rowIndex === rowIndex);
+      
+      if (existingIndex >= 0) {
+        updated[existingIndex] = { rowIndex, original: updated[existingIndex].original, corrected: correctedData };
+      } else {
+        const originalData = debugAnalysisData?.data?.[rowIndex];
+        updated.push({ rowIndex, original: originalData, corrected: correctedData });
+      }
+      
+      return updated;
+    });
+    
+    console.log(`🔧 Record ${rowIndex} corrected:`, correctedData);
+  };
+
+  const handleBatchReprocess = async (correctedRecords: any[]) => {
+    console.log('🔄 Reprocessing batch with corrections:', correctedRecords.length);
+    
+    // Create a new file-like object with corrected data
+    const headers = ['item_code', 'grn_number', 'qty_received', 'date', 'uom', 'vendor', 'amount_inr', 'invoice_number', 'remarks'];
+    const csvContent = [
+      headers.join(','),
+      ...correctedRecords.map(record => 
+        headers.map(header => `"${record[header] || ''}"`).join(',')
+      )
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const correctedFile = new File([blob], `corrected_${file?.name || 'grn_data.csv'}`, { type: 'text/csv' });
+    
+    // Reset states and process corrected file
+    setFile(correctedFile);
+    setResults(null);
+    setDuplicateAnalysis(null);
+    setShowDuplicatePreview(false);
+    
+    // Auto-analyze the corrected file
+    setTimeout(() => {
+      analyzeDuplicatesInFile();
+    }, 500);
+  };
+
+  const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
+    console.log(`📥 Downloading ${mode} CSV...`);
+    
+    // This will be handled by the CSVCorrectionManager component
+    // Just show user feedback here
+    toast({
+      title: "Download Initiated",
+      description: `Generating ${mode} CSV file...`,
+    });
   };
 
   return (
@@ -758,17 +856,58 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-green-600" />
               Production-Ready GRN Bulk Upload
+              {debugAnalysisData && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDebugConsole(!showDebugConsole)}
+                  className="ml-auto"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  {showDebugConsole ? 'Hide' : 'Show'} Debug Console
+                </Button>
+              )}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Enterprise-Grade Processing:</strong> Enhanced with precise duplicate detection, 
-                remarks preservation, rollback capability, and missing item management.
-              </AlertDescription>
-            </Alert>
+            {/* Enhanced Debug Console */}
+            {showDebugConsole && debugAnalysisData && (
+              <GRNUploadDebugger
+                analysisData={debugAnalysisData}
+                onRecordCorrection={handleRecordCorrection}
+                onBatchReprocess={handleBatchReprocess}
+                onDownloadCorrectedCSV={handleDownloadCorrectedCSV}
+                isProcessing={isUploading}
+              />
+            )}
+
+            {/* CSV Correction Manager */}
+            {(processingErrors.length > 0 || correctedRecords.length > 0) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">CSV Correction Tools</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCorrectionManager(!showCorrectionManager)}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    {showCorrectionManager ? 'Hide' : 'Show'} Correction Manager
+                  </Button>
+                </div>
+                
+                {showCorrectionManager && (
+                  <CSVCorrectionManager
+                    records={debugAnalysisData?.data || []}
+                    errorRecords={processingErrors}
+                    correctedRecords={correctedRecords}
+                    onDownload={handleDownloadCorrectedCSV}
+                    onReupload={handleBatchReprocess}
+                  />
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label className="text-base font-medium">Step 1: Download Template</Label>
@@ -823,10 +962,10 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
               </div>
             )}
 
-            {/* Step 3: Analyze Duplicates */}
+            {/* Enhanced Analysis Section */}
             {file && !showDuplicatePreview && (
               <div className="space-y-2">
-                <Label className="text-base font-medium">Step 3: Enhanced Analysis</Label>
+                <Label className="text-base font-medium">Step 3: Enhanced Analysis & Debugging</Label>
                 <Button 
                   onClick={analyzeDuplicatesInFile}
                   disabled={isAnalyzing}
@@ -834,11 +973,11 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
                   variant="outline"
                 >
                   {isAnalyzing ? (
-                    <>Analyzing...</>
+                    <>Analyzing with Debug Console...</>
                   ) : (
                     <>
                       <Eye className="h-4 w-4 mr-2" />
-                      Analyze Duplicates & Validate Data
+                      Analyze with Debug Console & Stock Validation
                     </>
                   )}
                 </Button>
@@ -999,12 +1138,30 @@ export function BulkUploadGRN({ open, onOpenChange }: BulkUploadGRNProps) {
               </div>
             )}
 
-            {/* Upload Progress */}
+            {/* Enhanced Upload Progress with More Visibility */}
             {isUploading && (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Processing Upload</span>
+                  <span className="text-sm text-muted-foreground">{progress}%</span>
+                </div>
                 <Progress value={progress} className="w-full" />
-                <p className="text-sm text-muted-foreground">
-                  Processing in secure batches... {progress}%
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="p-2 bg-green-50 rounded">
+                    <div className="text-lg font-bold text-green-600">{results?.successCount || 0}</div>
+                    <div className="text-xs text-green-700">Processed</div>
+                  </div>
+                  <div className="p-2 bg-yellow-50 rounded">
+                    <div className="text-lg font-bold text-yellow-600">{results?.skippedCount || 0}</div>
+                    <div className="text-xs text-yellow-700">Skipped</div>
+                  </div>
+                  <div className="p-2 bg-red-50 rounded">
+                    <div className="text-lg font-bold text-red-600">{results?.errorCount || 0}</div>
+                    <div className="text-xs text-red-700">Errors</div>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Processing in secure batches with real-time validation...
                 </p>
               </div>
             )}
