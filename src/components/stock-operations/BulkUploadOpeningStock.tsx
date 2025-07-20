@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Download, AlertCircle, CheckCircle } from "lucide-react";
+import { Upload, Download, AlertCircle, CheckCircle, History, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from 'xlsx';
@@ -30,6 +30,20 @@ interface ValidationResult {
   }>;
 }
 
+interface DuplicateCheck {
+  is_duplicate: boolean;
+  original_batch_id?: string;
+  original_upload_time?: string;
+  records_count?: number;
+}
+
+interface UploadBatch {
+  batch_id: string;
+  file_hash: string;
+  file_name: string;
+  total_records: number;
+}
+
 export function BulkUploadOpeningStock() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -37,6 +51,10 @@ export function BulkUploadOpeningStock() {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [fileHash, setFileHash] = useState<string>("");
+  const [duplicateCheck, setDuplicateCheck] = useState<DuplicateCheck | null>(null);
+  const [currentBatch, setCurrentBatch] = useState<UploadBatch | null>(null);
+  const [showDuplicateOverride, setShowDuplicateOverride] = useState(false);
 
   // Updated header mapping for satguru_stock schema
   const headerMap: Record<string, string[]> = {
@@ -45,6 +63,53 @@ export function BulkUploadOpeningStock() {
     min_stock_level: ['min_stock_level', 'min_level', 'minimum', 'Min Stock Level', 'MIN_STOCK_LEVEL'],
     max_stock_level: ['max_stock_level', 'max_level', 'maximum', 'Max Stock Level', 'MAX_STOCK_LEVEL'],
     reorder_level: ['reorder_level', 'reorder', 'reorder_point', 'Reorder Level', 'REORDER_LEVEL']
+  };
+
+  // Calculate file hash for duplicate detection
+  const calculateFileHash = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  // Check for duplicate uploads using hash in remarks
+  const checkDuplicateUpload = async (hash: string): Promise<DuplicateCheck> => {
+    try {
+      const hashPrefix = hash.substring(0, 16);
+      const { data, error } = await supabase
+        .from('satguru_grn_log')
+        .select('created_at, remarks')
+        .like('remarks', `%Hash: ${hashPrefix}%`)
+        .eq('vendor', 'Opening Stock')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking duplicates:', error);
+        return { is_duplicate: false };
+      }
+
+      if (data && data.length > 0) {
+        // Count total records for this hash
+        const { count } = await supabase
+          .from('satguru_grn_log')
+          .select('*', { count: 'exact', head: true })
+          .like('remarks', `%Hash: ${hashPrefix}%`)
+          .eq('vendor', 'Opening Stock');
+
+        return {
+          is_duplicate: true,
+          original_upload_time: data[0].created_at,
+          records_count: count || 1
+        };
+      }
+
+      return { is_duplicate: false };
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      return { is_duplicate: false };
+    }
   };
 
   const normalizeHeaders = (headers: string[]): Record<string, string> => {
@@ -120,8 +185,27 @@ export function BulkUploadOpeningStock() {
     if (!selectedFile) return;
 
     setFile(selectedFile);
+    setDuplicateCheck(null);
+    setShowDuplicateOverride(false);
     
     try {
+      // Calculate file hash for duplicate detection
+      const hash = await calculateFileHash(selectedFile);
+      setFileHash(hash);
+
+      // Check for duplicates
+      const duplicateResult = await checkDuplicateUpload(hash);
+      setDuplicateCheck(duplicateResult);
+
+      if (duplicateResult.is_duplicate) {
+        toast({
+          title: "Duplicate File Detected",
+          description: `This file was already uploaded on ${new Date(duplicateResult.original_upload_time!).toLocaleString()}`,
+          variant: "destructive",
+        });
+        setShowDuplicateOverride(true);
+      }
+
       const arrayBuffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const sheetName = workbook.SheetNames[0];
@@ -159,7 +243,7 @@ export function BulkUploadOpeningStock() {
     }
   };
 
-  const processUpload = async () => {
+  const processUpload = async (forceUpload = false) => {
     if (!file || previewData.length === 0) {
       toast({
         title: "Error",
@@ -169,10 +253,24 @@ export function BulkUploadOpeningStock() {
       return;
     }
 
+    // Check for duplicates unless forced
+    if (!forceUpload && duplicateCheck?.is_duplicate) {
+      toast({
+        title: "Duplicate Upload Blocked",
+        description: "This file has already been uploaded. Use 'Override Duplicate' if you need to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     setProgress(0);
 
+    let batchId: string | null = null;
+
     try {
+      // Generate batch ID for tracking
+      batchId = crypto.randomUUID();
       // Parse the full file again
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -220,7 +318,9 @@ export function BulkUploadOpeningStock() {
           min_stock_level: item.min_stock_level || 0,
           max_stock_level: item.max_stock_level || 0,
           reorder_level: item.reorder_level || 0,
-          last_updated: new Date().toISOString()
+          last_updated: new Date().toISOString(),
+          batch_id: batchId,
+          upload_source: 'OPENING_STOCK'
         }));
 
         // Upsert to satguru_stock table with exact schema match
@@ -230,16 +330,16 @@ export function BulkUploadOpeningStock() {
 
         if (stockError) throw stockError;
 
-        // Create corresponding GRN log entries for audit trail
+        // Create corresponding GRN log entries for audit trail with hash tracking
         const logData = batch.map(item => ({
           item_code: item.item_code,
-          grn_number: `OPENING-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          grn_number: `OPENING-${batchId}-${item.item_code}`,
           qty_received: item.current_qty,
           date: new Date().toISOString().split('T')[0],
           uom: 'KG',
           vendor: 'Opening Stock',
           amount_inr: 0,
-          remarks: 'Opening stock upload'
+          remarks: `Opening stock upload - Hash: ${fileHash.substring(0, 16)} - File: ${file.name}`
         }));
 
         const { error: logError } = await supabase
@@ -252,10 +352,14 @@ export function BulkUploadOpeningStock() {
         setProgress(50 + ((i + batch.length) / validation.valid.length) * 50);
       }
 
+      // Log successful upload for tracking
+      console.log(`Upload completed - Batch: ${batchId}, Hash: ${fileHash}, Records: ${successCount}`);
+
       setResults({
         success: successCount,
         failed: validation.invalid.length,
-        errors: validation.invalid
+        errors: validation.invalid,
+        batchId: batchId
       });
 
       toast({
@@ -265,6 +369,10 @@ export function BulkUploadOpeningStock() {
 
     } catch (error) {
       console.error('Upload error:', error);
+      
+      // Log failed upload for tracking
+      console.error(`Upload failed - Batch: ${batchId}, Hash: ${fileHash}, Error:`, error);
+      
       toast({
         title: "Upload Failed",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -305,11 +413,23 @@ export function BulkUploadOpeningStock() {
           </TabsList>
 
           <TabsContent value="upload" className="space-y-4">
+            {duplicateCheck?.is_duplicate && (
+              <Alert variant="destructive">
+                <Shield className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Duplicate File Detected:</strong> This file was already uploaded on{' '}
+                  {new Date(duplicateCheck.original_upload_time!).toLocaleString()} with{' '}
+                  {duplicateCheck.records_count} records. Uploading again will create duplicate entries in the audit log.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <strong>Updated CSV Format:</strong> This template now matches the exact satguru_stock database schema. 
                 Required: item_code, current_qty. Optional: min_stock_level, max_stock_level, reorder_level.
+                <br /><strong>Duplicate Prevention:</strong> Files are checked for duplicates based on content hash to prevent duplicate uploads.
               </AlertDescription>
             </Alert>
 
@@ -334,7 +454,19 @@ export function BulkUploadOpeningStock() {
 
               {previewData.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Preview (First 5 rows)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Preview (First 5 rows)</Label>
+                    <div className="flex items-center gap-2">
+                      {fileHash && (
+                        <Badge variant="outline" className="text-xs">
+                          Hash: {fileHash.substring(0, 8)}...
+                        </Badge>
+                      )}
+                      <Badge variant="secondary">
+                        {previewData.length} rows previewed
+                      </Badge>
+                    </div>
+                  </div>
                   <div className="border rounded-md p-4 max-h-64 overflow-auto">
                     <pre className="text-sm">
                       {JSON.stringify(previewData, null, 2)}
@@ -351,13 +483,27 @@ export function BulkUploadOpeningStock() {
                 </div>
               )}
 
-              <Button 
-                onClick={processUpload} 
-                disabled={!file || uploading || previewData.length === 0}
-                className="w-full"
-              >
-                {uploading ? "Processing..." : "Upload Opening Stock"}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => processUpload(false)} 
+                  disabled={!file || uploading || previewData.length === 0 || (duplicateCheck?.is_duplicate && !showDuplicateOverride)}
+                  className="flex-1"
+                >
+                  {uploading ? "Processing..." : "Upload Opening Stock"}
+                </Button>
+                
+                {showDuplicateOverride && (
+                  <Button 
+                    onClick={() => processUpload(true)} 
+                    disabled={!file || uploading || previewData.length === 0}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Override Duplicate
+                  </Button>
+                )}
+              </div>
             </div>
           </TabsContent>
 
@@ -389,6 +535,17 @@ export function BulkUploadOpeningStock() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {results.batchId && (
+                  <Alert>
+                    <History className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Batch ID:</strong> {results.batchId}
+                      <br />
+                      This upload has been tracked for audit purposes. All records include batch tracking.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {results.errors.length > 0 && (
                   <div className="space-y-2">
