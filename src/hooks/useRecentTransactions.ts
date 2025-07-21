@@ -143,8 +143,8 @@ export const useRecentTransactions = (
       }
     },
     refetchInterval: 30000,
-    staleTime: 10000, // Consider data stale after 10 seconds
-    cacheTime: 300000, // Keep in cache for 5 minutes
+    staleTime: 10000,
+    gcTime: 300000,
   });
 
   const recentIssues = useQuery({
@@ -252,8 +252,8 @@ export const useRecentTransactions = (
       }
     },
     refetchInterval: 30000,
-    staleTime: 10000, // Consider data stale after 10 seconds
-    cacheTime: 300000, // Keep in cache for 5 minutes
+    staleTime: 10000,
+    gcTime: 300000,
   });
 
   return {
