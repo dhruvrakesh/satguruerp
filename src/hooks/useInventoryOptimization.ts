@@ -16,6 +16,7 @@ export interface OptimizationMetrics {
 export interface OptimizationFilters {
   categoryId?: string;
   serviceLevel?: number;
+  priority?: string;
 }
 
 export interface OptimizationRecommendation {
@@ -29,6 +30,13 @@ export interface OptimizationRecommendation {
   potentialSavings: number;
   reasoning: string;
   metrics: OptimizationMetrics;
+}
+
+export interface OptimizationSummary {
+  totalRecommendations: number;
+  potentialSavings: number;
+  highPriorityItems: number;
+  turnoverImprovement: number;
 }
 
 export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
@@ -54,12 +62,12 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
       const { data: stockData, error: stockError } = await stockQuery;
       if (stockError) throw stockError;
 
-      // Get recent consumption data
+      // Get recent consumption data from correct table
       const { data: issueData, error: issueError } = await supabase
-        .from("satguru_stock_issues")
-        .select("item_code, quantity, issue_date")
-        .gte("issue_date", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .order("issue_date", { ascending: false });
+        .from("satguru_issue_log")
+        .select("item_code, qty_issued, date")
+        .gte("date", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .order("date", { ascending: false });
 
       if (issueError) throw issueError;
 
@@ -80,7 +88,7 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
         const itemGrns = grnData?.filter(grn => grn.item_code === stock.item_code) || [];
 
         // Calculate average daily demand
-        const totalConsumption = itemIssues.reduce((sum, issue) => sum + (issue.quantity || 0), 0);
+        const totalConsumption = itemIssues.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0);
         const averageDailyDemand = totalConsumption / 90; // 90 days
 
         // Calculate lead time (average days between GRNs)
@@ -142,7 +150,7 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
         };
 
         if (averageDailyDemand > 0 || currentStock > 0) { // Only include items with activity
-          recommendations.push({
+          const recommendation: OptimizationRecommendation = {
             itemCode: stock.item_code,
             itemName: stock.item_name || '',
             category: stock.category_name || '',
@@ -153,7 +161,12 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
             potentialSavings: Math.round(potentialSavings),
             reasoning,
             metrics
-          });
+          };
+
+          // Apply priority filter if specified
+          if (!filters.priority || recommendation.priority.toLowerCase() === filters.priority.toLowerCase()) {
+            recommendations.push(recommendation);
+          }
         }
       });
 
@@ -169,7 +182,25 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
+  // Calculate summary data
+  const optimizationSummary = useQuery({
+    queryKey: ["inventory-optimization-summary", filters],
+    queryFn: async (): Promise<OptimizationSummary> => {
+      const recommendations = await optimizationData.queryFn();
+      
+      return {
+        totalRecommendations: recommendations.length,
+        potentialSavings: recommendations.reduce((sum, rec) => sum + rec.potentialSavings, 0),
+        highPriorityItems: recommendations.filter(rec => rec.priority === 'HIGH').length,
+        turnoverImprovement: Math.round(recommendations.length > 0 ? 
+          recommendations.reduce((sum, rec) => sum + (rec.metrics.stockoutRisk > 50 ? 15 : 5), 0) / recommendations.length : 0)
+      };
+    },
+    enabled: optimizationData.isSuccess,
+  });
+
   return {
-    optimizationData,
+    optimizationRecommendations: optimizationData,
+    optimizationSummary,
   };
 };

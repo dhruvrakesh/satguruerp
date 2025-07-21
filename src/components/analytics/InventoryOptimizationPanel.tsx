@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,17 +33,10 @@ export function InventoryOptimizationPanel() {
     switch (action.toLowerCase()) {
       case 'increase': return <TrendingUp className="w-4 h-4 text-green-500" />;
       case 'decrease': return <TrendingDown className="w-4 h-4 text-red-500" />;
-      case 'optimize': return <Target className="w-4 h-4 text-blue-500" />;
+      case 'maintain': return <Target className="w-4 h-4 text-blue-500" />;
       default: return <Zap className="w-4 h-4" />;
     }
   };
-
-  const recommendations = optimizationRecommendations.data || [];
-  const filteredRecommendations = recommendations.filter(rec => {
-    const categoryMatch = categoryFilter === "all" || rec.category === categoryFilter;
-    const priorityMatch = priorityFilter === "all" || rec.priority === priorityFilter;
-    return categoryMatch && priorityMatch;
-  });
 
   if (optimizationRecommendations.isLoading) {
     return (
@@ -61,6 +55,8 @@ export function InventoryOptimizationPanel() {
       </Card>
     );
   }
+
+  const recommendations = optimizationRecommendations.data || [];
 
   return (
     <div className="space-y-6">
@@ -183,14 +179,14 @@ export function InventoryOptimizationPanel() {
         <CardContent>
           <ScrollArea className="h-[400px]">
             <div className="space-y-2">
-              {filteredRecommendations.length === 0 ? (
+              {recommendations.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No optimization recommendations found with current filters
                 </div>
               ) : (
-                filteredRecommendations.map((recommendation) => (
+                recommendations.map((recommendation, index) => (
                   <div
-                    key={recommendation.id}
+                    key={`${recommendation.itemCode}-${index}`}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                   >
                     <div className="flex-1 space-y-1">
@@ -201,12 +197,12 @@ export function InventoryOptimizationPanel() {
                           {recommendation.priority}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{recommendation.description}</p>
+                      <p className="text-sm text-muted-foreground">{recommendation.reasoning}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span>Category: {recommendation.category}</span>
                         <span>Current Stock: {recommendation.currentStock}</span>
                         <span>Recommended: {recommendation.recommendedStock}</span>
-                        <span>Impact: ₹{recommendation.impactValue?.toLocaleString()}</span>
+                        <span>Impact: ₹{recommendation.potentialSavings?.toLocaleString()}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -216,8 +212,8 @@ export function InventoryOptimizationPanel() {
                         onClick={() => {/* Implement action */}}
                         className="gap-1"
                       >
-                        {recommendation.action === 'increase' ? 'Order More' : 
-                         recommendation.action === 'decrease' ? 'Reduce Stock' : 
+                        {recommendation.action === 'INCREASE' ? 'Order More' : 
+                         recommendation.action === 'DECREASE' ? 'Reduce Stock' : 
                          'Optimize'}
                       </Button>
                       <Button
