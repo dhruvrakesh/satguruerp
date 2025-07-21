@@ -88,6 +88,11 @@ export function StockSummaryTable() {
     );
   }
 
+  // Safely access data properties with fallbacks
+  const stockItems = stockData?.data || [];
+  const totalCount = stockData?.count || 0;
+  const totalPages = stockData?.totalPages || 1;
+
   return (
     <div className="space-y-4">
       {/* Search and Actions */}
@@ -151,7 +156,7 @@ export function StockSummaryTable() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {categories?.map((category) => (
+                    {(categories || []).map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}
                       </SelectItem>
@@ -206,10 +211,10 @@ export function StockSummaryTable() {
       {/* Results Summary */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          Showing {stockData?.data.length || 0} of {stockData?.count || 0} items
+          Showing {stockItems.length} of {totalCount} items
           {filters.search && ` matching "${filters.search}"`}
         </span>
-        <span>Page {currentPage} of {stockData?.totalPages || 1}</span>
+        <span>Page {currentPage} of {totalPages}</span>
       </div>
 
       {/* Stock Summary Table */}
@@ -267,7 +272,7 @@ export function StockSummaryTable() {
                   Loading stock data with accurate calculation...
                 </TableCell>
               </TableRow>
-            ) : stockData?.data.length === 0 ? (
+            ) : stockItems.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No stock data found
@@ -275,7 +280,7 @@ export function StockSummaryTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              stockData?.data.map((item) => (
+              stockItems.map((item) => (
                 <TableRow key={item.item_code} className="hover:bg-muted/50">
                   <TableCell className="font-medium">{item.item_code}</TableCell>
                   <TableCell>{item.item_name}</TableCell>
@@ -300,7 +305,7 @@ export function StockSummaryTable() {
       </Card>
 
       {/* Pagination */}
-      {stockData && stockData.totalPages > 1 && (
+      {totalPages > 1 && (
         <div className="flex justify-center">
           <Pagination>
             <PaginationContent>
@@ -312,7 +317,7 @@ export function StockSummaryTable() {
               </PaginationItem>
               
               {/* Page numbers */}
-              {Array.from({ length: Math.min(5, stockData.totalPages) }, (_, i) => {
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const page = i + 1;
                 return (
                   <PaginationItem key={page}>
@@ -329,8 +334,8 @@ export function StockSummaryTable() {
               
               <PaginationItem>
                 <PaginationNext 
-                  onClick={() => setCurrentPage(prev => Math.min(stockData.totalPages, prev + 1))}
-                  className={currentPage === stockData.totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                 />
               </PaginationItem>
             </PaginationContent>

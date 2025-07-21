@@ -60,32 +60,163 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
       try {
         console.log('Fetching stock summary with accurate calculation...');
         
-        // Use the new database function for accurate stock calculation
-        const { data, error } = await supabase.rpc('get_stock_summary_with_calculation', {
-          p_limit: pageSize,
-          p_offset: (page - 1) * pageSize,
-          p_search: optimizedFilters.search || null,
-          p_category: (optimizedFilters.category && optimizedFilters.category !== 'all') ? optimizedFilters.category : null,
-          p_stock_status: (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') ? optimizedFilters.stockStatus : null,
-          p_min_qty: optimizedFilters.minQty || null,
-          p_max_qty: optimizedFilters.maxQty || null,
-          p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
-        });
+        // Get all active items first
+        const { data: items, error: itemsError } = await supabase
+          .from('satguru_item_master')
+          .select('item_code, item_name, category_id, reorder_level, uom')
+          .eq('is_active', true)
+          .order('item_code');
         
-        if (error) {
-          console.error('Stock summary query error:', error);
-          throw error;
+        if (itemsError) {
+          console.error('Error fetching items:', itemsError);
+          throw itemsError;
+        }
+
+        if (!items || items.length === 0) {
+          return {
+            data: [],
+            count: 0,
+            totalPages: 0
+          };
+        }
+
+        // Apply search filter if provided
+        let filteredItems = items;
+        if (optimizedFilters.search) {
+          filteredItems = items.filter(item => 
+            item.item_code.toLowerCase().includes(optimizedFilters.search!.toLowerCase()) ||
+            item.item_name.toLowerCase().includes(optimizedFilters.search!.toLowerCase())
+          );
+        }
+
+        // Calculate stock for each item
+        const stockPromises = filteredItems.map(async (item) => {
+          const { data: stockData, error: stockError } = await supabase
+            .rpc('calculate_current_stock', {
+              p_item_code: item.item_code,
+              p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
+            });
+
+          if (stockError) {
+            console.error(`Error calculating stock for ${item.item_code}:`, stockError);
+            return null;
+          }
+
+          const parsedStock = stockData || {};
+          const currentQty = parsedStock.current_stock || 0;
+          const openingStock = parsedStock.opening_stock || 0;
+          const totalGrns = parsedStock.total_grns || 0;
+          const totalIssues = parsedStock.total_issues || 0;
+
+          // Get category name
+          let categoryName = 'Uncategorized';
+          if (item.category_id) {
+            const { data: category } = await supabase
+              .from('categories')
+              .select('category_name')
+              .eq('id', item.category_id)
+              .single();
+            if (category) categoryName = category.category_name;
+          }
+
+          // Calculate 30-day metrics
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          const { data: grnData } = await supabase
+            .from('satguru_grn_log')
+            .select('qty_received')
+            .eq('item_code', item.item_code)
+            .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+          const { data: issueData } = await supabase
+            .from('satguru_issue_log')
+            .select('qty_issued')
+            .eq('item_code', item.item_code)
+            .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+          const received30Days = grnData?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
+          const consumption30Days = issueData?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
+
+          // Determine stock status
+          let stockStatus = 'normal';
+          if (currentQty <= 0) stockStatus = 'out_of_stock';
+          else if (currentQty <= (item.reorder_level || 0)) stockStatus = 'low_stock';
+          else if (currentQty > (item.reorder_level || 0) * 3) stockStatus = 'overstock';
+
+          return {
+            item_code: item.item_code,
+            item_name: item.item_name,
+            category_name: categoryName,
+            category_id: item.category_id || '',
+            current_qty: currentQty,
+            received_30_days: received30Days,
+            consumption_30_days: consumption30Days,
+            reorder_level: item.reorder_level || 0,
+            stock_status: stockStatus,
+            last_updated: new Date().toISOString().split('T')[0],
+            opening_stock: openingStock,
+            total_grns: totalGrns,
+            total_issues: totalIssues,
+            uom: item.uom || 'KG'
+          };
+        });
+
+        const stockResults = await Promise.all(stockPromises);
+        const validResults = stockResults.filter(result => result !== null) as StockSummaryRecord[];
+
+        // Apply additional filters
+        let finalResults = validResults;
+        
+        if (optimizedFilters.category && optimizedFilters.category !== 'all') {
+          finalResults = finalResults.filter(item => item.category_name === optimizedFilters.category);
         }
         
-        console.log(`✅ Retrieved ${data?.length || 0} stock records with accurate calculation`);
+        if (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') {
+          finalResults = finalResults.filter(item => item.stock_status === optimizedFilters.stockStatus);
+        }
         
-        // Get total count from the first record (all records have the same total_count)
-        const totalCount = data && data.length > 0 ? data[0].total_count : 0;
+        if (optimizedFilters.minQty !== undefined) {
+          finalResults = finalResults.filter(item => item.current_qty >= optimizedFilters.minQty!);
+        }
+        
+        if (optimizedFilters.maxQty !== undefined) {
+          finalResults = finalResults.filter(item => item.current_qty <= optimizedFilters.maxQty!);
+        }
+
+        // Apply sorting
+        if (sort) {
+          finalResults.sort((a, b) => {
+            const aValue = a[sort.column as keyof StockSummaryRecord];
+            const bValue = b[sort.column as keyof StockSummaryRecord];
+            
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+              return sort.direction === 'asc' 
+                ? aValue.localeCompare(bValue)
+                : bValue.localeCompare(aValue);
+            }
+            
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+              return sort.direction === 'asc' ? aValue - bValue : bValue - aValue;
+            }
+            
+            return 0;
+          });
+        }
+
+        // Apply pagination
+        const totalCount = finalResults.length;
+        const totalPages = Math.ceil(totalCount / pageSize);
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedResults = finalResults.slice(startIndex, endIndex);
+
+        console.log(`✅ Retrieved ${paginatedResults.length} stock records with accurate calculation`);
         
         return {
-          data: data || [],
+          data: paginatedResults,
           count: totalCount,
-          totalPages: Math.ceil(totalCount / pageSize)
+          totalPages: totalPages
         };
       } catch (error) {
         console.error('Stock summary hook error:', error);
