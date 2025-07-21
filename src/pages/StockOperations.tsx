@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpDown, Plus, TrendingUp, TrendingDown, Upload, Package } from "lucide-react";
@@ -6,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GRNForm } from "@/components/stock-operations/GRNForm";
-import { GRNTable } from "@/components/stock-operations/GRNTable";
+import { OptimizedGRNTable } from "@/components/stock-operations/OptimizedGRNTable";
 import { IssueForm } from "@/components/stock-operations/IssueForm";
 import { IssueTable } from "@/components/stock-operations/IssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
@@ -144,7 +145,7 @@ export default function StockOperations() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <GRNTable />
+              <OptimizedGRNTable />
             </CardContent>
           </Card>
         </TabsContent>
