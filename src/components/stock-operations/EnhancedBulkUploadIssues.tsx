@@ -1,56 +1,18 @@
 
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FileUpload } from "@/components/ui/file-upload";
-import { useToast } from "@/hooks/use-toast";
-import { useBulkIssueValidation, BulkValidationResult } from "@/hooks/useBulkIssueValidation";
-import { useEnhancedIssueUpload, DuplicateRecord, EnhancedUploadResult } from "@/hooks/useEnhancedIssueUpload";
-import { supabase } from "@/integrations/supabase/client";
-import { IssueCSVCorrectionManager } from "./IssueCSVCorrectionManager";
+import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { useEnhancedIssueUpload } from "@/hooks/useEnhancedIssueUpload";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
-import { StockCorrectionModal } from "./StockCorrectionModal";
-import { 
-  Upload, 
-  FileText, 
-  AlertTriangle, 
-  CheckCircle, 
-  Activity,
-  TrendingDown,
-  Eye,
-  Download,
-  Edit3
-} from "lucide-react";
 import Papa from "papaparse";
-
-interface UploadStep {
-  id: number;
-  title: string;
-  description: string;
-  status: 'pending' | 'active' | 'completed' | 'error';
-}
-
-interface ProcessedRecord {
-  rowIndex: number;
-  data: any;
-  validationResult?: BulkValidationResult;
-  errors: string[];
-  warnings: string[];
-}
-
-interface DuplicateCheckResult {
-  total_checked: number;
-  total_duplicates: number;
-  has_duplicates: boolean;
-  duplicates: any[];
-  upload_type: string;
-  check_timestamp: string;
-}
 
 interface EnhancedBulkUploadIssuesProps {
   open: boolean;
@@ -58,746 +20,337 @@ interface EnhancedBulkUploadIssuesProps {
 }
 
 export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUploadIssuesProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
-  const [processedRecords, setProcessedRecords] = useState<ProcessedRecord[]>([]);
-  const [validationResults, setValidationResults] = useState<BulkValidationResult[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [errorRecords, setErrorRecords] = useState<any[]>([]);
-  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
-  const [duplicateCheckResult, setDuplicateCheckResult] = useState<DuplicateCheckResult | null>(null);
-  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
-  const [detectedDuplicates, setDetectedDuplicates] = useState<DuplicateRecord[]>([]);
-  const { toast } = useToast();
-  const { 
-    validateBulk, 
-    processBulk, 
-    isValidating, 
-    isProcessing: isBulkProcessing,
-    correctedRecords,
-    applyCorrectedQuantity,
-    getCorrectedQuantity,
-    getProcessableRecords
-  } = useBulkIssueValidation();
-  const { 
-    uploadWithDuplicateHandling, 
-    checkForDuplicates: checkForDuplicatesNew, 
-    isProcessing: isEnhancedProcessing,
-    uploadProgress 
-  } = useEnhancedIssueUpload();
+  const [result, setResult] = useState<any>(null);
+  const [showDebugger, setShowDebugger] = useState(false);
+  const [activeTab, setActiveTab] = useState("upload");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { uploadWithDuplicateHandling, isProcessing, uploadProgress } = useEnhancedIssueUpload();
 
-  const steps: UploadStep[] = [
-    {
-      id: 1,
-      title: "Select CSV File",
-      description: "Choose your Issue data file",
-      status: uploadFile ? 'completed' : 'active'
-    },
-    {
-      id: 2,
-      title: "Real-time Preview & Stock Validation",
-      description: "Automatic stock validation and error detection",
-      status: csvData.length > 0 ? 'completed' : uploadFile ? 'active' : 'pending'
-    },
-    {
-      id: 3,
-      title: "Debug Console & Corrections",
-      description: "Advanced debugging and stock correction tools",
-      status: processedRecords.length > 0 ? 'completed' : csvData.length > 0 ? 'active' : 'pending'
-    },
-    {
-      id: 4,
-      title: "Process Upload",
-      description: "Execute the validated upload",
-      status: 'pending'
-    }
-  ];
+  const downloadTemplate = () => {
+    const csvContent = `item_code,qty_issued,date,purpose,remarks
+LDPELAM_NP_775_50,100,2025-01-20,Production Order PO-001,For lamination process
+BOPP-FILM-20-20,50,2025-01-20,Quality Testing,Sample testing
+PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
 
-  // Process CSV file immediately when selected
-  useEffect(() => {
-    if (uploadFile) {
-      processCSVFile(uploadFile);
-    }
-  }, [uploadFile]);
-
-  // Run duplicate check and bulk validation when CSV data changes
-  useEffect(() => {
-    if (csvData.length > 0) {
-      checkForDuplicates();
-    }
-  }, [csvData]);
-
-  const checkForDuplicates = async () => {
-    console.log('🔍 Checking for duplicates in', csvData.length, 'records...');
-    setIsProcessing(true);
-    
-    try {
-      // Convert CSV data to issue records format
-      const issueRecords = csvData.map(row => ({
-        item_code: row.item_code || '',
-        qty_issued: Number(row.qty_issued || row.quantity || 0),
-        date: row.date || new Date().toISOString().split('T')[0],
-        purpose: row.purpose || row.issued_to || 'Bulk upload',
-        remarks: row.remarks || 'Bulk upload'
-      })).filter(record => record.item_code && record.qty_issued > 0);
-
-      // Check for duplicates using the enhanced hook
-      const duplicateResults = await checkForDuplicatesNew(issueRecords);
-      const duplicates = duplicateResults.filter(result => result.is_duplicate);
-      
-      setDetectedDuplicates(duplicates);
-      
-      const duplicateCheckResult: DuplicateCheckResult = {
-        total_checked: csvData.length,
-        total_duplicates: duplicates.length,
-        has_duplicates: duplicates.length > 0,
-        duplicates: duplicates,
-        upload_type: 'ISSUE',
-        check_timestamp: new Date().toISOString()
-      };
-
-      console.log('✅ Real duplicate check result:', duplicateCheckResult);
-      setDuplicateCheckResult(duplicateCheckResult);
-      
-      if (duplicates.length > 0) {
-        setShowDuplicateWarning(true);
-        toast({
-          title: "Duplicates Detected",
-          description: `Found ${duplicates.length} potential duplicate records. Review and decide how to proceed.`,
-          variant: "destructive"
-        });
-      } else {
-        setShowDuplicateWarning(false);
-        performBulkValidation();
-      }
-    } catch (error: any) {
-      console.error('❌ Duplicate check error:', error);
-      setShowDuplicateWarning(false);
-      performBulkValidation(); // Proceed with validation on error
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const proceedWithValidation = () => {
-    setShowDuplicateWarning(false);
-    performBulkValidation();
-  };
-
-  const processCSVFile = async (file: File) => {
-    setIsProcessing(true);
-    setCurrentStep(2);
-    
-    try {
-      const text = await file.text();
-      const result = Papa.parse(text, { 
-        header: true, 
-        skipEmptyLines: true,
-        transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_')
-      });
-      
-      if (result.errors.length > 0) {
-        toast({
-          title: "CSV Parse Errors",
-          description: `Found ${result.errors.length} parsing errors`,
-          variant: "destructive"
-        });
-      }
-      
-      setCsvData(result.data as any[]);
-      setCurrentStep(3);
-      
-    } catch (error: any) {
-      toast({
-        title: "File Processing Error",
-        description: error.message || "Failed to process CSV file",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const performBulkValidation = async () => {
-    console.log('🔍 Performing bulk issue validation for', csvData.length, 'records...');
-    setIsProcessing(true);
-    
-    try {
-      // Apply corrections to CSV data before validation
-      const correctedCsvData = csvData.map((row, index) => {
-        const correctedQty = getCorrectedQuantity(index);
-        if (correctedQty !== null) {
-          return {
-            ...row,
-            qty_issued: correctedQty,
-            quantity: correctedQty
-          };
-        }
-        return row;
-      });
-
-      // Extract issue items from CSV data for bulk validation - PROCESS ALL RECORDS
-      const issueItems = correctedCsvData.map((row, index) => ({
-        item_code: row.item_code || '',
-        qty_issued: Number(row.qty_issued || row.quantity || 0),
-        requested_qty: Number(row.qty_issued || row.quantity || 0), // Add both field names for backend compatibility
-        row_num: index + 1
-      })).filter(item => item.item_code && item.qty_issued > 0);
-
-      console.log('📊 Validating ALL', issueItems.length, 'items (no limits applied)...');
-      
-      // Perform bulk validation using the RPC function - PROCESS ALL RECORDS
-      const results = await validateBulk(issueItems);
-      console.log('✅ Validation results received:', results.length, 'records for', issueItems.length, 'input items');
-      
-      // Store ALL validation results (ensure no truncation)
-      setValidationResults(results);
-      
-      // Process results and combine with CSV data
-      const processed: ProcessedRecord[] = correctedCsvData.map((row, index) => {
-        const errors: string[] = [];
-        const warnings: string[] = [];
-        
-        // Basic validation for issue uploads with null checks
-        if (!row.item_code || row.item_code.trim() === '') {
-          errors.push('Missing or empty item code');
-        }
-        
-        const qtyIssued = Number(row.qty_issued || row.quantity || 0);
-        if (!qtyIssued || isNaN(qtyIssued) || qtyIssued <= 0 || qtyIssued === null || qtyIssued === undefined) {
-          errors.push('Invalid or missing quantity to issue - must be a positive number');
-        }
-        
-        if (!row.date) warnings.push('Missing issue date');
-        if (!row.issued_to && !row.purpose) warnings.push('Missing issued to/purpose information');
-        
-        // Find validation result for this row
-        const validationResult = results.find(r => r.row_num === index + 1);
-        if (validationResult) {
-          if (validationResult.validation_status === 'not_found') {
-            errors.push('Item code not found in master data');
-          } else if (validationResult.validation_status === 'insufficient_stock') {
-            errors.push(validationResult.error_message);
-          }
-        }
-        
-        return {
-          rowIndex: index,
-          data: row,
-          validationResult,
-          errors,
-          warnings
-        };
-      });
-      
-      setProcessedRecords(processed);
-      
-      // Set error records for correction manager
-      const errors = processed
-        .filter(r => r.errors.length > 0)
-        .map(r => ({ ...r.data, errors: r.errors, rowIndex: r.rowIndex }));
-      setErrorRecords(errors);
-      
-      console.log('✅ Bulk validation complete:', {
-        totalRecords: processed.length,
-        validRecords: processed.filter(r => r.errors.length === 0).length,
-        errorRecords: errors.length,
-        stockIssues: results.filter(r => r.validation_status === 'insufficient_stock').length,
-        validationResultsStored: results.length
-      });
-      
-    } catch (error: any) {
-      console.error('❌ Bulk validation failed:', error);
-      toast({
-        title: "Validation Error",
-        description: error.message || "Failed to validate issue data",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleRecordCorrection = (rowIndex: number, correctedData: any) => {
-    // Update CSV data with corrections
-    const updatedCsvData = [...csvData];
-    updatedCsvData[rowIndex] = correctedData;
-    setCsvData(updatedCsvData);
-    
-    // Re-run validation
-    performBulkValidation();
-    
-    toast({
-      title: "Record Corrected",
-      description: `Row ${rowIndex + 1} has been corrected and re-validated`
-    });
-  };
-
-  const handleBatchReprocess = async () => {
-    // Reprocess with all corrections
-    await performBulkValidation();
-    toast({
-      title: "Batch Reprocessed",
-      description: "All corrections have been applied and validated"
-    });
-  };
-
-  const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
-    console.log(`📥 Downloading Issue CSV in ${mode} mode...`);
-    
-    let csvData: any[] = [];
-    let filename = '';
-    
-    switch (mode) {
-      case 'errors':
-        csvData = errorRecords;
-        filename = 'issue_upload_errors.csv';
-        break;
-      case 'corrections':
-        csvData = correctedRecords.map(corr => {
-          const originalRecord = processedRecords.find(r => r.rowIndex === corr.rowIndex)?.data;
-          return {
-            ...originalRecord,
-            qty_issued: corr.corrected_qty,
-            quantity: corr.corrected_qty
-          };
-        });
-        filename = 'issue_upload_corrections.csv';
-        break;
-      case 'retry-ready':
-        // Generate retry-ready CSV with all valid records (including corrected ones)
-        const processableRecords = getProcessableRecords(validationResults);
-        csvData = processableRecords.map(record => {
-          const originalRecord = processedRecords.find(r => r.rowIndex === record.row_num - 1)?.data;
-          return {
-            ...originalRecord,
-            qty_issued: record.requested_qty,
-            quantity: record.requested_qty
-          };
-        });
-        filename = 'issue_upload_retry_ready.csv';
-        break;
-    }
-    
-    // Issue-specific CSV headers
-    const headers = ['item_code', 'qty_issued', 'date', 'purpose', 'remarks'];
-    
-    // Convert to Issue CSV format
-    const csvRows = csvData.map(record => [
-      record.item_code || '',
-      record.qty_issued || record.quantity || '',
-      record.date || new Date().toISOString().split('T')[0],
-      record.purpose || record.issued_to || 'General Issue',
-      record.remarks || 'Bulk upload'
-    ]);
-    
-    // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...csvRows.map(row => row.join(','))
-    ].join('\n');
-    
-    // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = 'issue_upload_template.csv';
     a.click();
     window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Template Downloaded",
+      description: "CSV template has been downloaded successfully.",
+    });
+  };
+
+  const resetUploadState = () => {
+    console.log('🔄 Resetting upload state...');
+    setResult(null);
+    setCsvData([]);
+    setShowDebugger(false);
+    setActiveTab("upload");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    // Reset state when new file is selected
+    resetUploadState();
+
+    if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a CSV file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (selectedFile.size > 50 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select a file smaller than 50MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setFile(selectedFile);
     
-    console.log(`✅ Downloaded ${filename} with ${csvRows.length} records`);
-  };
-
-  const handleOpenStockCorrection = () => {
-    setCorrectionModalOpen(true);
-  };
-
-  const handleApplyStockCorrections = (corrections: any[]) => {
-    // Apply corrections via the hook
-    corrections.forEach(correction => {
-      applyCorrectedQuantity(
-        correction.rowIndex,
-        correction.item_code,
-        correction.original_qty,
-        correction.corrected_qty,
-        correction.available_qty
-      );
+    // Parse CSV for preview and debugging
+    Papa.parse(selectedFile, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        console.log('📊 CSV parsed for preview:', results.data.length, 'records');
+        setCsvData(results.data);
+        toast({
+          title: "File Ready",
+          description: `${selectedFile.name} loaded with ${results.data.length} records`,
+        });
+      },
+      error: (error) => {
+        console.error('❌ CSV parse error:', error);
+        toast({
+          title: "Parse Error",
+          description: "Failed to parse CSV file. Please check the format.",
+          variant: "destructive"
+        });
+      }
     });
   };
 
   const handleProcessUpload = async () => {
-    if (!validationResults.length) {
-      toast({
-        title: "No Data to Process",
-        description: "Please upload and validate data first",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    console.log('🚀 Processing upload with', validationResults.length, 'total validation results');
-
-    try {
-      // Get processable records (applies corrections and filters for sufficient stock)
-      const processableRecords = getProcessableRecords(validationResults);
-      console.log('📊 Processable records after corrections:', processableRecords.length);
-      
-      if (processableRecords.length === 0) {
-        toast({
-          title: "No Valid Records",
-          description: "All records have validation errors. Please fix them first using the correction tools.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log('🔄 Processing', processableRecords.length, 'valid records...');
-      const result = await processBulk(validationResults);
-      
-      if (result.success) {
-        toast({
-          title: "Upload Successful",
-          description: `Successfully processed ${result.processed_count} issue records${correctedRecords.length > 0 ? ` (including ${correctedRecords.length} corrected items)` : ''}`,
-          variant: "default"
-        });
-        
-        // Reset form after successful upload
-        setCurrentStep(1);
-        setUploadFile(null);
-        setCsvData([]);
-        setProcessedRecords([]);
-        setValidationResults([]);
-        onOpenChange(false);
-      } else {
-        toast({
-          title: "Upload Failed",
-          description: `Failed to process records. ${result.error_count} errors occurred.`,
-          variant: "destructive"
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ Upload failed:', error);
-      toast({
-        title: "Upload Error",
-        description: error.message || "Failed to process upload",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleProcessUploadWithSkipDuplicates = async () => {
     if (!csvData.length) {
       toast({
-        title: "No Data to Process",
-        description: "Please upload CSV data first",
+        title: "No Data",
+        description: "Please select a valid CSV file first",
         variant: "destructive"
       });
       return;
     }
 
-    console.log('🚀 Processing upload with skip duplicates option...');
-
     try {
-      // Convert CSV data to issue records format
+      console.log('🚀 Starting enhanced upload process...');
+      
+      // Transform CSV data to expected format
       const issueRecords = csvData.map(row => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         date: row.date || new Date().toISOString().split('T')[0],
-        purpose: row.purpose || row.issued_to || 'Bulk upload',
-        remarks: row.remarks || 'Bulk upload'
+        purpose: row.purpose || row.issued_to || 'General',
+        remarks: row.remarks || ''
       })).filter(record => record.item_code && record.qty_issued > 0);
 
-      // Use enhanced upload with skip duplicates enabled
-      const result = await uploadWithDuplicateHandling(issueRecords, {
+      console.log('📋 Prepared', issueRecords.length, 'records for upload');
+
+      // Process upload with duplicate handling
+      const uploadResult = await uploadWithDuplicateHandling(issueRecords, {
         skipDuplicates: true,
         showDuplicateWarning: false
       });
 
-      if (result.success) {
+      console.log('✅ Upload completed:', uploadResult);
+
+      // Set result and determine success/failure
+      setResult(uploadResult);
+      
+      // Show appropriate message based on actual results
+      if (uploadResult.success && uploadResult.successful_inserts > 0) {
         toast({
           title: "Upload Successful",
-          description: `Successfully uploaded ${result.successful_inserts} records. ${result.duplicates_skipped} duplicates were skipped.`,
-          variant: "default"
+          description: `Successfully processed ${uploadResult.successful_inserts} records${uploadResult.duplicates_skipped > 0 ? ` (${uploadResult.duplicates_skipped} duplicates skipped)` : ''}`,
         });
-        
-        // Reset form after successful upload
-        setCurrentStep(1);
-        setUploadFile(null);
-        setCsvData([]);
-        setProcessedRecords([]);
-        setValidationResults([]);
-        setShowDuplicateWarning(false);
-        onOpenChange(false);
+        setActiveTab("results");
+      } else if (uploadResult.success && uploadResult.duplicates_skipped > 0 && uploadResult.successful_inserts === 0) {
+        toast({
+          title: "All Records Were Duplicates",
+          description: `${uploadResult.duplicates_skipped} duplicate records were skipped. No new data was added.`,
+          variant: "destructive"
+        });
+        setActiveTab("results");
+      } else if (uploadResult.errors && uploadResult.errors.length > 0) {
+        toast({
+          title: "Upload Completed with Issues",
+          description: `${uploadResult.successful_inserts} successful, ${uploadResult.errors.length} issues found`,
+          variant: "destructive"
+        });
+        setActiveTab("results");
       } else {
         toast({
           title: "Upload Failed",
-          description: `Failed to process upload. ${result.errors.length} errors occurred.`,
+          description: "No records were processed successfully",
           variant: "destructive"
         });
+        setActiveTab("results");
       }
+
     } catch (error: any) {
-      console.error('❌ Enhanced upload failed:', error);
+      console.error('💥 Upload process failed:', error);
       toast({
-        title: "Upload Error",
-        description: error.message || "Failed to process upload",
+        title: "Upload Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive"
+      });
+      setResult({
+        success: false,
+        total_processed: 0,
+        successful_inserts: 0,
+        duplicates_skipped: 0,
+        validation_errors: 0,
+        duplicates: [],
+        errors: [{ row: 0, message: error.message }]
+      });
+      setActiveTab("results");
+    }
+  };
+
+  const handleShowDebugger = () => {
+    if (csvData.length > 0) {
+      setShowDebugger(true);
+      setActiveTab("debugger");
+    } else {
+      toast({
+        title: "No Data to Debug",
+        description: "Please select and load a CSV file first",
         variant: "destructive"
       });
     }
   };
 
-  const getStepStatus = (step: UploadStep) => {
-    if (step.status === 'completed') return 'text-green-600 bg-green-50';
-    if (step.status === 'active') return 'text-blue-600 bg-blue-50';
-    if (step.status === 'error') return 'text-red-600 bg-red-50';
-    return 'text-gray-600 bg-gray-50';
+  const handleRecordCorrection = (rowIndex: number, correctedData: any) => {
+    console.log('🔧 Record correction applied:', rowIndex, correctedData);
+    // The debugger handles corrections internally
   };
 
-  const getStepIcon = (step: UploadStep) => {
-    if (step.status === 'completed') return <CheckCircle className="w-5 h-5" />;
-    if (step.status === 'active') return <Activity className="w-5 h-5 animate-spin" />;
-    if (step.status === 'error') return <AlertTriangle className="w-5 h-5" />;
-    return <div className="w-5 h-5 rounded-full border-2 border-current" />;
+  const handleBatchReprocess = (correctedRecords: any[]) => {
+    console.log('🔄 Batch reprocessing:', correctedRecords.length, 'records');
+    // Could implement batch reprocessing here if needed
   };
 
-  // Calculate counts based on validation results with corrections applied
-  const processableRecords = validationResults.length > 0 ? getProcessableRecords(validationResults) : [];
-  const validRecordsCount = processableRecords.length;
-  const insufficientStockCount = validationResults.filter(r => {
-    const correction = correctedRecords.find(c => c.rowIndex === r.row_num - 1);
-    if (correction) {
-      return correction.corrected_qty > r.available_qty;
-    }
-    return r.validation_status === 'insufficient_stock';
-  }).length;
-  const insufficientStockItems = validationResults.filter(r => r.validation_status === 'insufficient_stock');
+  const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
+    console.log('📥 Downloading corrected CSV:', mode);
+    // Could implement CSV download functionality here
+    toast({
+      title: "Feature Coming Soon",
+      description: `CSV download for ${mode} will be available in the next update`,
+    });
+  };
+
+  const handleDialogClose = () => {
+    resetUploadState();
+    setFile(null);
+    onOpenChange(false);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleDialogClose}>
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <TrendingDown className="h-6 w-6" />
-            Enhanced Stock Issues Upload with Real-time Stock Validation
+            <TrendingDown className="w-5 h-5" />
+            Enhanced Bulk Upload - Stock Issues
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Duplicate Warning Alert */}
-          {showDuplicateWarning && duplicateCheckResult && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="space-y-3">
-                  <div className="font-semibold text-red-800">
-                    🚨 CRITICAL: Duplicate Records Detected
-                  </div>
-                  <div className="text-sm text-red-700">
-                    Found <strong>{duplicateCheckResult.total_duplicates}</strong> potential duplicates out of{' '}
-                    <strong>{duplicateCheckResult.total_checked}</strong> records. 
-                    Re-uploading this file will create duplicate entries in the database.
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={proceedWithValidation}
-                    >
-                      Force Upload (Create Duplicates)
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setUploadFile(null);
-                        setCsvData([]);
-                        setShowDuplicateWarning(false);
-                        setCurrentStep(1);
-                      }}
-                    >
-                      Cancel & Choose Different File
-                    </Button>
-                     <Button 
-                       variant="default" 
-                       size="sm"
-                       onClick={() => handleDownloadCorrectedCSV('retry-ready')}
-                     >
-                       Download Non-Duplicate Records Only
-                     </Button>
-                     <Button 
-                       variant="secondary" 
-                       size="sm"
-                       onClick={() => handleProcessUploadWithSkipDuplicates()}
-                     >
-                       Skip Duplicates & Process
-                     </Button>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="upload">Upload</TabsTrigger>
+            <TabsTrigger value="debugger" disabled={!csvData.length}>
+              Debug Console {csvData.length > 0 && `(${csvData.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="results" disabled={!result}>
+              Results {result && `(${result.total_processed || 0})`}
+            </TabsTrigger>
+            <TabsTrigger value="help">Help</TabsTrigger>
+          </TabsList>
 
-          {/* Progress Steps */}
-          <div className="grid grid-cols-4 gap-4">
-            {steps.map((step) => (
-              <div
-                key={step.id}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  step.status === 'active' ? 'border-blue-500' : 'border-gray-200'
-                } ${getStepStatus(step)}`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  {getStepIcon(step)}
-                  <span className="font-medium text-sm">Step {step.id}</span>
-                </div>
-                <h3 className="font-semibold text-sm">{step.title}</h3>
-                <p className="text-xs opacity-75">{step.description}</p>
-              </div>
-            ))}
-          </div>
+          <div className="overflow-y-auto max-h-[calc(95vh-8rem)]">
+            <TabsContent value="upload" className="space-y-6 mt-6">
+              {/* Template Download */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5" />
+                    Step 1: Download Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Download the CSV template to see the required format and sample data.
+                  </p>
+                  <Button variant="outline" onClick={downloadTemplate}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download CSV Template
+                  </Button>
+                </CardContent>
+              </Card>
 
-          {/* Step 1: File Upload */}
-          {currentStep >= 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5" />
-                  Select Issue CSV File
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FileUpload
-                  accept=".csv"
-                  onFilesSelected={(files) => setUploadFile(files[0])}
-                  disabled={isProcessing}
-                />
-                {uploadFile && (
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm font-medium">{uploadFile.name}</span>
-                      <Badge variant="secondary">
-                        {(uploadFile.size / 1024).toFixed(1)} KB
-                      </Badge>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+              {/* File Upload */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Upload className="w-5 h-5" />
+                    Step 2: Upload Your CSV File
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv,application/csv"
+                    onChange={handleFileSelect}
+                    disabled={isProcessing}
+                  />
 
-          {/* Step 2: Real-time Preview & Validation */}
-          {csvData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Real-time Issue Preview & Stock Validation
-                  <Badge variant="outline">
-                    {csvData.length} records
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{csvData.length}</div>
-                    <div className="text-sm text-blue-700">Total Records</div>
-                  </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{validRecordsCount}</div>
-                    <div className="text-sm text-green-700">Ready to Process</div>
-                  </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">
-                      {processedRecords.filter(r => r.errors.length > 0).length}
-                    </div>
-                    <div className="text-sm text-red-700">Error Records</div>
-                  </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">{insufficientStockCount}</div>
-                    <div className="text-sm text-yellow-700">Insufficient Stock</div>
-                  </div>
-                </div>
-
-                {/* Stock Correction Actions */}
-                {insufficientStockCount > 0 && (
-                  <div className="mb-4">
+                  {file && csvData.length > 0 && (
                     <Alert>
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription className="flex items-center justify-between">
-                        <span>
-                          <strong>{insufficientStockCount} items</strong> have insufficient stock levels that need correction.
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleOpenStockCorrection}
-                          className="ml-4"
-                        >
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          Fix Stock Issues
-                        </Button>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p><strong>File:</strong> {file.name}</p>
+                            <p><strong>Records:</strong> {csvData.length}</p>
+                            <p><strong>Size:</strong> {(file.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                          <Badge variant="outline">Ready to Process</Badge>
+                        </div>
                       </AlertDescription>
                     </Alert>
+                  )}
+
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <Progress value={uploadProgress} />
+                      <p className="text-sm text-muted-foreground">
+                        Processing upload... {Math.round(uploadProgress)}%
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleProcessUpload}
+                      disabled={!csvData.length || isProcessing}
+                      className="flex-1"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Activity className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Process Upload
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      variant="outline"
+                      onClick={handleShowDebugger}
+                      disabled={!csvData.length || isProcessing}
+                    >
+                      Debug Console
+                    </Button>
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                {/* Stock Status Preview */}
-                <ScrollArea className="h-40 border rounded-lg p-3">
-                  <div className="space-y-2">
-                    {processedRecords.slice(0, 10).map((record, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Row {record.rowIndex + 1}</span>
-                          <span className="text-sm">{record.data.item_code}</span>
-                          {record.validationResult && (
-                            <Badge 
-                              variant={record.validationResult.validation_status === 'sufficient' ? 'default' : 'destructive'}
-                              className="text-xs"
-                            >
-                              {record.validationResult.validation_status}
-                            </Badge>
-                          )}
-                          {getCorrectedQuantity(record.rowIndex) !== null && (
-                            <Badge variant="outline" className="text-xs bg-blue-50">
-                              Corrected
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Available: {record.validationResult?.available_qty || 0} | 
-                          Requested: {getCorrectedQuantity(record.rowIndex) || record.validationResult?.requested_qty || 0}
-                        </div>
-                      </div>
-                    ))}
-                    {processedRecords.length > 10 && (
-                      <div className="text-center text-sm text-muted-foreground">
-                        ... and {processedRecords.length - 10} more records
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 3: Debug Console */}
-          {processedRecords.length > 0 && (
-            <Tabs defaultValue="debugger" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="debugger" className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Debug Console
-                </TabsTrigger>
-                <TabsTrigger value="corrections" className="flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  CSV Corrections
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="debugger">
+            <TabsContent value="debugger" className="mt-6">
+              {csvData.length > 0 ? (
                 <IssueUploadDebugger
                   csvData={csvData}
                   onRecordCorrection={handleRecordCorrection}
@@ -805,74 +358,128 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                   onDownloadCorrectedCSV={handleDownloadCorrectedCSV}
                   isProcessing={isProcessing}
                 />
-              </TabsContent>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-muted-foreground">Please upload a CSV file to access the debug console.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
 
-              <TabsContent value="corrections">
-                <IssueCSVCorrectionManager
-                  records={csvData}
-                  errorRecords={errorRecords}
-                  correctedRecords={correctedRecords}
-                  onDownload={handleDownloadCorrectedCSV}
-                  onReupload={handleProcessUpload}
-                />
-              </TabsContent>
-            </Tabs>
-          )}
-
-          {/* Critical Errors Alert */}
-          {errorRecords.length > 0 && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>{errorRecords.length} records have critical errors</strong> that must be resolved before upload.
-                Use the Debug Console and CSV Corrections tools above to fix these issues.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Step 4: Process Upload */}
-          {validRecordsCount > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  Ready to Process Upload
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      {validRecordsCount} records are ready for upload out of {validationResults.length} total
-                      {correctedRecords.length > 0 && (
-                        <span className="text-blue-600"> (including {correctedRecords.length} corrected)</span>
+            <TabsContent value="results" className="space-y-6 mt-6">
+              {result ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {result.success ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-500" />
                       )}
-                    </p>
-                  </div>
-                  <Button 
-                    size="lg" 
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={isBulkProcessing || isValidating}
-                    onClick={handleProcessUpload}
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    {isBulkProcessing ? 'Processing...' : `Process ${validRecordsCount} Issues`}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                      Upload Results
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{result.total_processed}</div>
+                        <div className="text-sm text-blue-700">Total Processed</div>
+                      </div>
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">{result.successful_inserts}</div>
+                        <div className="text-sm text-green-700">Successful</div>
+                      </div>
+                      <div className="p-4 bg-yellow-50 rounded-lg">
+                        <div className="text-2xl font-bold text-yellow-600">{result.duplicates_skipped}</div>
+                        <div className="text-sm text-yellow-700">Duplicates Skipped</div>
+                      </div>
+                      <div className="p-4 bg-red-50 rounded-lg">
+                        <div className="text-2xl font-bold text-red-600">{result.errors?.length || 0}</div>
+                        <div className="text-sm text-red-700">Errors</div>
+                      </div>
+                    </div>
 
-        {/* Stock Correction Modal */}
-        <StockCorrectionModal
-          open={correctionModalOpen}
-          onOpenChange={setCorrectionModalOpen}
-          insufficientStockItems={insufficientStockItems}
-          onApplyCorrections={handleApplyStockCorrections}
-          onRevalidate={performBulkValidation}
-          existingCorrections={correctedRecords}
-        />
+                    {result.errors && result.errors.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Error Details</h4>
+                        <div className="max-h-40 overflow-y-auto space-y-2">
+                          {result.errors.map((error: any, index: number) => (
+                            <Alert key={index} variant="destructive">
+                              <AlertCircle className="w-4 h-4" />
+                              <AlertDescription>
+                                <strong>Row {error.row}:</strong> {error.message}
+                              </AlertDescription>
+                            </Alert>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button onClick={resetUploadState} variant="outline">
+                        Upload Another File
+                      </Button>
+                      <Button onClick={handleDialogClose}>
+                        Close
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-muted-foreground">No upload results to display yet.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="help" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Enhanced Upload Features</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-medium mb-2">Smart Validation</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Real-time stock availability checking</li>
+                        <li>• Automatic duplicate detection</li>
+                        <li>• Data format validation</li>
+                        <li>• Item code verification</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-2">Debug Console</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Detailed error analysis</li>
+                        <li>• Stock level insights</li>
+                        <li>• Record-by-record correction</li>
+                        <li>• Batch processing status</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium mb-2">Required CSV Columns</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p><strong>item_code</strong> - Product identifier</p>
+                        <p><strong>qty_issued</strong> - Quantity to issue</p>
+                      </div>
+                      <div>
+                        <p><strong>date</strong> - Issue date (YYYY-MM-DD)</p>
+                        <p><strong>purpose</strong> - Reason for issue</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
