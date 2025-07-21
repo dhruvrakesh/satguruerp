@@ -161,9 +161,9 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
               reorder_level: 0, // Default since column doesn't exist
               stock_status: item.stock_status,
               last_updated: item.last_updated,
-              opening_stock: Number(item.opening_stock) || 0,
-              total_grns: Number(item.total_grns) || 0,
-              total_issues: Number(item.total_issues) || 0,
+              opening_stock: 0, // Will be calculated separately if needed
+              total_grns: 0, // Will be calculated separately if needed  
+              total_issues: 0, // Will be calculated separately if needed
               uom: item.uom || 'KG'
             };
 

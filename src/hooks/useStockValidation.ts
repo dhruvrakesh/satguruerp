@@ -65,7 +65,7 @@ export function useStockValidation(itemCode?: string) {
         .select('current_qty, last_updated, item_name, uom')
         .eq('item_code', itemCode)
         .single();
-      
+
       const data = stockError?.code === 'PGRST116' 
         ? { current_qty: 0, last_updated: null, item_name: null, uom: null }
         : stockData;

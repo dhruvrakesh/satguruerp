@@ -7823,9 +7823,13 @@ export type Database = {
           item_code: string | null
           item_name: string | null
           last_updated: string | null
+          opening_stock: number | null
           received_30_days: number | null
           reorder_level: number | null
           stock_status: string | null
+          total_grns: number | null
+          total_issues: number | null
+          uom: string | null
         }
         Relationships: [
           {
