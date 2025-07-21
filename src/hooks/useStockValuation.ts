@@ -25,8 +25,8 @@ export interface ValuationSummary {
 }
 
 export interface StockValuationFilters {
-  dateFrom?: Date;
-  dateTo?: Date;
+  dateFrom?: string;
+  dateTo?: string;
   category?: string;
   supplier?: string;
   valuationMethod?: 'FIFO' | 'LIFO' | 'WEIGHTED_AVG';
@@ -67,10 +67,10 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
         .order("date", { ascending: false });
 
       if (filters.dateFrom) {
-        grnQuery = grnQuery.gte("date", filters.dateFrom.toISOString().split('T')[0]);
+        grnQuery = grnQuery.gte("date", filters.dateFrom);
       }
       if (filters.dateTo) {
-        grnQuery = grnQuery.lte("date", filters.dateTo.toISOString().split('T')[0]);
+        grnQuery = grnQuery.lte("date", filters.dateTo);
       }
       if (filters.supplier) {
         grnQuery = grnQuery.eq("vendor", filters.supplier);

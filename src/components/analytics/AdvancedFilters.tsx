@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
+import { useState } from "react";
 
 interface AdvancedFiltersProps {
   filters: StockValuationFilters;
@@ -15,12 +16,28 @@ interface AdvancedFiltersProps {
 }
 
 export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: AdvancedFiltersProps) {
+  // Internal state for date picker (Date objects)
+  const [selectedDateFrom, setSelectedDateFrom] = useState<Date | undefined>(
+    filters.dateFrom ? new Date(filters.dateFrom) : undefined
+  );
+  const [selectedDateTo, setSelectedDateTo] = useState<Date | undefined>(
+    filters.dateTo ? new Date(filters.dateTo) : undefined
+  );
+
   const handleDateFromChange = (date: Date | undefined) => {
-    onFiltersChange({ ...filters, dateFrom: date });
+    setSelectedDateFrom(date);
+    onFiltersChange({ 
+      ...filters, 
+      dateFrom: date ? date.toISOString().split('T')[0] : undefined 
+    });
   };
 
   const handleDateToChange = (date: Date | undefined) => {
-    onFiltersChange({ ...filters, dateTo: date });
+    setSelectedDateTo(date);
+    onFiltersChange({ 
+      ...filters, 
+      dateTo: date ? date.toISOString().split('T')[0] : undefined 
+    });
   };
 
   return (
@@ -111,13 +128,13 @@ export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: Ad
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-start text-left font-normal">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateFrom ? format(filters.dateFrom, "PPP") : "Select date"}
+                  {selectedDateFrom ? format(selectedDateFrom, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={filters.dateFrom}
+                  selected={selectedDateFrom}
                   onSelect={handleDateFromChange}
                   initialFocus
                 />
@@ -131,13 +148,13 @@ export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: Ad
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-start text-left font-normal">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.dateTo ? format(filters.dateTo, "PPP") : "Select date"}
+                  {selectedDateTo ? format(selectedDateTo, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={filters.dateTo}
+                  selected={selectedDateTo}
                   onSelect={handleDateToChange}
                   initialFocus
                 />
