@@ -16,6 +16,7 @@ export interface OptimizationData {
 export interface OptimizationFilters {
   categoryId?: string;
   serviceLevel?: number;
+  priority?: string;
 }
 
 export interface OptimizationRecommendation {
