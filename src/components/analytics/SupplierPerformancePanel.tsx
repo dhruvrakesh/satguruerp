@@ -111,7 +111,7 @@ export function SupplierPerformancePanel({ onContactSupplier }: SupplierPerforma
                   <SelectItem value="excellent">Excellent (90%+)</SelectItem>
                   <SelectItem value="good">Good (75-89%)</SelectItem>
                   <SelectItem value="average">Average (60-74%)</SelectItem>
-                  <SelectItem value="poor">Poor (<60%)</SelectItem>
+                  <SelectItem value="poor">Poor (Below 60%)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

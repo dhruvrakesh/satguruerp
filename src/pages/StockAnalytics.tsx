@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, PieChart, LineChart, Download, RefreshCw, FileText, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { StockAgingPanel } from "@/components/analytics/StockAgingPanel";
 import { MLForecastingPanel } from "@/components/analytics/MLForecastingPanel";
 import { InventoryOptimizationPanel } from "@/components/analytics/InventoryOptimizationPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
+import { ValuationDashboard } from "@/components/valuation/ValuationDashboard";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport } from "@/hooks/useDataExport";
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
@@ -145,6 +147,7 @@ export default function StockAnalytics() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="valuation-mgmt">Valuation Management</TabsTrigger>
           <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
           <TabsTrigger value="ml-forecasting">ML Forecasting</TabsTrigger>
           <TabsTrigger value="optimization">Optimization</TabsTrigger>
@@ -164,6 +167,10 @@ export default function StockAnalytics() {
             <InventoryTurnoverChart />
             <ABCAnalysisChart />
           </div>
+        </TabsContent>
+
+        <TabsContent value="valuation-mgmt" className="space-y-6">
+          <ValuationDashboard />
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-6">
