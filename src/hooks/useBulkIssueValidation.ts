@@ -81,7 +81,7 @@ export function useBulkIssueValidation() {
     }
   };
 
-  // NEW: Function to merge corrected records into validation results
+  // Function to merge corrected records into validation results
   const applyCorrectionsToValidationResults = (validationResults: BulkValidationResult[]): BulkValidationResult[] => {
     console.log('🔧 Applying corrections to validation results:', {
       originalResults: validationResults.length,
@@ -114,7 +114,7 @@ export function useBulkIssueValidation() {
     });
   };
 
-  // NEW: Function to get processable records (sufficient + corrected to sufficient)
+  // Function to get processable records (sufficient + corrected to sufficient)
   const getProcessableRecords = (validationResults: BulkValidationResult[]): BulkValidationResult[] => {
     const correctedResults = applyCorrectionsToValidationResults(validationResults);
     const processableRecords = correctedResults.filter(r => r.validation_status === 'sufficient');
@@ -131,6 +131,17 @@ export function useBulkIssueValidation() {
     });
     
     return processableRecords;
+  };
+
+  // Function to get corrected records count for UI
+  const getCorrectedRecordsCount = (): number => {
+    return correctedRecords.length;
+  };
+
+  // Function to get records with errors after corrections applied
+  const getErrorRecordsAfterCorrections = (validationResults: BulkValidationResult[]): BulkValidationResult[] => {
+    const correctedResults = applyCorrectionsToValidationResults(validationResults);
+    return correctedResults.filter(r => r.validation_status !== 'sufficient');
   };
 
   const processBulk = async (validationResults: BulkValidationResult[]): Promise<BulkProcessResult> => {
@@ -221,6 +232,11 @@ export function useBulkIssueValidation() {
     return correction?.corrected_qty || null;
   };
 
+  const resetCorrections = () => {
+    setCorrectedRecords([]);
+    console.log('🔄 Reset all corrections');
+  };
+
   return {
     validateBulk,
     processBulk,
@@ -230,7 +246,10 @@ export function useBulkIssueValidation() {
     applyCorrectedQuantity,
     removeCorrectedQuantity,
     getCorrectedQuantity,
+    getCorrectedRecordsCount,
     applyCorrectionsToValidationResults,
-    getProcessableRecords
+    getProcessableRecords,
+    getErrorRecordsAfterCorrections,
+    resetCorrections
   };
 }

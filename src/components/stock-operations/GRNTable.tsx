@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { format } from "date-fns";
 import { MoreHorizontal, Search, Filter, Edit, Trash2, ChevronUp, ChevronDown, Download, TrendingUp } from "lucide-react";
@@ -34,9 +35,26 @@ export function GRNTable({ onEdit }: GRNTableProps) {
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useGRN({ page, pageSize: 50, filters, sort });
+  const { data, isLoading, error } = useGRN({ page, pageSize: 50, filters, sort });
   const { updateGRN, deleteGRN } = useGRNMutations();
   const exportGRN = useGRNExport();
+
+  // Handle errors gracefully
+  if (error) {
+    console.error('GRN Table Error:', error);
+    return (
+      <div className="p-4 text-center">
+        <p className="text-destructive">Error loading GRN data: {error.message}</p>
+        <Button 
+          variant="outline" 
+          onClick={() => window.location.reload()}
+          className="mt-2"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   const handleSort = (column: string) => {
     setSort(prev => ({
@@ -158,7 +176,7 @@ export function GRNTable({ onEdit }: GRNTableProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
-            placeholder="Search GRN number, item code, or supplier..."
+            placeholder="Search GRN number, item code, or vendor..."
             value={filters.search || ""}
             onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
             className="pl-10"
@@ -186,13 +204,13 @@ export function GRNTable({ onEdit }: GRNTableProps) {
           <TableHeader>
             <TableRow>
               <SortableHeader column="grn_number">GRN Number</SortableHeader>
-              <SortableHeader column="grn_date">Date</SortableHeader>
+              <SortableHeader column="date">Date</SortableHeader>
               <SortableHeader column="item_code">Item Code</SortableHeader>
               <TableHead>Item Name</TableHead>
               <SortableHeader column="qty_received">Qty Received</SortableHeader>
               <SortableHeader column="unit_price">Unit Price</SortableHeader>
-              <SortableHeader column="total_value">Total Value</SortableHeader>
-              <SortableHeader column="supplier">Supplier</SortableHeader>
+              <SortableHeader column="amount_inr">Total Value</SortableHeader>
+              <SortableHeader column="vendor">Vendor</SortableHeader>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>

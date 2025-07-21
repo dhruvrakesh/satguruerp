@@ -80,21 +80,21 @@ export function useGRN(options: UseGRNOptions = {}) {
         `, { count: 'exact' })
         .not('transaction_type', 'eq', 'OPENING_STOCK'); // Exclude opening stock from regular GRN display
 
-      // Apply filters
+      // Apply filters - Fixed to use correct column names
       if (filters.search) {
-        query = query.or(`grn_number.ilike.%${filters.search}%,item_code.ilike.%${filters.search}%,supplier.ilike.%${filters.search}%`);
+        query = query.or(`grn_number.ilike.%${filters.search}%,item_code.ilike.%${filters.search}%,vendor.ilike.%${filters.search}%`);
       }
       
       if (filters.supplier) {
-        query = query.ilike('supplier', `%${filters.supplier}%`);
+        query = query.ilike('vendor', `%${filters.supplier}%`);
       }
       
       if (filters.dateFrom) {
-        query = query.gte('grn_date', filters.dateFrom);
+        query = query.gte('date', filters.dateFrom);
       }
       
       if (filters.dateTo) {
-        query = query.lte('grn_date', filters.dateTo);
+        query = query.lte('date', filters.dateTo);
       }
 
       // Apply sorting
@@ -111,7 +111,10 @@ export function useGRN(options: UseGRNOptions = {}) {
 
       const { data, error, count } = await query;
       
-      if (error) throw error;
+      if (error) {
+        console.error('GRN Query Error:', error);
+        throw error;
+      }
       
       return {
         data: data || [],

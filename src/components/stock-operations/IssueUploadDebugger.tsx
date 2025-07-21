@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,33 +71,29 @@ export function IssueUploadDebugger({
   const [correctionData, setCorrectionData] = useState<any>({});
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { validateBulk, isValidating, getCorrectedQuantity, correctedRecords, getProcessableRecords } = useBulkIssueValidation();
+  const { 
+    validateBulk, 
+    isValidating, 
+    getCorrectedQuantity, 
+    getCorrectedRecordsCount,
+    getProcessableRecords,
+    getErrorRecordsAfterCorrections,
+    applyCorrectedQuantity,
+    applyCorrectionsToValidationResults 
+  } = useBulkIssueValidation();
 
   useEffect(() => {
     if (csvData?.length > 0) {
       performIssueDebugAnalysis();
     }
-  }, [csvData, correctedRecords]);
+  }, [csvData, getCorrectedRecordsCount()]); // Re-run when corrections change
 
   const performIssueDebugAnalysis = async () => {
     console.log('🔧 Starting Issue upload debug analysis for', csvData.length, 'records...');
     
     try {
-      // Apply corrections to CSV data before analysis
-      const correctedCsvData = csvData.map((row, index) => {
-        const correctedQty = getCorrectedQuantity(index);
-        if (correctedQty !== null) {
-          return {
-            ...row,
-            qty_issued: correctedQty,
-            quantity: correctedQty
-          };
-        }
-        return row;
-      });
-
       // Prepare items for bulk validation - PROCESS ALL RECORDS
-      const issueItems = correctedCsvData.map((row, index) => ({
+      const issueItems = csvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         row_num: index + 1
@@ -111,8 +108,11 @@ export function IssueUploadDebugger({
       // Get processable records (with corrections applied)
       const processableRecords = getProcessableRecords(validationResults);
       
+      // Get corrected results for analysis
+      const correctedResults = applyCorrectionsToValidationResults(validationResults);
+      
       // Process results and combine with CSV data
-      const records: IssueDebugRecord[] = correctedCsvData.map((row, index) => {
+      const records: IssueDebugRecord[] = csvData.map((row, index) => {
         const errors: string[] = [];
         const warnings: string[] = [];
         
@@ -128,31 +128,20 @@ export function IssueUploadDebugger({
         if (!row.issued_to && !row.purpose) warnings.push('Missing issued to/purpose information');
         
         // Find validation result for this row
-        const validationResult = validationResults.find(r => r.row_num === index + 1);
+        const validationResult = correctedResults.find(r => r.row_num === index + 1);
         let stockStatus: IssueDebugRecord['stockStatus'] = 'unknown';
         let availableStock = 0;
         let requiredStock = qtyIssued;
         
         if (validationResult) {
           availableStock = validationResult.available_qty || 0;
+          requiredStock = validationResult.requested_qty;
           
           if (validationResult.validation_status === 'not_found') {
             errors.push('Item code not found in master data');
           } else if (validationResult.validation_status === 'insufficient_stock') {
-            // Check if this item has been corrected
-            const correctedQty = getCorrectedQuantity(index);
-            if (correctedQty !== null) {
-              requiredStock = correctedQty;
-              if (correctedQty <= availableStock) {
-                stockStatus = 'sufficient';
-              } else {
-                errors.push(`Still insufficient after correction. Available: ${availableStock}, Corrected to: ${correctedQty}`);
-                stockStatus = availableStock > correctedQty * 0.5 ? 'insufficient' : 'critical';
-              }
-            } else {
-              errors.push(validationResult.error_message);
-              stockStatus = availableStock > requiredStock * 0.5 ? 'insufficient' : 'critical';
-            }
+            errors.push(validationResult.error_message);
+            stockStatus = availableStock > requiredStock * 0.5 ? 'insufficient' : 'critical';
           } else if (validationResult.validation_status === 'sufficient') {
             stockStatus = 'sufficient';
           }
@@ -175,14 +164,16 @@ export function IssueUploadDebugger({
         };
       });
       
-      // Calculate summary statistics for ALL records
+      // Calculate summary statistics using centralized counts
+      const centralizedCorrectedCount = getCorrectedRecordsCount();
+      
       const analysis: IssueDebugAnalysis = {
         totalRecords: records.length,
         validRecords: processableRecords.length,
         errorRecords: records.filter(r => r.status === 'failed').length,
         warningRecords: records.filter(r => r.status === 'pending').length,
         stockIssues: records.filter(r => r.stockStatus === 'insufficient' || r.stockStatus === 'critical').length,
-        correctedRecords: records.filter(r => r.status === 'corrected').length,
+        correctedRecords: centralizedCorrectedCount, // Use centralized count
         processingProgress: 100, // Complete after bulk validation
         records,
         stockAnalysis: {
@@ -211,22 +202,29 @@ export function IssueUploadDebugger({
   };
 
   const handleSaveCorrection = () => {
-    if (editingRecord !== null && debugAnalysis) {
-      const updatedRecords = [...debugAnalysis.records];
-      updatedRecords[editingRecord] = {
-        ...updatedRecords[editingRecord],
-        correctedData: correctionData,
-        status: 'corrected'
-      };
+    if (editingRecord !== null && debugAnalysis && selectedRecord) {
+      const correctedQty = Number(correctionData.qty_issued || correctionData.quantity || 0);
+      const originalQty = Number(selectedRecord.originalData.qty_issued || selectedRecord.originalData.quantity || 0);
+      const availableQty = selectedRecord.availableStock || 0;
       
-      setDebugAnalysis({
-        ...debugAnalysis,
-        records: updatedRecords
-      });
+      // Apply correction using the centralized hook
+      applyCorrectedQuantity(
+        editingRecord, 
+        selectedRecord.originalData.item_code,
+        originalQty,
+        correctedQty,
+        availableQty
+      );
       
+      // Call the parent callback for any additional handling
       onRecordCorrection(editingRecord, correctionData);
+      
       setEditingRecord(null);
       setCorrectionData({});
+      setSelectedRecord(null);
+      
+      // Trigger re-analysis to update UI
+      performIssueDebugAnalysis();
     }
   };
 
