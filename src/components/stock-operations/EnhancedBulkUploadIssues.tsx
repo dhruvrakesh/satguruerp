@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity, Calendar, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useEnhancedIssueUpload } from "@/hooks/useEnhancedIssueUpload";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
@@ -31,9 +31,9 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
 
   const downloadTemplate = () => {
     const csvContent = `item_code,qty_issued,date,purpose,remarks
-LDPELAM_NP_775_50,100,2025-01-20,Production Order PO-001,For lamination process
-BOPP-FILM-20-20,50,2025-01-20,Quality Testing,Sample testing
-PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
+LDPELAM_NP_775_50,100,15-05-2025,Production Order PO-001,For lamination process
+BOPP-FILM-20-20,50,16-05-2025,Quality Testing,Sample testing
+PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -45,7 +45,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
 
     toast({
       title: "Template Downloaded",
-      description: "CSV template has been downloaded successfully.",
+      description: "CSV template with date format examples has been downloaded successfully.",
     });
   };
 
@@ -64,7 +64,6 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
-    // Reset state when new file is selected
     resetUploadState();
 
     if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
@@ -87,7 +86,6 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
 
     setFile(selectedFile);
     
-    // Parse CSV for preview and debugging
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
@@ -96,7 +94,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
         setCsvData(results.data);
         toast({
           title: "File Ready",
-          description: `${selectedFile.name} loaded with ${results.data.length} records`,
+          description: `${selectedFile.name} loaded with ${results.data.length} records. Date formats will be automatically parsed.`,
         });
       },
       error: (error) => {
@@ -121,57 +119,30 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
     }
 
     try {
-      console.log('🚀 Starting enhanced upload process...');
+      console.log('🚀 Starting enhanced upload process with date format handling...');
       
-      // Transform CSV data to expected format
-      const issueRecords = csvData.map(row => ({
-        item_code: row.item_code || '',
-        qty_issued: Number(row.qty_issued || row.quantity || 0),
-        date: row.date || new Date().toISOString().split('T')[0],
-        purpose: row.purpose || row.issued_to || 'General',
-        remarks: row.remarks || ''
-      })).filter(record => record.item_code && record.qty_issued > 0);
-
-      console.log('📋 Prepared', issueRecords.length, 'records for upload');
-
-      // Process upload with duplicate handling
-      const uploadResult = await uploadWithDuplicateHandling(issueRecords, {
+      const uploadResult = await uploadWithDuplicateHandling(csvData, {
         skipDuplicates: true,
         showDuplicateWarning: false
       });
 
       console.log('✅ Upload completed:', uploadResult);
-
-      // Set result and determine success/failure
       setResult(uploadResult);
       
-      // Show appropriate message based on actual results
       if (uploadResult.success && uploadResult.successful_inserts > 0) {
+        setActiveTab("results");
+      } else if (uploadResult.date_format_errors && uploadResult.date_format_errors > 0) {
         toast({
-          title: "Upload Successful",
-          description: `Successfully processed ${uploadResult.successful_inserts} records${uploadResult.duplicates_skipped > 0 ? ` (${uploadResult.duplicates_skipped} duplicates skipped)` : ''}`,
+          title: "Date Format Issues Detected",
+          description: `${uploadResult.date_format_errors} records have date format issues. Check the results tab for details.`,
+          variant: "destructive"
         });
         setActiveTab("results");
       } else if (uploadResult.success && uploadResult.duplicates_skipped > 0 && uploadResult.successful_inserts === 0) {
-        toast({
-          title: "All Records Were Duplicates",
-          description: `${uploadResult.duplicates_skipped} duplicate records were skipped. No new data was added.`,
-          variant: "destructive"
-        });
         setActiveTab("results");
       } else if (uploadResult.errors && uploadResult.errors.length > 0) {
-        toast({
-          title: "Upload Completed with Issues",
-          description: `${uploadResult.successful_inserts} successful, ${uploadResult.errors.length} issues found`,
-          variant: "destructive"
-        });
         setActiveTab("results");
       } else {
-        toast({
-          title: "Upload Failed",
-          description: "No records were processed successfully",
-          variant: "destructive"
-        });
         setActiveTab("results");
       }
 
@@ -189,7 +160,8 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
         duplicates_skipped: 0,
         validation_errors: 0,
         duplicates: [],
-        errors: [{ row: 0, message: error.message }]
+        errors: [{ row: 0, message: error.message }],
+        date_format_errors: 0
       });
       setActiveTab("results");
     }
@@ -210,17 +182,14 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
 
   const handleRecordCorrection = (rowIndex: number, correctedData: any) => {
     console.log('🔧 Record correction applied:', rowIndex, correctedData);
-    // The debugger handles corrections internally
   };
 
   const handleBatchReprocess = (correctedRecords: any[]) => {
     console.log('🔄 Batch reprocessing:', correctedRecords.length, 'records');
-    // Could implement batch reprocessing here if needed
   };
 
   const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
     console.log('📥 Downloading corrected CSV:', mode);
-    // Could implement CSV download functionality here
     toast({
       title: "Feature Coming Soon",
       description: `CSV download for ${mode} will be available in the next update`,
@@ -239,7 +208,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingDown className="w-5 h-5" />
-            Enhanced Bulk Upload - Stock Issues
+            Enhanced Bulk Upload - Stock Issues (Date Format Fixed)
           </DialogTitle>
         </DialogHeader>
 
@@ -266,9 +235,20 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Download the CSV template to see the required format and sample data.
-                  </p>
+                  <div className="flex items-start gap-3 mb-4">
+                    <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Download the CSV template with date format examples. Now supports multiple date formats:
+                      </p>
+                      <ul className="text-xs text-muted-foreground ml-4 space-y-1">
+                        <li>• DD-MM-YYYY (15-05-2025)</li>
+                        <li>• MM-DD-YYYY (05-15-2025)</li>
+                        <li>• YYYY-MM-DD (2025-05-15)</li>
+                        <li>• DD/MM/YYYY (15/05/2025)</li>
+                      </ul>
+                    </div>
+                  </div>
                   <Button variant="outline" onClick={downloadTemplate}>
                     <Download className="w-4 h-4 mr-2" />
                     Download CSV Template
@@ -303,7 +283,10 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                             <p><strong>Records:</strong> {csvData.length}</p>
                             <p><strong>Size:</strong> {(file.size / 1024).toFixed(1)} KB</p>
                           </div>
-                          <Badge variant="outline">Ready to Process</Badge>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            Date Format Ready
+                          </Badge>
                         </div>
                       </AlertDescription>
                     </Alert>
@@ -313,7 +296,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                     <div className="space-y-2">
                       <Progress value={uploadProgress} />
                       <p className="text-sm text-muted-foreground">
-                        Processing upload... {Math.round(uploadProgress)}%
+                        Processing upload with date format handling... {Math.round(uploadProgress)}%
                       </p>
                     </div>
                   )}
@@ -381,7 +364,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <div className="text-2xl font-bold text-blue-600">{result.total_processed}</div>
                         <div className="text-sm text-blue-700">Total Processed</div>
@@ -394,11 +377,25 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                         <div className="text-2xl font-bold text-yellow-600">{result.duplicates_skipped}</div>
                         <div className="text-sm text-yellow-700">Duplicates Skipped</div>
                       </div>
+                      <div className="p-4 bg-orange-50 rounded-lg">
+                        <div className="text-2xl font-bold text-orange-600">{result.date_format_errors || 0}</div>
+                        <div className="text-sm text-orange-700">Date Format Errors</div>
+                      </div>
                       <div className="p-4 bg-red-50 rounded-lg">
                         <div className="text-2xl font-bold text-red-600">{result.errors?.length || 0}</div>
-                        <div className="text-sm text-red-700">Errors</div>
+                        <div className="text-sm text-red-700">Other Errors</div>
                       </div>
                     </div>
+
+                    {result.date_format_errors > 0 && (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="w-4 h-4" />
+                        <AlertDescription>
+                          <strong>Date Format Issues:</strong> {result.date_format_errors} records have date format problems. 
+                          Supported formats: DD-MM-YYYY, MM-DD-YYYY, YYYY-MM-DD, DD/MM/YYYY
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
                     {result.errors && result.errors.length > 0 && (
                       <div className="space-y-2">
@@ -443,21 +440,24 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Date Format Handling
+                      </h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Automatic detection of DD-MM-YYYY format</li>
+                        <li>• Support for MM-DD-YYYY and YYYY-MM-DD</li>
+                        <li>• Date validation and error reporting</li>
+                        <li>• Graceful handling of invalid dates</li>
+                      </ul>
+                    </div>
+                    <div>
                       <h4 className="font-medium mb-2">Smart Validation</h4>
                       <ul className="text-sm text-muted-foreground space-y-1">
                         <li>• Real-time stock availability checking</li>
                         <li>• Automatic duplicate detection</li>
                         <li>• Data format validation</li>
                         <li>• Item code verification</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-2">Debug Console</h4>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Detailed error analysis</li>
-                        <li>• Stock level insights</li>
-                        <li>• Record-by-record correction</li>
-                        <li>• Batch processing status</li>
                       </ul>
                     </div>
                   </div>
@@ -470,7 +470,7 @@ PE-WRAP-80,25,2025-01-20,Production Order PO-002,Wrapper material`;
                         <p><strong>qty_issued</strong> - Quantity to issue</p>
                       </div>
                       <div>
-                        <p><strong>date</strong> - Issue date (YYYY-MM-DD)</p>
+                        <p><strong>date</strong> - Issue date (multiple formats supported)</p>
                         <p><strong>purpose</strong> - Reason for issue</p>
                       </div>
                     </div>
