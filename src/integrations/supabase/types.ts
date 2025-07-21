@@ -7989,6 +7989,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      process_issue_batch: {
+        Args: { p_rows: Json }
+        Returns: Json
+      }
       process_queued_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -8261,6 +8265,18 @@ export type Database = {
       urlencode: {
         Args: { data: Json } | { string: string } | { string: string }
         Returns: string
+      }
+      validate_issue_batch: {
+        Args: { p_items: Json }
+        Returns: {
+          row_num: number
+          item_code: string
+          item_name: string
+          available_qty: number
+          requested_qty: number
+          validation_status: string
+          error_message: string
+        }[]
       }
       validate_leave_consumption: {
         Args: {
