@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkIssueValidation, BulkValidationResult } from "@/hooks/useBulkIssueValidation";
-import { CSVCorrectionManager } from "./CSVCorrectionManager";
+import { IssueCSVCorrectionManager } from "./IssueCSVCorrectionManager";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
 import { StockCorrectionModal } from "./StockCorrectionModal";
 import { 
@@ -159,20 +158,20 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         return row;
       });
 
-      // Extract issue items from CSV data for bulk validation
+      // Extract issue items from CSV data for bulk validation - PROCESS ALL RECORDS
       const issueItems = correctedCsvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         row_num: index + 1
       })).filter(item => item.item_code);
 
-      console.log('📊 Validating', issueItems.length, 'unique items...');
+      console.log('📊 Validating ALL', issueItems.length, 'items (no limits applied)...');
       
-      // Perform bulk validation using the RPC function - NO LIMIT!
+      // Perform bulk validation using the RPC function - PROCESS ALL RECORDS
       const results = await validateBulk(issueItems);
-      console.log('✅ Validation results received:', results.length, 'records');
+      console.log('✅ Validation results received:', results.length, 'records for', issueItems.length, 'input items');
       
-      // Store ALL validation results (no truncation)
+      // Store ALL validation results (ensure no truncation)
       setValidationResults(results);
       
       // Process results and combine with CSV data
@@ -223,7 +222,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         validRecords: processed.filter(r => r.errors.length === 0).length,
         errorRecords: errors.length,
         stockIssues: results.filter(r => r.validation_status === 'insufficient_stock').length,
-        validationResultsCount: results.length // This should match totalRecords
+        validationResultsStored: results.length
       });
       
     } catch (error: any) {
@@ -262,9 +261,62 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     });
   };
 
-  const handleDownloadCorrectedCSV = (mode: string) => {
-    console.log(`📥 Downloading corrected Issue CSV in ${mode} mode`);
-    // Implementation for CSV download would go here
+  const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
+    console.log(`📥 Downloading Issue CSV in ${mode} mode...`);
+    
+    let csvData: any[] = [];
+    let filename = '';
+    
+    switch (mode) {
+      case 'errors':
+        csvData = errorRecords;
+        filename = 'issue_upload_errors.csv';
+        break;
+      case 'corrections':
+        csvData = correctedRecords.map(corr => ({
+          ...csvData.find((_, idx) => idx === corr.rowIndex),
+          qty_issued: corr.corrected_qty,
+          quantity: corr.corrected_qty
+        }));
+        filename = 'issue_upload_corrections.csv';
+        break;
+      case 'retry-ready':
+        // Generate retry-ready CSV with all valid records
+        csvData = processedRecords
+          .filter(r => r.errors.length === 0)
+          .map(r => r.data);
+        filename = 'issue_upload_retry_ready.csv';
+        break;
+    }
+    
+    // Issue-specific CSV headers
+    const headers = ['item_code', 'qty_issued', 'date', 'purpose', 'remarks'];
+    
+    // Convert to Issue CSV format
+    const csvRows = csvData.map(record => [
+      record.item_code || '',
+      record.qty_issued || record.quantity || '',
+      record.date || new Date().toISOString().split('T')[0],
+      record.purpose || record.issued_to || 'General Issue',
+      record.remarks || 'Bulk upload'
+    ]);
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    console.log(`✅ Downloaded ${filename} with ${csvRows.length} records`);
   };
 
   const handleOpenStockCorrection = () => {
@@ -294,8 +346,12 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
       return;
     }
 
-    // Process ALL valid records (not just 1000)
+    console.log('🚀 Processing upload with', validationResults.length, 'total validation results');
+
+    // Process ALL valid records (not just first 1000)
     const validRecords = validationResults.filter(r => r.validation_status === 'sufficient');
+    console.log('📊 Found', validRecords.length, 'valid records out of', validationResults.length, 'total');
+    
     if (validRecords.length === 0) {
       toast({
         title: "No Valid Records",
@@ -306,12 +362,13 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
 
     try {
+      console.log('🔄 Processing', validRecords.length, 'valid records...');
       const result = await processBulk(validationResults);
       
       if (result.success) {
         toast({
           title: "Upload Successful",
-          description: `Successfully processed ${result.processed_count} issue records`,
+          description: `Successfully processed ${result.processed_count} issue records out of ${validationResults.length} total`,
           variant: "default"
         });
         
@@ -353,7 +410,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     return <div className="w-5 h-5 rounded-full border-2 border-current" />;
   };
 
-  // Calculate counts based on validation results
+  // Calculate counts based on validation results - USE FULL DATASET
   const validRecordsCount = validationResults.filter(r => r.validation_status === 'sufficient').length;
   const insufficientStockCount = validationResults.filter(r => r.validation_status === 'insufficient_stock').length;
   const insufficientStockItems = validationResults.filter(r => r.validation_status === 'insufficient_stock');
@@ -539,10 +596,10 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
               </TabsContent>
 
               <TabsContent value="corrections">
-                <CSVCorrectionManager
+                <IssueCSVCorrectionManager
                   records={csvData}
                   errorRecords={errorRecords}
-                  correctedRecords={[]}
+                  correctedRecords={correctedRecords}
                   onDownload={handleDownloadCorrectedCSV}
                   onReupload={handleBatchReprocess}
                 />
@@ -574,7 +631,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      {validRecordsCount} records are ready for upload
+                      {validRecordsCount} records are ready for upload out of {validationResults.length} total
                       {correctedRecords.length > 0 && (
                         <span className="text-blue-600"> (including {correctedRecords.length} corrected)</span>
                       )}

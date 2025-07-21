@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +79,7 @@ export function IssueUploadDebugger({
   }, [csvData, correctedRecords]);
 
   const performIssueDebugAnalysis = async () => {
-    console.log('🔧 Starting Issue upload debug analysis...');
+    console.log('🔧 Starting Issue upload debug analysis for', csvData.length, 'records...');
     
     try {
       // Apply corrections to CSV data before analysis
@@ -96,17 +95,18 @@ export function IssueUploadDebugger({
         return row;
       });
 
-      // Prepare items for bulk validation
+      // Prepare items for bulk validation - PROCESS ALL RECORDS
       const issueItems = correctedCsvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         row_num: index + 1
       })).filter(item => item.item_code);
 
-      console.log('📊 Validating', issueItems.length, 'issue items...');
+      console.log('📊 Validating ALL', issueItems.length, 'issue items for debug analysis...');
       
-      // Perform bulk validation
+      // Perform bulk validation - ENSURE ALL RECORDS ARE PROCESSED
       const validationResults = await validateBulk(issueItems);
+      console.log('✅ Debug validation complete:', validationResults.length, 'results for', issueItems.length, 'items');
       
       // Process results and combine with CSV data
       const records: IssueDebugRecord[] = correctedCsvData.map((row, index) => {
@@ -159,7 +159,7 @@ export function IssueUploadDebugger({
         };
       });
       
-      // Calculate summary statistics
+      // Calculate summary statistics for ALL records
       const analysis: IssueDebugAnalysis = {
         totalRecords: records.length,
         validRecords: records.filter(r => r.status === 'success' || r.status === 'corrected').length,
@@ -178,7 +178,7 @@ export function IssueUploadDebugger({
       };
       
       setDebugAnalysis(analysis);
-      console.log('✅ Issue debug analysis complete:', analysis);
+      console.log('✅ Issue debug analysis complete for ALL records:', analysis);
       
     } catch (error) {
       console.error('💥 Issue debug analysis failed:', error);
@@ -234,6 +234,59 @@ export function IssueUploadDebugger({
     }
   };
 
+  const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
+    if (!debugAnalysis) return;
+    
+    console.log(`📥 Downloading corrected Issue CSV in ${mode} mode...`);
+    
+    let csvData: any[] = [];
+    let filename = '';
+    
+    switch (mode) {
+      case 'errors':
+        csvData = debugAnalysis.records.filter(r => r.status === 'failed').map(r => r.originalData);
+        filename = 'issue_upload_errors.csv';
+        break;
+      case 'corrections':
+        csvData = debugAnalysis.records.filter(r => r.status === 'corrected').map(r => r.originalData);
+        filename = 'issue_upload_corrections.csv';
+        break;
+      case 'retry-ready':
+        csvData = debugAnalysis.records.filter(r => r.status === 'success' || r.status === 'corrected').map(r => r.originalData);
+        filename = 'issue_upload_retry_ready.csv';
+        break;
+    }
+    
+    // Issue-specific CSV headers
+    const headers = ['item_code', 'qty_issued', 'date', 'purpose', 'remarks'];
+    
+    // Convert to Issue CSV format
+    const csvRows = csvData.map(record => [
+      record.item_code || '',
+      record.qty_issued || record.quantity || '',
+      record.date || new Date().toISOString().split('T')[0],
+      record.purpose || record.issued_to || 'General Issue',
+      record.remarks || 'Bulk upload'
+    ]);
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    console.log(`✅ Downloaded ${filename} with ${csvRows.length} records`);
+  };
+
   if (!debugAnalysis) {
     return (
       <Card>
@@ -261,7 +314,7 @@ export function IssueUploadDebugger({
         <CardTitle className="flex items-center gap-2">
           <TrendingDown className="h-5 w-5" />
           Issue Upload Debug Console
-          {debugAnalysis.correctedRecords > 0 && (
+          {debugAnalysis && debugAnalysis.correctedRecords > 0 && (
             <Badge variant="outline" className="bg-blue-50">
               {debugAnalysis.correctedRecords} Corrected
             </Badge>
@@ -280,23 +333,23 @@ export function IssueUploadDebugger({
           <TabsContent value="overview" className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{debugAnalysis.totalRecords}</div>
+                <div className="text-2xl font-bold text-blue-600">{debugAnalysis?.totalRecords || 0}</div>
                 <div className="text-sm text-blue-700">Total Records</div>
               </div>
               <div className="p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{debugAnalysis.validRecords}</div>
+                <div className="text-2xl font-bold text-green-600">{debugAnalysis?.validRecords || 0}</div>
                 <div className="text-sm text-green-700">Valid Records</div>
               </div>
               <div className="p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{debugAnalysis.errorRecords}</div>
+                <div className="text-2xl font-bold text-red-600">{debugAnalysis?.errorRecords || 0}</div>
                 <div className="text-sm text-red-700">Error Records</div>
               </div>
               <div className="p-4 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">{debugAnalysis.warningRecords}</div>
+                <div className="text-2xl font-bold text-yellow-600">{debugAnalysis?.warningRecords || 0}</div>
                 <div className="text-sm text-yellow-700">Warning Records</div>
               </div>
               <div className="p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{debugAnalysis.correctedRecords}</div>
+                <div className="text-2xl font-bold text-purple-600">{debugAnalysis?.correctedRecords || 0}</div>
                 <div className="text-sm text-purple-700">Corrected Records</div>
               </div>
             </div>
@@ -307,29 +360,29 @@ export function IssueUploadDebugger({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => onDownloadCorrectedCSV('errors')}
-                  disabled={debugAnalysis.errorRecords === 0}
+                  onClick={() => handleDownloadCorrectedCSV('errors')}
+                  disabled={!debugAnalysis || debugAnalysis.errorRecords === 0}
                 >
                   <Download className="w-4 h-4 mr-1" />
-                  Download Errors ({debugAnalysis.errorRecords})
+                  Download Errors ({debugAnalysis?.errorRecords || 0})
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => onDownloadCorrectedCSV('corrections')}
-                  disabled={debugAnalysis.correctedRecords === 0}
+                  onClick={() => handleDownloadCorrectedCSV('corrections')}
+                  disabled={!debugAnalysis || debugAnalysis.correctedRecords === 0}
                 >
                   <Download className="w-4 h-4 mr-1" />
-                  Download Corrections ({debugAnalysis.correctedRecords})
+                  Download Corrections ({debugAnalysis?.correctedRecords || 0})
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => onDownloadCorrectedCSV('retry-ready')}
-                  disabled={debugAnalysis.validRecords === 0}
+                  onClick={() => handleDownloadCorrectedCSV('retry-ready')}
+                  disabled={!debugAnalysis || debugAnalysis.validRecords === 0}
                 >
                   <Download className="w-4 h-4 mr-1" />
-                  Download Retry-Ready CSV
+                  Download Retry-Ready CSV ({debugAnalysis?.validRecords || 0})
                 </Button>
               </div>
             </div>

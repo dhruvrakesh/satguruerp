@@ -41,8 +41,9 @@ export function useBulkIssueValidation() {
         row_num: item.row_num ?? index + 1
       }));
 
-      console.log('🔍 Validating bulk issues:', itemsWithRowNum.length, 'items');
+      console.log('🔍 Validating bulk issues - Total items:', itemsWithRowNum.length);
 
+      // Process ALL items without any limits
       const { data, error } = await supabase.rpc('validate_issue_batch', {
         p_items: itemsWithRowNum
       });
@@ -53,7 +54,15 @@ export function useBulkIssueValidation() {
       }
 
       const results = (data || []) as BulkValidationResult[];
-      console.log('✅ Bulk validation complete:', results.length, 'results');
+      console.log('✅ Bulk validation complete - Input items:', itemsWithRowNum.length, 'Validation results:', results.length);
+      
+      // Ensure we have results for all input items
+      if (results.length !== itemsWithRowNum.length) {
+        console.warn('⚠️ Mismatch in validation results:', {
+          inputItems: itemsWithRowNum.length,
+          validationResults: results.length
+        });
+      }
       
       return results;
     } finally {
@@ -64,7 +73,7 @@ export function useBulkIssueValidation() {
   const processBulk = async (validatedItems: BulkValidationResult[]): Promise<BulkProcessResult> => {
     setIsProcessing(true);
     try {
-      console.log('🚀 Processing bulk issues:', validatedItems.length, 'items');
+      console.log('🚀 Processing bulk issues - Total items:', validatedItems.length);
       
       const { data, error } = await supabase.rpc('process_issue_batch', {
         p_rows: validatedItems as any
