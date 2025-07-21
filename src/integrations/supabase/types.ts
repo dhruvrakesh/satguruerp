@@ -6431,6 +6431,42 @@ export type Database = {
           },
         ]
       }
+      satguru_issue_log_backup_cleanup: {
+        Row: {
+          backup_timestamp: string | null
+          created_at: string | null
+          date: string | null
+          id: string | null
+          item_code: string | null
+          purpose: string | null
+          qty_issued: number | null
+          remarks: string | null
+          total_issued_qty: number | null
+        }
+        Insert: {
+          backup_timestamp?: string | null
+          created_at?: string | null
+          date?: string | null
+          id?: string | null
+          item_code?: string | null
+          purpose?: string | null
+          qty_issued?: number | null
+          remarks?: string | null
+          total_issued_qty?: number | null
+        }
+        Update: {
+          backup_timestamp?: string | null
+          created_at?: string | null
+          date?: string | null
+          id?: string | null
+          item_code?: string | null
+          purpose?: string | null
+          qty_issued?: number | null
+          remarks?: string | null
+          total_issued_qty?: number | null
+        }
+        Relationships: []
+      }
       satguru_item_master: {
         Row: {
           auto_code: string | null
