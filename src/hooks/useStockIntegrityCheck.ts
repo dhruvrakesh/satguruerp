@@ -29,40 +29,42 @@ export const useStockIntegrityCheck = () => {
       // Check items with stock from summary view
       const { data: stockData } = await supabase
         .from('satguru_stock_summary_view')
-        .select('item_code, current_stock');
+        .select('item_code, current_qty');
 
-      const itemsWithStock = stockData?.filter(item => item.current_stock > 0).length || 0;
+      const itemsWithStock = stockData?.filter(item => item.current_qty > 0).length || 0;
       const itemsWithoutStock = (stockData?.length || 0) - itemsWithStock;
-      const negativeStockItems = stockData?.filter(item => item.current_stock < 0).length || 0;
+      const negativeStockItems = stockData?.filter(item => item.current_qty < 0).length || 0;
 
-      // Check for calculation errors by comparing stock summary with raw transactions
-      const { data: rawTransactions } = await supabase
-        .from('satguru_grn_items')
-        .select(`
-          item_code,
-          quantity,
-          transaction_type
-        `);
+      // Check for calculation errors by combining GRN and Issue logs
+      const { data: grnTransactions } = await supabase
+        .from('satguru_grn_log')
+        .select('item_code, qty_received, transaction_type');
+      
+      const { data: issueTransactions } = await supabase
+        .from('satguru_issue_log')
+        .select('item_code, qty_issued');
 
       const calculationErrors: any[] = [];
       
       // Simple validation - check if any stock calculations seem off
-      if (rawTransactions && stockData) {
-        const transactionSummary = rawTransactions.reduce((acc: any, txn) => {
-          if (!acc[txn.item_code]) acc[txn.item_code] = 0;
-          
-          if (txn.transaction_type === 'GRN' || txn.transaction_type === 'OPENING_STOCK') {
-            acc[txn.item_code] += txn.quantity;
-          } else if (txn.transaction_type === 'ISSUE') {
-            acc[txn.item_code] -= txn.quantity;
-          }
-          
-          return acc;
-        }, {});
+      if ((grnTransactions || issueTransactions) && stockData) {
+        const transactionSummary: { [key: string]: number } = {};
+        
+        // Add GRN transactions (positive)
+        grnTransactions?.forEach(txn => {
+          if (!transactionSummary[txn.item_code]) transactionSummary[txn.item_code] = 0;
+          transactionSummary[txn.item_code] += txn.qty_received || 0;
+        });
+        
+        // Subtract issue transactions (negative)
+        issueTransactions?.forEach(txn => {
+          if (!transactionSummary[txn.item_code]) transactionSummary[txn.item_code] = 0;
+          transactionSummary[txn.item_code] -= txn.qty_issued || 0;
+        });
 
         for (const stockItem of stockData) {
           const calculatedStock = transactionSummary[stockItem.item_code] || 0;
-          const viewStock = stockItem.current_stock;
+          const viewStock = stockItem.current_qty;
           
           if (Math.abs(calculatedStock - viewStock) > 0.01) {
             calculationErrors.push({

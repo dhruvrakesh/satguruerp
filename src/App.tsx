@@ -2,7 +2,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import AuthPage from './pages/AuthPage';
+import { AuthPage } from './pages/AuthPage';
 import Index from './pages/Index';
 import ItemMaster from './pages/ItemMaster';
 import CategoriesManagement from './pages/CategoriesManagement';
