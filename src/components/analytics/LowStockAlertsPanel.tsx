@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export function LowStockAlertsPanel({
   const { lowStockAlerts, lowStockSummary } = useLowStockAlerts(localFilters);
 
   const handleFilterChange = (key: keyof LowStockFilters, value: any) => {
-    const newFilters = { ...localFilters, [key]: value };
+    const newFilters = { ...localFilters, [key]: value === 'all' ? undefined : value };
     setLocalFilters(newFilters);
     onFiltersChange?.(newFilters);
   };
@@ -124,14 +125,14 @@ export function LowStockAlertsPanel({
             <div className="space-y-2">
               <label className="text-sm font-medium">Urgency Level</label>
               <Select
-                value={localFilters.urgencyLevel || ""}
-                onValueChange={(value) => handleFilterChange('urgencyLevel', value || undefined)}
+                value={localFilters.urgencyLevel || "all"}
+                onValueChange={(value) => handleFilterChange('urgencyLevel', value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All urgency levels" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All urgency levels</SelectItem>
+                  <SelectItem value="all">All urgency levels</SelectItem>
                   <SelectItem value="CRITICAL">Critical</SelectItem>
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
@@ -143,14 +144,14 @@ export function LowStockAlertsPanel({
             <div className="space-y-2">
               <label className="text-sm font-medium">Max Days Stock</label>
               <Select
-                value={localFilters.maxDaysStock?.toString() || ""}
-                onValueChange={(value) => handleFilterChange('maxDaysStock', value ? parseInt(value) : undefined)}
+                value={localFilters.maxDaysStock?.toString() || "all"}
+                onValueChange={(value) => handleFilterChange('maxDaysStock', value === 'all' ? undefined : parseInt(value))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All items" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All items</SelectItem>
+                  <SelectItem value="all">All items</SelectItem>
                   <SelectItem value="1">≤ 1 day</SelectItem>
                   <SelectItem value="7">≤ 7 days</SelectItem>
                   <SelectItem value="14">≤ 14 days</SelectItem>
@@ -162,14 +163,14 @@ export function LowStockAlertsPanel({
             <div className="space-y-2">
               <label className="text-sm font-medium">Min Shortage Qty</label>
               <Select
-                value={localFilters.minShortage?.toString() || ""}
-                onValueChange={(value) => handleFilterChange('minShortage', value ? parseInt(value) : undefined)}
+                value={localFilters.minShortage?.toString() || "all"}
+                onValueChange={(value) => handleFilterChange('minShortage', value === 'all' ? undefined : parseInt(value))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Any shortage" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any shortage</SelectItem>
+                  <SelectItem value="all">Any shortage</SelectItem>
                   <SelectItem value="10">≥ 10 units</SelectItem>
                   <SelectItem value="50">≥ 50 units</SelectItem>
                   <SelectItem value="100">≥ 100 units</SelectItem>
