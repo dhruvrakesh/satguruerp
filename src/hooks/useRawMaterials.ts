@@ -22,12 +22,14 @@ export const useRawMaterials = () => {
           item_code,
           item_name,
           uom,
-          category_name,
-          size,
-          gsm
+          category_id,
+          size_mm,
+          gsm,
+          qualifier,
+          categories!inner(category_name)
         `)
         .eq('usage_type', 'RAW_MATERIAL')
-        .eq('status', 'ACTIVE')
+        .eq('status', 'active')
         .order('item_name');
 
       if (error) throw error;
@@ -37,10 +39,10 @@ export const useRawMaterials = () => {
         item_code: item.item_code,
         item_name: item.item_name,
         uom: item.uom,
-        category_name: item.category_name,
-        size: item.size,
-        gsm: item.gsm,
-        display_name: `${item.item_code} - ${item.item_name}${item.size ? ` (${item.size})` : ''}${item.gsm ? ` ${item.gsm}GSM` : ''}`
+        category_name: item.categories?.category_name,
+        size: item.size_mm,
+        gsm: item.gsm ? item.gsm.toString() : undefined,
+        display_name: `${item.item_code} - ${item.item_name}${item.size_mm ? ` (${item.size_mm})` : ''}${item.gsm ? ` ${item.gsm}GSM` : ''}${item.qualifier ? ` - ${item.qualifier}` : ''}`
       }));
 
       return formattedData;

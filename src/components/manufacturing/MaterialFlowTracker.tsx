@@ -79,7 +79,7 @@ export function MaterialFlowTracker({
   const { toast } = useToast();
   
   // Fetch raw materials for dropdown
-  const { data: rawMaterials = [], isLoading: isLoadingMaterials } = useRawMaterials();
+  const { data: rawMaterials = [], isLoading: isLoadingMaterials, error: rawMaterialsError } = useRawMaterials();
 
   useEffect(() => {
     if (uiorn && processStage) {
@@ -235,6 +235,11 @@ export function MaterialFlowTracker({
     return colors[grade as keyof typeof colors] || colors.GRADE_A;
   };
 
+  // Show error state if raw materials failed to load
+  if (rawMaterialsError) {
+    console.error('Error loading raw materials:', rawMaterialsError);
+  }
+
   return (
     <div className="space-y-6">
       {/* Process Flow Summary */}
@@ -274,7 +279,9 @@ export function MaterialFlowTracker({
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={
-                        isLoadingMaterials ? "Loading materials..." : "Select material type"
+                        isLoadingMaterials ? "Loading materials..." : 
+                        rawMaterialsError ? "Error loading materials" :
+                        "Select material type"
                       } />
                     </SelectTrigger>
                     <SelectContent>
