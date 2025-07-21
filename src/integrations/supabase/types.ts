@@ -6381,6 +6381,13 @@ export type Database = {
             referencedRelation: "satguru_stock_summary"
             referencedColumns: ["item_code"]
           },
+          {
+            foreignKeyName: "satguru_grn_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "satguru_stock_summary_view"
+            referencedColumns: ["item_code"]
+          },
         ]
       }
       satguru_issue_log: {
@@ -6427,6 +6434,13 @@ export type Database = {
             columns: ["item_code"]
             isOneToOne: false
             referencedRelation: "satguru_stock_summary"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "satguru_issue_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "satguru_stock_summary_view"
             referencedColumns: ["item_code"]
           },
         ]
@@ -6577,6 +6591,13 @@ export type Database = {
             columns: ["item_code"]
             isOneToOne: true
             referencedRelation: "satguru_stock_summary"
+            referencedColumns: ["item_code"]
+          },
+          {
+            foreignKeyName: "satguru_stock_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: true
+            referencedRelation: "satguru_stock_summary_view"
             referencedColumns: ["item_code"]
           },
         ]
@@ -7783,6 +7804,13 @@ export type Database = {
             referencedRelation: "satguru_stock_summary"
             referencedColumns: ["item_code"]
           },
+          {
+            foreignKeyName: "satguru_issue_log_item_code_fkey"
+            columns: ["item_code"]
+            isOneToOne: false
+            referencedRelation: "satguru_stock_summary_view"
+            referencedColumns: ["item_code"]
+          },
         ]
       }
       satguru_category_stats: {
@@ -7831,36 +7859,7 @@ export type Database = {
           total_issues: number | null
           uom: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "satguru_item_master_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "satguru_categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "satguru_item_master_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "satguru_category_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "satguru_stock_item_code_fkey"
-            columns: ["item_code"]
-            isOneToOne: true
-            referencedRelation: "satguru_item_master"
-            referencedColumns: ["item_code"]
-          },
-          {
-            foreignKeyName: "satguru_stock_item_code_fkey"
-            columns: ["item_code"]
-            isOneToOne: true
-            referencedRelation: "satguru_stock_summary"
-            referencedColumns: ["item_code"]
-          },
-        ]
+        Relationships: []
       }
       stock_summary: {
         Row: {
