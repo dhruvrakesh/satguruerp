@@ -31,6 +31,7 @@ export function useStockCalculation(
       for (const itemCode of itemCodes) {
         try {
           // Use the improved backend function for consistent calculation
+          // This function processes ALL records without any limits
           const { data, error } = await supabase.rpc('calculate_current_stock', {
             p_item_code: itemCode,
             p_opening_stock_date: openingStockDate
@@ -79,7 +80,7 @@ export function useStockCalculation(
               }
             });
             
-            console.log(`Stock calculation for ${itemCode}: Opening=${openingStock}, GRNs=${totalGRNs}, Issues=${totalIssues}, Current=${currentStock}`);
+            console.log(`✅ Stock calculation for ${itemCode}: Opening=${openingStock}, GRNs=${totalGRNs}, Issues=${totalIssues}, Current=${currentStock}`);
           } else {
             console.warn('No data returned for stock calculation of', itemCode);
             // Add default entry for null/undefined data

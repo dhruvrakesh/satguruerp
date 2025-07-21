@@ -1,6 +1,7 @@
+
 import { useState } from "react";
 import { format } from "date-fns";
-import { Search, ArrowUp, ArrowDown, Filter } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Filter, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,8 +25,10 @@ export function TransactionHistory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [showAll, setShowAll] = useState(false);
 
-  const { recentGRN, recentIssues } = useRecentTransactions();
+  // Use showAll parameter to control whether to show all transactions or just recent ones
+  const { recentGRN, recentIssues } = useRecentTransactions(showAll ? undefined : 1000, showAll);
 
   // Combine and transform data
   const allTransactions: Transaction[] = [
@@ -79,8 +82,8 @@ export function TransactionHistory() {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* Filters and Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
@@ -117,6 +120,15 @@ export function TransactionHistory() {
           onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
           className="w-auto"
         />
+
+        <Button
+          variant={showAll ? "default" : "outline"}
+          onClick={() => setShowAll(!showAll)}
+          className="gap-2"
+        >
+          {showAll ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          {showAll ? "Showing All" : "Show All Records"}
+        </Button>
       </div>
 
       {/* Summary Stats */}
@@ -124,6 +136,9 @@ export function TransactionHistory() {
         <div className="bg-card border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">Total Transactions</div>
           <div className="text-2xl font-bold">{filteredTransactions.length}</div>
+          {!showAll && filteredTransactions.length >= 1000 && (
+            <div className="text-xs text-orange-600">Limited view - click "Show All Records"</div>
+          )}
         </div>
         <div className="bg-card border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">GRNs</div>

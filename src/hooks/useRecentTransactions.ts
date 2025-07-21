@@ -20,9 +20,9 @@ export interface RecentIssue {
   total_issued_qty: number;
 }
 
-export const useRecentTransactions = (limit?: number) => {
+export const useRecentTransactions = (limit?: number, showAll: boolean = false) => {
   const recentGRN = useQuery({
-    queryKey: ["recent-grn", limit],
+    queryKey: ["recent-grn", limit, showAll],
     queryFn: async () => {
       try {
         let query = supabase
@@ -33,7 +33,8 @@ export const useRecentTransactions = (limit?: number) => {
         // Filter out opening stock entries using transaction_type column
         query = query.neq('transaction_type', 'OPENING_STOCK');
         
-        if (limit) {
+        // Only apply limit if showAll is false and limit is specified
+        if (!showAll && limit) {
           query = query.limit(limit);
         }
 
@@ -54,7 +55,7 @@ export const useRecentTransactions = (limit?: number) => {
   });
 
   const recentIssues = useQuery({
-    queryKey: ["recent-issues", limit],
+    queryKey: ["recent-issues", limit, showAll],
     queryFn: async () => {
       try {
         let query = supabase
@@ -62,7 +63,8 @@ export const useRecentTransactions = (limit?: number) => {
           .select("id, item_code, qty_issued, purpose, date, total_issued_qty")
           .order("created_at", { ascending: false });
         
-        if (limit) {
+        // Only apply limit if showAll is false and limit is specified
+        if (!showAll && limit) {
           query = query.limit(limit);
         }
 

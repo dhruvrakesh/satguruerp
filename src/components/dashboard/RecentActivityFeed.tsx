@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,8 @@ import { ExternalLink, TrendingDown, TrendingUp, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 export function RecentActivityFeed() {
-  const { recentGRN, recentIssues } = useRecentTransactions(5);
+  // For dashboard, we still want to limit to recent items for performance
+  const { recentGRN, recentIssues } = useRecentTransactions(5, false);
 
   if (recentGRN.isLoading || recentIssues.isLoading) {
     return (
