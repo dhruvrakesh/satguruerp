@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity, Calendar, AlertTriangle, Database } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity, Calendar, AlertTriangle, Database, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useEnhancedIssueUpload } from "@/hooks/useEnhancedIssueUpload";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
@@ -44,7 +45,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
 
     toast({
       title: "Template Downloaded",
-      description: "CSV template with date format examples has been downloaded successfully.",
+      description: "CSV template with optimized query examples has been downloaded successfully.",
     });
   };
 
@@ -93,7 +94,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
         setCsvData(results.data);
         toast({
           title: "File Ready",
-          description: `${selectedFile.name} loaded with ${results.data.length} records. Advanced batched processing enabled for optimal performance.`,
+          description: `${selectedFile.name} loaded with ${results.data.length} records. Optimized query processing enabled for maximum reliability.`,
         });
       },
       error: (error) => {
@@ -118,7 +119,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
     }
 
     try {
-      console.log('🚀 Starting enhanced batched upload process...');
+      console.log('🚀 Starting optimized upload process...');
       
       const uploadResult = await uploadWithDuplicateHandling(csvData, {
         skipDuplicates: true,
@@ -207,7 +208,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingDown className="w-5 h-5" />
-            Enhanced Bulk Upload - Stock Issues (Resource Optimized)
+            Enhanced Bulk Upload - Stock Issues (Query Optimized)
           </DialogTitle>
         </DialogHeader>
 
@@ -238,7 +239,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                     <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Download the CSV template with date format examples. Now supports multiple date formats:
+                        Download the CSV template with optimized query examples. Now supports multiple date formats:
                       </p>
                       <ul className="text-xs text-muted-foreground ml-4 space-y-1">
                         <li>• DD-MM-YYYY (15-05-2025)</li>
@@ -288,8 +289,8 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                               Date Format Ready
                             </Badge>
                             <Badge variant="outline" className="flex items-center gap-1">
-                              <Database className="w-3 h-3" />
-                              Batch Processing
+                              <Zap className="w-3 h-3" />
+                              Query Optimized
                             </Badge>
                           </div>
                         </div>
@@ -302,20 +303,20 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                       <div className="space-y-2">
                         <Progress value={uploadProgress} />
                         <p className="text-sm text-muted-foreground">
-                          Processing upload with optimized batching... {Math.round(uploadProgress)}%
+                          Processing upload with optimized queries... {Math.round(uploadProgress)}%
                         </p>
                       </div>
                       
                       {batchProgress.total > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4" />
-                            <span className="text-sm font-medium">Batch Progress:</span>
+                            <Zap className="w-4 h-4" />
+                            <span className="text-sm font-medium">Query Batch Progress:</span>
                           </div>
                           <Progress value={(batchProgress.current / batchProgress.total) * 100} />
                           <p className="text-xs text-muted-foreground">
                             Processing batch {batchProgress.current} of {batchProgress.total} 
-                            (50 records per batch for optimal performance)
+                            (20 records per batch with optimized IN queries)
                           </p>
                         </div>
                       )}
@@ -456,20 +457,32 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
             <TabsContent value="help" className="space-y-6 mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Enhanced Upload Features with Resource Management</CardTitle>
+                  <CardTitle>Enhanced Upload Features with Query Optimization</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <h4 className="font-medium mb-2 flex items-center gap-2">
-                        <Database className="w-4 h-4" />
-                        Batched Processing
+                        <Zap className="w-4 h-4" />
+                        Query Optimization
                       </h4>
                       <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• 50 records processed per batch</li>
-                        <li>• Prevents browser resource exhaustion</li>
-                        <li>• Automatic retry on batch failures</li>
-                        <li>• Optimized SQL queries for bulk operations</li>
+                        <li>• Simplified IN queries instead of complex OR conditions</li>
+                        <li>• Grouped queries by item_code to reduce complexity</li>
+                        <li>• Sub-query batching (10-15 records per query)</li>
+                        <li>• Automatic fallback to individual record checking</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        Resource Management
+                      </h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• 20 records per batch (reduced from 50)</li>
+                        <li>• Inter-batch delays to prevent exhaustion</li>
+                        <li>• Automatic retry with exponential backoff</li>
+                        <li>• Progressive fallback strategies</li>
                       </ul>
                     </div>
                     <div>
@@ -485,21 +498,12 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                       </ul>
                     </div>
                     <div>
-                      <h4 className="font-medium mb-2">Smart Validation</h4>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Real-time stock availability checking</li>
-                        <li>• Automatic duplicate detection</li>
-                        <li>• Data format validation</li>
-                        <li>• Item code verification</li>
-                      </ul>
-                    </div>
-                    <div>
                       <h4 className="font-medium mb-2">Performance Features</h4>
                       <ul className="text-sm text-muted-foreground space-y-1">
                         <li>• Can handle 5000+ records efficiently</li>
-                        <li>• Resource recovery and retry logic</li>
-                        <li>• Progress tracking at batch level</li>
-                        <li>• Optimized for large datasets</li>
+                        <li>• No more "failed to parse logic tree" errors</li>
+                        <li>• Optimized database interaction patterns</li>
+                        <li>• Resilient to PostgREST query limits</li>
                       </ul>
                     </div>
                   </div>

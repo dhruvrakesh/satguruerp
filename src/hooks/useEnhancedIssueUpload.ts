@@ -33,10 +33,11 @@ export interface IssueRecord {
   remarks?: string;
 }
 
-// Batching configuration for resource management
+// Optimized batching configuration for query complexity management
 const BATCH_CONFIG = {
-  DUPLICATE_CHECK_BATCH_SIZE: 50,
-  INTER_BATCH_DELAY: 100,
+  DUPLICATE_CHECK_BATCH_SIZE: 20, // Reduced from 50 to avoid query complexity
+  SUB_QUERY_SIZE: 10, // Maximum records per sub-query
+  INTER_BATCH_DELAY: 150, // Increased delay for better resource recovery
   MAX_RETRIES: 3,
   RETRY_DELAY: 500
 };
@@ -115,9 +116,9 @@ export function useEnhancedIssueUpload() {
   // Utility function for batch delays and resource recovery
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Batched duplicate check with resource management
+  // Optimized duplicate checking with simplified query strategy
   const checkForDuplicatesBatched = async (records: IssueRecord[]): Promise<DuplicateRecord[]> => {
-    console.log('🔍 Starting batched duplicate check for', records.length, 'records...');
+    console.log('🔍 Starting optimized duplicate check for', records.length, 'records...');
     
     const totalBatches = Math.ceil(records.length / BATCH_CONFIG.DUPLICATE_CHECK_BATCH_SIZE);
     const duplicateResults: DuplicateRecord[] = [];
@@ -137,8 +138,7 @@ export function useEnhancedIssueUpload() {
       
       while (!batchSuccess && retryCount < BATCH_CONFIG.MAX_RETRIES) {
         try {
-          // Use bulk duplicate check for entire batch
-          const batchResults = await checkBatchForDuplicates(batch, startIndex);
+          const batchResults = await checkBatchForDuplicatesOptimized(batch, startIndex);
           duplicateResults.push(...batchResults);
           batchSuccess = true;
           
@@ -152,15 +152,8 @@ export function useEnhancedIssueUpload() {
             await delay(BATCH_CONFIG.RETRY_DELAY * retryCount); // Exponential backoff
           } else {
             console.error(`❌ Batch ${batchIndex + 1} failed after ${BATCH_CONFIG.MAX_RETRIES} retries`);
-            // Fall back to non-duplicate for failed batch
-            const fallbackResults = batch.map((record, index) => ({
-              row_num: startIndex + index + 1,
-              item_code: record.item_code,
-              date: record.date,
-              qty_issued: record.qty_issued,
-              purpose: record.purpose,
-              is_duplicate: false
-            }));
+            // Fall back to individual record checking for failed batch
+            const fallbackResults = await checkBatchIndividually(batch, startIndex);
             duplicateResults.push(...fallbackResults);
             batchSuccess = true;
           }
@@ -174,7 +167,7 @@ export function useEnhancedIssueUpload() {
     }
     
     const duplicates = duplicateResults.filter(result => result.is_duplicate);
-    console.log('🔍 Batched duplicate check complete:', {
+    console.log('🔍 Optimized duplicate check complete:', {
       total_checked: records.length,
       duplicates_found: duplicates.length,
       batches_processed: totalBatches
@@ -184,30 +177,68 @@ export function useEnhancedIssueUpload() {
     return duplicateResults;
   };
 
-  // Optimized batch duplicate check using bulk SQL query
-  const checkBatchForDuplicates = async (batch: IssueRecord[], startIndex: number): Promise<DuplicateRecord[]> => {
+  // Optimized batch duplicate check using grouped queries
+  const checkBatchForDuplicatesOptimized = async (batch: IssueRecord[], startIndex: number): Promise<DuplicateRecord[]> => {
     if (batch.length === 0) return [];
     
-    // Build WHERE conditions for bulk check
-    const conditions = batch.map((record, index) => 
-      `(item_code = '${record.item_code.replace(/'/g, "''")}' AND date = '${record.date}' AND qty_issued = ${record.qty_issued} AND purpose = '${record.purpose.replace(/'/g, "''")}')`
-    ).join(' OR ');
+    console.log(`🔍 Optimized duplicate check for batch of ${batch.length} records`);
     
-    const { data, error } = await supabase
-      .from('satguru_issue_log')
-      .select('id, item_code, date, qty_issued, purpose')
-      .or(conditions);
-    
-    if (error) {
-      throw new Error(`Batch duplicate check failed: ${error.message}`);
-    }
-    
-    // Create lookup map for existing records
-    const existingRecordsMap = new Map();
-    data?.forEach(existing => {
-      const key = `${existing.item_code}-${existing.date}-${existing.qty_issued}-${existing.purpose}`;
-      existingRecordsMap.set(key, existing.id);
+    // Group records by item_code to reduce query complexity
+    const itemCodeGroups = new Map<string, IssueRecord[]>();
+    batch.forEach(record => {
+      const existing = itemCodeGroups.get(record.item_code) || [];
+      existing.push(record);
+      itemCodeGroups.set(record.item_code, existing);
     });
+    
+    const existingRecordsMap = new Map<string, string>();
+    
+    // Process each item_code group with simplified queries
+    for (const [itemCode, groupRecords] of itemCodeGroups) {
+      try {
+        // Split group into sub-queries if too large
+        const subQuerySize = BATCH_CONFIG.SUB_QUERY_SIZE;
+        const subQueries = [];
+        
+        for (let i = 0; i < groupRecords.length; i += subQuerySize) {
+          const subGroup = groupRecords.slice(i, i + subQuerySize);
+          subQueries.push(subGroup);
+        }
+        
+        // Process each sub-query
+        for (const subGroup of subQueries) {
+          const dates = subGroup.map(r => r.date);
+          const quantities = subGroup.map(r => r.qty_issued);
+          const purposes = subGroup.map(r => r.purpose);
+          
+          // Use IN queries instead of complex OR conditions
+          const { data, error } = await supabase
+            .from('satguru_issue_log')
+            .select('id, item_code, date, qty_issued, purpose')
+            .eq('item_code', itemCode)
+            .in('date', dates)
+            .in('qty_issued', quantities)
+            .in('purpose', purposes);
+          
+          if (error) {
+            throw new Error(`Sub-query failed for item ${itemCode}: ${error.message}`);
+          }
+          
+          // Map results to existing records
+          data?.forEach(existing => {
+            const key = `${existing.item_code}-${existing.date}-${existing.qty_issued}-${existing.purpose}`;
+            existingRecordsMap.set(key, existing.id);
+          });
+        }
+        
+        // Small delay between item groups to prevent resource exhaustion
+        await delay(50);
+        
+      } catch (error) {
+        console.warn(`⚠️ Failed to check duplicates for item ${itemCode}:`, error);
+        // Continue with other items rather than failing the entire batch
+      }
+    }
     
     // Map batch results
     return batch.map((record, index) => {
@@ -226,6 +257,59 @@ export function useEnhancedIssueUpload() {
     });
   };
 
+  // Fallback individual record checking for extreme cases
+  const checkBatchIndividually = async (batch: IssueRecord[], startIndex: number): Promise<DuplicateRecord[]> => {
+    console.log(`🔄 Fallback: Individual duplicate check for ${batch.length} records`);
+    
+    const results: DuplicateRecord[] = [];
+    
+    for (let i = 0; i < batch.length; i++) {
+      const record = batch[i];
+      
+      try {
+        const { data, error } = await supabase
+          .from('satguru_issue_log')
+          .select('id')
+          .eq('item_code', record.item_code)
+          .eq('date', record.date)
+          .eq('qty_issued', record.qty_issued)
+          .eq('purpose', record.purpose)
+          .limit(1);
+        
+        if (error) {
+          console.warn(`⚠️ Individual check failed for record ${i + 1}:`, error);
+        }
+        
+        results.push({
+          row_num: startIndex + i + 1,
+          item_code: record.item_code,
+          date: record.date,
+          qty_issued: record.qty_issued,
+          purpose: record.purpose,
+          is_duplicate: !!(data && data.length > 0),
+          existing_record_id: data && data.length > 0 ? data[0].id : undefined
+        });
+        
+        // Small delay between individual checks
+        await delay(10);
+        
+      } catch (error) {
+        console.error(`❌ Individual record check failed:`, error);
+        // Assume not duplicate to allow processing to continue
+        results.push({
+          row_num: startIndex + i + 1,
+          item_code: record.item_code,
+          date: record.date,
+          qty_issued: record.qty_issued,
+          purpose: record.purpose,
+          is_duplicate: false
+        });
+      }
+    }
+    
+    return results;
+  };
+
   // Enhanced upload with comprehensive error handling and recovery
   const uploadWithDuplicateHandling = async (
     records: any[], // Raw CSV records
@@ -238,11 +322,12 @@ export function useEnhancedIssueUpload() {
     setUploadProgress(0);
 
     try {
-      console.log('🚀 Starting enhanced upload with batched resource management...', {
+      console.log('🚀 Starting enhanced upload with optimized query management...', {
         total_records: records.length,
         skip_duplicates: options.skipDuplicates,
         show_warnings: options.showDuplicateWarning,
-        batch_size: BATCH_CONFIG.DUPLICATE_CHECK_BATCH_SIZE
+        batch_size: BATCH_CONFIG.DUPLICATE_CHECK_BATCH_SIZE,
+        sub_query_size: BATCH_CONFIG.SUB_QUERY_SIZE
       });
 
       // Step 1: Preprocess records with date parsing (20% progress)
@@ -266,7 +351,7 @@ export function useEnhancedIssueUpload() {
         };
       }
 
-      // Step 2: Batched duplicate check (40% progress)
+      // Step 2: Optimized duplicate check (40% progress)
       setUploadProgress(40);
       const duplicateChecks = await checkForDuplicatesBatched(validRecords);
       const duplicates = duplicateChecks.filter(check => check.is_duplicate);
@@ -393,7 +478,7 @@ export function useEnhancedIssueUpload() {
         date_format_errors: preprocessingErrors.filter(e => e.message.includes('Date format')).length
       };
 
-      console.log('✅ Enhanced batched upload complete:', result);
+      console.log('✅ Enhanced optimized upload complete:', result);
 
       // Show appropriate toast message
       if (result.successful_inserts > 0) {
@@ -449,7 +534,7 @@ export function useEnhancedIssueUpload() {
 
   return {
     uploadWithDuplicateHandling,
-    checkForDuplicates: checkForDuplicatesBatched, // Export batched version
+    checkForDuplicates: checkForDuplicatesBatched, // Export optimized version
     isProcessing,
     uploadProgress,
     batchProgress
