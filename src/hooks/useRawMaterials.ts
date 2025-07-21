@@ -25,8 +25,7 @@ export const useRawMaterials = () => {
           category_id,
           size_mm,
           gsm,
-          qualifier,
-          categories!inner(category_name)
+          qualifier
         `)
         .eq('usage_type', 'RAW_MATERIAL')
         .eq('status', 'active')
@@ -34,16 +33,33 @@ export const useRawMaterials = () => {
 
       if (error) throw error;
 
-      // Format the data for dropdown display
-      const formattedData: RawMaterial[] = (data || []).map(item => ({
-        item_code: item.item_code,
-        item_name: item.item_name,
-        uom: item.uom,
-        category_name: item.categories?.category_name,
-        size: item.size_mm,
-        gsm: item.gsm ? item.gsm.toString() : undefined,
-        display_name: `${item.item_code} - ${item.item_name}${item.size_mm ? ` (${item.size_mm})` : ''}${item.gsm ? ` ${item.gsm}GSM` : ''}${item.qualifier ? ` - ${item.qualifier}` : ''}`
-      }));
+      // Format the data for dropdown display without relying on category names
+      const formattedData: RawMaterial[] = (data || []).map(item => {
+        // Extract material type from item_code prefix
+        const materialType = item.item_code.split('_')[0] || 'Unknown';
+        const typeMap: { [key: string]: string } = {
+          'ADH': 'Adhesive',
+          'BOPP': 'BOPP Film',
+          'PET': 'PET Film',
+          'SOL': 'Solvent',
+          'INK': 'Ink',
+          'LAC': 'Lacquer',
+          'REL': 'Release',
+          'WAX': 'Wax'
+        };
+        
+        const displayType = typeMap[materialType] || materialType;
+        
+        return {
+          item_code: item.item_code,
+          item_name: item.item_name,
+          uom: item.uom,
+          category_name: displayType, // Use extracted type instead of actual category
+          size: item.size_mm,
+          gsm: item.gsm ? item.gsm.toString() : undefined,
+          display_name: `${item.item_code} - ${item.item_name}${item.size_mm ? ` (${item.size_mm})` : ''}${item.gsm ? ` ${item.gsm}GSM` : ''}${item.qualifier ? ` - ${item.qualifier}` : ''}`
+        };
+      });
 
       return formattedData;
     },

@@ -235,6 +235,16 @@ export function MaterialFlowTracker({
     return colors[grade as keyof typeof colors] || colors.GRADE_A;
   };
 
+  // Group materials by type for better organization
+  const groupedMaterials = rawMaterials.reduce((groups, material) => {
+    const type = material.category_name || 'Other';
+    if (!groups[type]) {
+      groups[type] = [];
+    }
+    groups[type].push(material);
+    return groups;
+  }, {} as { [key: string]: RawMaterial[] });
+
   // Show error state if raw materials failed to load
   if (rawMaterialsError) {
     console.error('Error loading raw materials:', rawMaterialsError);
@@ -284,16 +294,27 @@ export function MaterialFlowTracker({
                         "Select material type"
                       } />
                     </SelectTrigger>
-                    <SelectContent>
-                      {rawMaterials.map((material) => (
-                        <SelectItem key={material.item_code} value={material.item_code}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{material.display_name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {material.category_name} • {material.uom}
-                            </span>
+                    <SelectContent className="max-h-80">
+                      {rawMaterialsError ? (
+                        <div className="p-2 text-sm text-red-600">
+                          Error loading materials. Please try again.
+                        </div>
+                      ) : Object.entries(groupedMaterials).map(([type, materials]) => (
+                        <div key={type}>
+                          <div className="px-2 py-1 text-xs font-semibold text-muted-foreground bg-muted">
+                            {type}
                           </div>
-                        </SelectItem>
+                          {materials.map((material) => (
+                            <SelectItem key={material.item_code} value={material.item_code}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{material.display_name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  UOM: {material.uom}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </div>
                       ))}
                     </SelectContent>
                   </Select>
