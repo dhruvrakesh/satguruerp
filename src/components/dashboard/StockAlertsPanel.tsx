@@ -1,35 +1,12 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 
-interface StockAlert {
-  item_code: string;
-  item_name: string;
-  current_qty: number;
-  reorder_level: number;
-  stock_status: string;
-  category_name: string;
-}
-
 export function StockAlertsPanel() {
-  const { data: alerts, isLoading, error } = useQuery({
-    queryKey: ["stock-alerts"],
-    queryFn: async (): Promise<StockAlert[]> => {
-      const { data, error } = await supabase
-        .from("satguru_stock_summary_view")
-        .select("*")
-        .or("stock_status.eq.low_stock,stock_status.eq.out_of_stock,stock_status.eq.ZERO")
-        .order("current_qty", { ascending: true })
-        .limit(10);
-
-      if (error) throw error;
-      return data || [];
-    },
-    refetchInterval: 30000,
-  });
+  const { data: alerts, isLoading, error } = useLowStockAlerts();
 
   const getDaysOfCover = (currentQty: number, dailyConsumption: number = 1) => {
     if (dailyConsumption <= 0) return Infinity;
@@ -118,7 +95,7 @@ export function StockAlertsPanel() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-medium text-foreground">{alert.item_code}</span>
-                      <Badge className={`${alert.stock_status === 'ZERO' ? 'bg-red-600' : 'bg-yellow-500'} text-white`}>
+                      <Badge className={`${alert.stock_status === 'out_of_stock' ? 'bg-red-600' : 'bg-yellow-500'} text-white`}>
                         {alert.stock_status}
                       </Badge>
                     </div>
@@ -136,7 +113,7 @@ export function StockAlertsPanel() {
                     <Badge className={`${getCoverBadgeColor(daysOfCover)} text-white text-xs`}>
                       {getCoverText(daysOfCover)}
                     </Badge>
-                    {alert.reorder_level && (
+                    {alert.reorder_level && alert.reorder_level > 0 && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Reorder at: {alert.reorder_level}
                       </p>

@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,7 +22,10 @@ export const useStockAnalytics = () => {
         .from("satguru_stock_summary_view")
         .select("stock_status");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Stock distribution query error:", error);
+        throw error;
+      }
 
       const statusCounts: { [key: string]: number } = {};
       const total = data?.length || 0;
@@ -47,7 +51,10 @@ export const useStockAnalytics = () => {
         .from("satguru_stock_summary_view")
         .select("category_name, current_qty");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Category analysis query error:", error);
+        throw error;
+      }
 
       const categoryMap: { [key: string]: { itemCount: number; totalQty: number } } = {};
 
