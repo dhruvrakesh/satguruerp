@@ -7626,6 +7626,15 @@ export type Database = {
           recommended_forecast: number
         }[]
       }
+      apply_leave_adjustments: {
+        Args: {
+          p_adjustments: Json
+          p_reason: string
+          p_month: number
+          p_year: number
+        }
+        Returns: Json
+      }
       bytea_to_text: {
         Args: { data: string }
         Returns: string
@@ -8074,6 +8083,10 @@ export type Database = {
       process_queued_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      reconcile_monthly_leaves: {
+        Args: { p_month: number; p_year: number; p_unit_id?: string }
+        Returns: Json
       }
       refresh_analytics_materialized_views: {
         Args: Record<PropertyKey, never>

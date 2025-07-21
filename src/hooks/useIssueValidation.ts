@@ -25,12 +25,31 @@ export function useIssueValidation(
   const { data: stockData, isLoading, error } = useStockCalculation(itemCodes, openingStockDate);
 
   const validationResults: IssueValidationResult[] = items.map(({ item_code, qty_issued }) => {
+    // Ensure we have valid numeric input
+    const requestedQty = Number(qty_issued) || 0;
+    
+    if (requestedQty <= 0) {
+      return {
+        itemCode: item_code,
+        qtyRequested: requestedQty,
+        availableStock: 0,
+        status: 'critical' as const,
+        suggestion: `Invalid quantity requested: ${requestedQty}. Quantity must be greater than 0.`,
+        stockDetails: {
+          openingStock: 0,
+          totalGRNs: 0,
+          totalIssues: 0,
+          currentStock: 0
+        }
+      };
+    }
+    
     const stockInfo = stockData?.find(s => s.itemCode === item_code);
     
     if (!stockInfo) {
       return {
         itemCode: item_code,
-        qtyRequested: qty_issued,
+        qtyRequested: requestedQty,
         availableStock: 0,
         status: 'not_found' as const,
         suggestion: `Item code not found in master data. Please verify the item code.`,
@@ -47,21 +66,24 @@ export function useIssueValidation(
     let status: IssueValidationResult['status'] = 'sufficient';
     let suggestion = '';
 
-    if (currentStock >= qty_issued) {
+    // Enhanced validation logic with better threshold handling
+    if (currentStock >= requestedQty) {
       status = 'sufficient';
-      suggestion = `Stock available. Current: ${currentStock}, Requested: ${qty_issued}`;
+      const remainingStock = currentStock - requestedQty;
+      suggestion = `✓ Stock sufficient. Available: ${currentStock} KG, Requesting: ${requestedQty} KG, Remaining: ${remainingStock} KG`;
     } else if (currentStock > 0) {
       status = 'insufficient';
-      suggestion = `Insufficient stock. Available: ${currentStock}, Requested: ${qty_issued}. Consider reducing quantity.`;
+      const shortage = requestedQty - currentStock;
+      suggestion = `⚠ Insufficient stock. Available: ${currentStock} KG, Requesting: ${requestedQty} KG, Short by: ${shortage} KG`;
     } else {
       status = 'critical';
-      suggestion = `No stock available. Current stock: ${currentStock}. Cannot process this issue.`;
+      suggestion = `❌ No stock available. Current stock: ${currentStock} KG, Cannot issue ${requestedQty} KG`;
     }
 
     return {
       itemCode: item_code,
-      itemName,
-      qtyRequested: qty_issued,
+      itemName: itemName || '',
+      qtyRequested: requestedQty,
       availableStock: currentStock,
       status,
       suggestion,
