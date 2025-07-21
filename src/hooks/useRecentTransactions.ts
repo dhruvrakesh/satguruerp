@@ -20,9 +20,15 @@ export interface RecentIssue {
   total_issued_qty: number;
 }
 
-export const useRecentTransactions = (limit?: number, showAll: boolean = false) => {
+export const useRecentTransactions = (
+  limit?: number, 
+  showAll: boolean = false,
+  searchQuery?: string,
+  typeFilter?: string,
+  dateRange?: { from: string; to: string }
+) => {
   const recentGRN = useQuery({
-    queryKey: ["recent-grn", limit, showAll],
+    queryKey: ["recent-grn", limit, showAll, searchQuery, typeFilter, dateRange],
     queryFn: async () => {
       try {
         let query = supabase
@@ -33,7 +39,21 @@ export const useRecentTransactions = (limit?: number, showAll: boolean = false) 
         // Filter out opening stock entries using transaction_type column
         query = query.neq('transaction_type', 'OPENING_STOCK');
         
-        // Only apply limit if showAll is false and limit is specified
+        // Apply search filter at database level
+        if (searchQuery && searchQuery.trim() !== '') {
+          const searchTerm = searchQuery.trim();
+          query = query.or(`item_code.ilike.%${searchTerm}%,grn_number.ilike.%${searchTerm}%,vendor.ilike.%${searchTerm}%`);
+        }
+        
+        // Apply date range filter
+        if (dateRange?.from) {
+          query = query.gte('date', dateRange.from);
+        }
+        if (dateRange?.to) {
+          query = query.lte('date', dateRange.to);
+        }
+        
+        // Only apply limit if NOT showing all records AND limit is specified
         if (!showAll && limit) {
           query = query.limit(limit);
         }
@@ -45,6 +65,7 @@ export const useRecentTransactions = (limit?: number, showAll: boolean = false) 
           throw error;
         }
         
+        console.log(`✅ GRN Query Results: ${data?.length || 0} records (showAll: ${showAll}, limit: ${limit}, search: "${searchQuery}")`);
         return data || [];
       } catch (error) {
         console.error('Recent GRN hook error:', error);
@@ -55,7 +76,7 @@ export const useRecentTransactions = (limit?: number, showAll: boolean = false) 
   });
 
   const recentIssues = useQuery({
-    queryKey: ["recent-issues", limit, showAll],
+    queryKey: ["recent-issues", limit, showAll, searchQuery, typeFilter, dateRange],
     queryFn: async () => {
       try {
         let query = supabase
@@ -63,7 +84,21 @@ export const useRecentTransactions = (limit?: number, showAll: boolean = false) 
           .select("id, item_code, qty_issued, purpose, date, total_issued_qty")
           .order("created_at", { ascending: false });
         
-        // Only apply limit if showAll is false and limit is specified
+        // Apply search filter at database level
+        if (searchQuery && searchQuery.trim() !== '') {
+          const searchTerm = searchQuery.trim();
+          query = query.or(`item_code.ilike.%${searchTerm}%,purpose.ilike.%${searchTerm}%,id.ilike.%${searchTerm}%`);
+        }
+        
+        // Apply date range filter
+        if (dateRange?.from) {
+          query = query.gte('date', dateRange.from);
+        }
+        if (dateRange?.to) {
+          query = query.lte('date', dateRange.to);
+        }
+        
+        // Only apply limit if NOT showing all records AND limit is specified
         if (!showAll && limit) {
           query = query.limit(limit);
         }
@@ -75,6 +110,7 @@ export const useRecentTransactions = (limit?: number, showAll: boolean = false) 
           throw error;
         }
         
+        console.log(`✅ Issues Query Results: ${data?.length || 0} records (showAll: ${showAll}, limit: ${limit}, search: "${searchQuery}")`);
         return data || [];
       } catch (error) {
         console.error('Recent issues hook error:', error);

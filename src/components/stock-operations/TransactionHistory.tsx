@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Search, ArrowUp, ArrowDown, Filter, Eye, EyeOff } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Filter, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,8 +27,14 @@ export function TransactionHistory() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [showAll, setShowAll] = useState(false);
 
-  // Use showAll parameter to control whether to show all transactions or just recent ones
-  const { recentGRN, recentIssues } = useRecentTransactions(showAll ? undefined : 1000, showAll);
+  // Use the hook with proper parameters for database-level filtering
+  const { recentGRN, recentIssues } = useRecentTransactions(
+    showAll ? undefined : 100, // Default to 100 for performance, unlimited when showAll is true
+    showAll,
+    searchQuery,
+    typeFilter,
+    dateRange
+  );
 
   // Combine and transform data
   const allTransactions: Transaction[] = [
@@ -52,23 +58,18 @@ export function TransactionHistory() {
     }))
   ];
 
-  // Filter transactions
+  // Apply type filter on frontend (since this is a simple filter)
   const filteredTransactions = allTransactions.filter(transaction => {
-    const matchesSearch = searchQuery === "" || 
-      transaction.item_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.purpose?.toLowerCase().includes(searchQuery.toLowerCase());
-    
     const matchesType = typeFilter === "" || transaction.type === typeFilter;
-    
-    const matchesDateRange = 
-      (dateRange.from === "" || transaction.date >= dateRange.from) &&
-      (dateRange.to === "" || transaction.date <= dateRange.to);
-
-    return matchesSearch && matchesType && matchesDateRange;
+    return matchesType;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const isLoading = recentGRN.isLoading || recentIssues.isLoading;
+
+  const handleRefresh = () => {
+    recentGRN.refetch();
+    recentIssues.refetch();
+  };
 
   if (isLoading) {
     return (
@@ -129,6 +130,16 @@ export function TransactionHistory() {
           {showAll ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           {showAll ? "Showing All" : "Show All Records"}
         </Button>
+
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          className="gap-2"
+          disabled={isLoading}
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Summary Stats */}
@@ -136,8 +147,15 @@ export function TransactionHistory() {
         <div className="bg-card border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">Total Transactions</div>
           <div className="text-2xl font-bold">{filteredTransactions.length}</div>
-          {!showAll && filteredTransactions.length >= 1000 && (
-            <div className="text-xs text-orange-600">Limited view - click "Show All Records"</div>
+          {!showAll && (
+            <div className="text-xs text-orange-600">
+              Limited view - click "Show All Records" for complete history
+            </div>
+          )}
+          {showAll && (
+            <div className="text-xs text-green-600">
+              Showing complete transaction history
+            </div>
           )}
         </div>
         <div className="bg-card border rounded-lg p-4">
@@ -162,6 +180,17 @@ export function TransactionHistory() {
           </div>
         </div>
       </div>
+
+      {/* Debug Info */}
+      {searchQuery && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-sm text-blue-800">
+            <strong>Search Active:</strong> "{searchQuery}" | 
+            <strong> Results:</strong> {filteredTransactions.length} transactions |
+            <strong> Mode:</strong> {showAll ? 'All Records' : 'Limited View'}
+          </div>
+        </div>
+      )}
 
       {/* Transactions Table */}
       <div className="border rounded-lg overflow-hidden">
@@ -218,7 +247,10 @@ export function TransactionHistory() {
             {filteredTransactions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No transactions found matching your criteria
+                  {searchQuery ? 
+                    `No transactions found matching "${searchQuery}"` : 
+                    "No transactions found matching your criteria"
+                  }
                 </TableCell>
               </TableRow>
             )}
