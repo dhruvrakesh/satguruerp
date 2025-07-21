@@ -1,13 +1,14 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Search, ArrowUp, ArrowDown, Filter, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Filter, Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRecentTransactions } from "@/hooks/useRecentTransactions";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface Transaction {
   id: string;
@@ -19,13 +20,18 @@ interface Transaction {
   purpose?: string;
   supplier?: string;
   amount?: number;
+  created_at: string;
 }
+
+const ITEMS_PER_PAGE = 50;
 
 export function TransactionHistory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [showAll, setShowAll] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Use the hook with proper parameters for database-level filtering
   const { recentGRN, recentIssues } = useRecentTransactions(
@@ -36,10 +42,10 @@ export function TransactionHistory() {
     dateRange
   );
 
-  // Combine and transform data with proper composite keys
+  // Combine and transform data with proper composite keys to prevent React key duplication
   const allTransactions: Transaction[] = [
     ...(recentGRN.data || []).map(grn => ({
-      id: `${grn.grn_number}-${grn.item_code}`, // Composite key: GRN + item code
+      id: `GRN-${grn.id || grn.grn_number}-${grn.item_code}-${grn.created_at}`, // Unique composite key
       type: 'GRN' as const,
       date: grn.date,
       item_code: grn.item_code,
@@ -47,14 +53,16 @@ export function TransactionHistory() {
       reference: grn.grn_number,
       supplier: grn.vendor,
       amount: grn.amount_inr,
+      created_at: grn.created_at || grn.date,
     })),
     ...(recentIssues.data || []).map(issue => ({
-      id: `${issue.id}-${issue.item_code}`, // Composite key: Issue ID + item code
+      id: `ISSUE-${issue.id}-${issue.item_code}-${issue.created_at}`, // Unique composite key
       type: 'ISSUE' as const,
       date: issue.date,
       item_code: issue.item_code,
       quantity: issue.qty_issued,
       purpose: issue.purpose,
+      created_at: issue.created_at || issue.date,
     }))
   ];
 
@@ -62,7 +70,15 @@ export function TransactionHistory() {
   const filteredTransactions = allTransactions.filter(transaction => {
     const matchesType = typeFilter === "" || transaction.type === typeFilter;
     return matchesType;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  // Client-side pagination for better performance
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedTransactions = showAll && filteredTransactions.length > ITEMS_PER_PAGE 
+    ? filteredTransactions.slice(startIndex, endIndex)
+    : filteredTransactions;
 
   const isLoading = recentGRN.isLoading || recentIssues.isLoading;
 
@@ -71,12 +87,24 @@ export function TransactionHistory() {
     recentIssues.refetch();
   };
 
+  const handleShowAllToggle = () => {
+    setShowAll(!showAll);
+    setCurrentPage(1); // Reset to first page when toggling
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        {[...Array(10)].map((_, i) => (
-          <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-        ))}
+      <div className="space-y-4">
+        <div className="flex items-center justify-center py-8">
+          <LoadingSpinner size="lg" />
+        </div>
+        <div className="text-center text-muted-foreground">
+          Loading transaction history...
+        </div>
       </div>
     );
   }
@@ -124,7 +152,7 @@ export function TransactionHistory() {
 
         <Button
           variant={showAll ? "default" : "outline"}
-          onClick={() => setShowAll(!showAll)}
+          onClick={handleShowAllToggle}
           className="gap-2"
         >
           {showAll ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
@@ -147,14 +175,14 @@ export function TransactionHistory() {
         <div className="bg-card border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">Total Transactions</div>
           <div className="text-2xl font-bold">{filteredTransactions.length}</div>
-          {!showAll && (
+          {!showAll && filteredTransactions.length >= 100 && (
             <div className="text-xs text-orange-600">
               Limited view - click "Show All Records" for complete history
             </div>
           )}
           {showAll && (
             <div className="text-xs text-green-600">
-              Showing complete transaction history
+              Complete transaction history loaded
             </div>
           )}
         </div>
@@ -163,11 +191,17 @@ export function TransactionHistory() {
           <div className="text-2xl font-bold text-green-600">
             {filteredTransactions.filter(t => t.type === 'GRN').length}
           </div>
+          <div className="text-xs text-muted-foreground">
+            Raw data: {recentGRN.data?.length || 0} records
+          </div>
         </div>
         <div className="bg-card border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">Issues</div>
           <div className="text-2xl font-bold text-red-600">
             {filteredTransactions.filter(t => t.type === 'ISSUE').length}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Raw data: {recentIssues.data?.length || 0} records
           </div>
         </div>
         <div className="bg-card border rounded-lg p-4">
@@ -182,13 +216,62 @@ export function TransactionHistory() {
       </div>
 
       {/* Debug Info */}
-      {searchQuery && (
+      {(searchQuery || showAll) && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-sm text-blue-800">
-            <strong>Search Active:</strong> "{searchQuery}" | 
+            <strong>Debug Info:</strong> Search: "{searchQuery}" | 
             <strong> Results:</strong> {filteredTransactions.length} transactions |
-            <strong> Mode:</strong> {showAll ? 'All Records' : 'Limited View'}
+            <strong> Mode:</strong> {showAll ? 'All Records' : 'Limited View'} |
+            <strong> GRN Raw:</strong> {recentGRN.data?.length || 0} |
+            <strong> Issues Raw:</strong> {recentIssues.data?.length || 0}
+            {showAll && totalPages > 1 && (
+              <span> | <strong>Page:</strong> {currentPage} of {totalPages}</span>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Pagination Controls for Large Datasets */}
+      {showAll && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredTransactions.length)} of {filteredTransactions.length} results
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="flex items-center px-3 text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle for Large Datasets */}
+      {showAll && filteredTransactions.length > ITEMS_PER_PAGE && (
+        <div className="flex justify-center">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="gap-2"
+          >
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isExpanded ? 'Show Paginated View' : 'Show All Records (No Pagination)'}
+          </Button>
         </div>
       )}
 
@@ -207,7 +290,7 @@ export function TransactionHistory() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions.map((transaction) => (
+            {(isExpanded ? filteredTransactions : paginatedTransactions).map((transaction) => (
               <TableRow key={transaction.id}>
                 <TableCell>
                   <Badge 
@@ -244,7 +327,7 @@ export function TransactionHistory() {
                 </TableCell>
               </TableRow>
             ))}
-            {filteredTransactions.length === 0 && (
+            {(isExpanded ? filteredTransactions : paginatedTransactions).length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? 
@@ -257,6 +340,47 @@ export function TransactionHistory() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Bottom Pagination for Large Datasets */}
+      {showAll && totalPages > 1 && !isExpanded && (
+        <div className="flex items-center justify-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage === 1}
+          >
+            First
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="flex items-center px-3 text-sm">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage === totalPages}
+          >
+            Last
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
