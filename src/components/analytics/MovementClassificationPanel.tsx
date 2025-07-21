@@ -1,238 +1,182 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, Activity, TrendingDown, Package2, Filter, ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { useMovementClassification, MovementFilters } from "@/hooks/useMovementClassification";
-import { formatCurrency } from "@/lib/utils";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { TrendingUp, TrendingDown, Minus, Filter, Download } from "lucide-react";
+import { useMovementClassification } from "@/hooks/useMovementClassification";
 import { useState } from "react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  ScatterChart,
-  Scatter
-} from "recharts";
 
 interface MovementClassificationPanelProps {
-  filters?: MovementFilters;
-  onFiltersChange?: (filters: MovementFilters) => void;
-  onOptimizeStock?: (itemCode: string, action: 'INCREASE' | 'DECREASE' | 'MAINTAIN') => void;
+  onOptimizeStock?: (itemCode: string, action: string) => void;
 }
 
-const classificationColors = {
-  FAST_MOVING: '#10b981',
-  MEDIUM_MOVING: '#3b82f6',
-  SLOW_MOVING: '#f59e0b',
-  DEAD_STOCK: '#ef4444'
+const movementColors = {
+  'Fast Moving': '#22c55e',
+  'Medium Moving': '#f59e0b', 
+  'Slow Moving': '#ef4444',
+  'Non Moving': '#6b7280'
 };
 
-const trendIcons = {
-  INCREASING: ArrowUp,
-  STABLE: Minus,
-  DECREASING: ArrowDown,
-  NO_DATA: Minus
-};
+export function MovementClassificationPanel({ onOptimizeStock }: MovementClassificationPanelProps) {
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [movementFilter, setMovementFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState("90");
+  
+  const { 
+    movementClassification, 
+    movementSummary 
+  } = useMovementClassification({
+    category: categoryFilter === "all" ? undefined : categoryFilter,
+    movementType: movementFilter === "all" ? undefined : movementFilter,
+    days: parseInt(periodFilter)
+  });
 
-export function MovementClassificationPanel({ 
-  filters = {}, 
-  onFiltersChange,
-  onOptimizeStock 
-}: MovementClassificationPanelProps) {
-  const [localFilters, setLocalFilters] = useState<MovementFilters>(filters);
-  const { movementClassification, movementSummary } = useMovementClassification(localFilters);
-
-  const handleFilterChange = (key: keyof MovementFilters, value: any) => {
-    const newFilters = { ...localFilters, [key]: value };
-    setLocalFilters(newFilters);
-    onFiltersChange?.(newFilters);
+  const getMovementIcon = (movement: string) => {
+    switch (movement.toLowerCase()) {
+      case 'fast moving': return <TrendingUp className="w-4 h-4 text-green-500" />;
+      case 'medium moving': return <Minus className="w-4 h-4 text-yellow-500" />;
+      case 'slow moving': return <TrendingDown className="w-4 h-4 text-orange-500" />;
+      case 'non moving': return <Minus className="w-4 h-4 text-red-500" />;
+      default: return <TrendingUp className="w-4 h-4" />;
+    }
   };
+
+  const getMovementColor = (movement: string) => {
+    switch (movement.toLowerCase()) {
+      case 'fast moving': return 'bg-green-500';
+      case 'medium moving': return 'bg-yellow-500';
+      case 'slow moving': return 'bg-orange-500';
+      case 'non moving': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const items = movementClassification.data || [];
+  const filteredItems = items.filter(item => {
+    const categoryMatch = categoryFilter === "all" || item.category === categoryFilter;
+    const movementMatch = movementFilter === "all" || item.movementClassification === movementFilter;
+    return categoryMatch && movementMatch;
+  });
+
+  // Prepare chart data
+  const movementData = Object.entries(movementColors).map(([name, color]) => ({
+    name,
+    value: items.filter(item => item.movementClassification === name).length,
+    color
+  }));
+
+  const categoryData = items.reduce((acc, item) => {
+    const category = item.category || 'Uncategorized';
+    if (!acc[category]) {
+      acc[category] = { name: category, fastMoving: 0, slowMoving: 0, nonMoving: 0 };
+    }
+    if (item.movementClassification === 'Fast Moving') acc[category].fastMoving++;
+    else if (item.movementClassification === 'Slow Moving') acc[category].slowMoving++;
+    else if (item.movementClassification === 'Non Moving') acc[category].nonMoving++;
+    return acc;
+  }, {} as Record<string, any>);
+
+  const categoryChartData = Object.values(categoryData).slice(0, 10);
 
   if (movementClassification.isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-primary" />
-            Movement Classification
-          </CardTitle>
+          <CardTitle>Movement Classification</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
-            Loading movement classification data...
+            Analyzing movement patterns...
           </div>
         </CardContent>
       </Card>
     );
   }
-
-  if (movementClassification.error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-primary" />
-            Movement Classification
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-destructive">
-            Error loading movement classification data
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const items = movementClassification.data || [];
-  const summary = movementSummary.data;
-
-  // Prepare chart data
-  const classificationDistribution = [
-    { name: 'Fast Moving', value: summary?.fastMovingItems || 0, color: classificationColors.FAST_MOVING },
-    { name: 'Medium Moving', value: summary?.mediumMovingItems || 0, color: classificationColors.MEDIUM_MOVING },
-    { name: 'Slow Moving', value: summary?.slowMovingItems || 0, color: classificationColors.SLOW_MOVING },
-    { name: 'Dead Stock', value: summary?.deadStockItems || 0, color: classificationColors.DEAD_STOCK }
-  ];
-
-  const turnoverData = items.slice(0, 20).map(item => ({
-    name: item.item_code.length > 8 ? item.item_code.substring(0, 8) + '...' : item.item_code,
-    fullName: item.item_code,
-    turnover: item.turnover_ratio,
-    velocity: item.movement_velocity,
-    classification: item.classification
-  }));
-
-  const categoryMovement = items.reduce((acc, item) => {
-    const category = item.category_name || 'Uncategorized';
-    if (!acc[category]) {
-      acc[category] = { 
-        name: category, 
-        fast: 0, 
-        medium: 0, 
-        slow: 0, 
-        dead: 0,
-        total: 0
-      };
-    }
-    const key = item.classification.toLowerCase().split('_')[0];
-    if (key === 'fast') acc[category].fast += 1;
-    else if (key === 'medium') acc[category].medium += 1;
-    else if (key === 'slow') acc[category].slow += 1;
-    else if (key === 'dead') acc[category].dead += 1;
-    acc[category].total += 1;
-    return acc;
-  }, {} as Record<string, { name: string; fast: number; medium: number; slow: number; dead: number; total: number }>);
-
-  const categoryChartData = Object.values(categoryMovement).slice(0, 10);
 
   return (
-    <div className="space-y-6" id="movement-classification-panel">
+    <div className="space-y-6">
       {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="w-5 h-5" />
-            Movement Filters
+            Movement Analysis Filters
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Classification</label>
-              <Select
-                value={localFilters.classification || ""}
-                onValueChange={(value) => handleFilterChange('classification', value || undefined)}
-              >
+              <label className="text-sm font-medium">Time Period</label>
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All classifications" />
+                  <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All classifications</SelectItem>
-                  <SelectItem value="FAST_MOVING">Fast Moving</SelectItem>
-                  <SelectItem value="MEDIUM_MOVING">Medium Moving</SelectItem>
-                  <SelectItem value="SLOW_MOVING">Slow Moving</SelectItem>
-                  <SelectItem value="DEAD_STOCK">Dead Stock</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="60">Last 60 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                  <SelectItem value="180">Last 180 days</SelectItem>
+                  <SelectItem value="365">Last 1 year</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">Min Turnover Ratio</label>
-              <Select
-                value={localFilters.minTurnover?.toString() || ""}
-                onValueChange={(value) => handleFilterChange('minTurnover', value ? parseFloat(value) : undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Any turnover" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Any turnover</SelectItem>
-                  <SelectItem value="0.5">≥ 0.5</SelectItem>
-                  <SelectItem value="1">≥ 1.0</SelectItem>
-                  <SelectItem value="2">≥ 2.0</SelectItem>
-                  <SelectItem value="5">≥ 5.0</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Max Turnover Ratio</label>
-              <Select
-                value={localFilters.maxTurnover?.toString() || ""}
-                onValueChange={(value) => handleFilterChange('maxTurnover', value ? parseFloat(value) : undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Any turnover" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Any turnover</SelectItem>
-                  <SelectItem value="1">≤ 1.0</SelectItem>
-                  <SelectItem value="2">≤ 2.0</SelectItem>
-                  <SelectItem value="5">≤ 5.0</SelectItem>
-                  <SelectItem value="10">≤ 10.0</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <label className="text-sm font-medium">Category</label>
-              <Select
-                value={localFilters.category || ""}
-                onValueChange={(value) => handleFilterChange('category', value || undefined)}
-              >
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All categories" />
+                  <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
-                  {Object.keys(categoryMovement).map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="raw_materials">Raw Materials</SelectItem>
+                  <SelectItem value="finished_goods">Finished Goods</SelectItem>
+                  <SelectItem value="work_in_progress">Work in Progress</SelectItem>
+                  <SelectItem value="consumables">Consumables</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Movement Type</label>
+              <Select value={movementFilter} onValueChange={setMovementFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by movement" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Movement Types</SelectItem>
+                  <SelectItem value="Fast Moving">Fast Moving</SelectItem>
+                  <SelectItem value="Medium Moving">Medium Moving</SelectItem>
+                  <SelectItem value="Slow Moving">Slow Moving</SelectItem>
+                  <SelectItem value="Non Moving">Non Moving</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button variant="outline" className="w-full gap-2">
+                <Download className="w-4 h-4" />
+                Export Report
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
-              <Zap className="w-4 h-4 text-green-500" />
+              <TrendingUp className="w-4 h-4 text-green-500" />
               <div className="space-y-1">
-                <p className="text-sm font-medium leading-none">Fast Moving Items</p>
-                <p className="text-2xl font-bold text-green-600">{summary?.fastMovingItems || 0}</p>
+                <p className="text-sm font-medium leading-none">Fast Moving</p>
+                <p className="text-2xl font-bold text-green-500">
+                  {movementSummary.data?.fastMovingItems || 0}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -241,10 +185,12 @@ export function MovementClassificationPanel({
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
-              <Activity className="w-4 h-4 text-blue-500" />
+              <Minus className="w-4 h-4 text-yellow-500" />
               <div className="space-y-1">
-                <p className="text-sm font-medium leading-none">Medium Moving Items</p>
-                <p className="text-2xl font-bold text-blue-600">{summary?.mediumMovingItems || 0}</p>
+                <p className="text-sm font-medium leading-none">Medium Moving</p>
+                <p className="text-2xl font-bold text-yellow-500">
+                  {movementSummary.data?.mediumMovingItems || 0}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -255,8 +201,10 @@ export function MovementClassificationPanel({
             <div className="flex items-center space-x-2">
               <TrendingDown className="w-4 h-4 text-orange-500" />
               <div className="space-y-1">
-                <p className="text-sm font-medium leading-none">Slow Moving Items</p>
-                <p className="text-2xl font-bold text-orange-600">{summary?.slowMovingItems || 0}</p>
+                <p className="text-sm font-medium leading-none">Slow Moving</p>
+                <p className="text-2xl font-bold text-orange-500">
+                  {movementSummary.data?.slowMovingItems || 0}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -265,10 +213,12 @@ export function MovementClassificationPanel({
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2">
-              <Package2 className="w-4 h-4 text-red-500" />
+              <Minus className="w-4 h-4 text-red-500" />
               <div className="space-y-1">
-                <p className="text-sm font-medium leading-none">Dead Stock Items</p>
-                <p className="text-2xl font-bold text-red-600">{summary?.deadStockItems || 0}</p>
+                <p className="text-sm font-medium leading-none">Non Moving</p>
+                <p className="text-2xl font-bold text-red-500">
+                  {movementSummary.data?.nonMovingItems || 0}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -276,17 +226,17 @@ export function MovementClassificationPanel({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Classification Distribution */}
+        {/* Movement Distribution Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Movement Classification</CardTitle>
-            <CardDescription>Distribution of items by movement velocity</CardDescription>
+            <CardTitle>Movement Distribution</CardTitle>
+            <CardDescription>Items by movement classification</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
-                  data={classificationDistribution.filter(d => d.value > 0)}
+                  data={movementData.filter(d => d.value > 0)}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
@@ -294,7 +244,7 @@ export function MovementClassificationPanel({
                   outerRadius={80}
                   label={({ name, value }) => `${name}: ${value}`}
                 >
-                  {classificationDistribution.map((entry, index) => (
+                  {movementData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -304,15 +254,15 @@ export function MovementClassificationPanel({
           </CardContent>
         </Card>
 
-        {/* Turnover Analysis */}
+        {/* Category Analysis */}
         <Card>
           <CardHeader>
-            <CardTitle>Turnover Ratio Analysis</CardTitle>
-            <CardDescription>Top items by turnover ratio</CardDescription>
+            <CardTitle>Movement by Category</CardTitle>
+            <CardDescription>Movement patterns across categories</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={turnoverData}>
+              <BarChart data={categoryChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="name" 
@@ -322,103 +272,77 @@ export function MovementClassificationPanel({
                   interval={0}
                 />
                 <YAxis />
-                <Tooltip 
-                  formatter={(value) => [`${value}`, 'Turnover Ratio']}
-                  labelFormatter={(label) => turnoverData.find(s => s.name === label)?.fullName || label}
-                />
-                <Bar dataKey="turnover" fill="hsl(var(--primary))" />
+                <Tooltip />
+                <Bar dataKey="fastMoving" fill="#22c55e" name="Fast Moving" />
+                <Bar dataKey="slowMoving" fill="#ef4444" name="Slow Moving" />
+                <Bar dataKey="nonMoving" fill="#6b7280" name="Non Moving" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Items List */}
+      {/* Items List */}
       <Card>
         <CardHeader>
           <CardTitle>Item Movement Analysis</CardTitle>
           <CardDescription>
-            Detailed classification with optimization recommendations
+            Detailed movement classification for inventory optimization
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px]">
             <div className="space-y-2">
-              {items.slice(0, 50).map((item) => {
-                const TrendIcon = trendIcons[item.movement_trend];
-                return (
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No items found with current filters
+                </div>
+              ) : (
+                filteredItems.slice(0, 50).map((item) => (
                   <div
-                    key={item.item_code}
+                    key={item.itemCode}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                   >
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{item.item_code}</p>
-                        <Badge 
-                          variant={
-                            item.classification === 'FAST_MOVING' ? 'default' :
-                            item.classification === 'MEDIUM_MOVING' ? 'secondary' :
-                            item.classification === 'SLOW_MOVING' ? 'outline' : 'destructive'
-                          }
-                          style={{
-                            backgroundColor: classificationColors[item.classification],
-                            color: 'white'
-                          }}
-                        >
-                          {item.classification.replace('_', ' ')}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs flex items-center gap-1">
-                          <TrendIcon className="w-3 h-3" />
-                          {item.movement_trend.replace('_', ' ')}
+                        {getMovementIcon(item.movementClassification)}
+                        <p className="font-medium">{item.itemCode}</p>
+                        <Badge className={`${getMovementColor(item.movementClassification)} text-white`}>
+                          {item.movementClassification}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{item.item_name}</p>
+                      <p className="text-sm text-muted-foreground">{item.itemName}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Category: {item.category_name}</span>
-                        <span>Current Qty: {item.current_qty}</span>
-                        <span>Turnover: {item.turnover_ratio}x</span>
-                        <span>Velocity: {item.movement_velocity}</span>
-                        <span>30d Consumption: {item.avg_monthly_consumption}</span>
+                        <span>Category: {item.category}</span>
+                        <span>Current Stock: {item.currentStock}</span>
+                        <span>Avg Monthly Usage: {item.avgMonthlyUsage}</span>
+                        <span>Days Since Last Issue: {item.daysSinceLastMovement}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="text-right space-y-1 mr-2">
-                        <p className="text-sm font-medium">
-                          Recommendation: {item.reorder_recommendation.replace('_', ' ')}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Issues: {item.total_issues_30d} | Receipts: {item.total_receipts_30d}
-                        </p>
-                      </div>
                       <Button
                         size="sm"
-                        variant={
-                          item.reorder_recommendation === 'INCREASE_STOCK' ? 'default' :
-                          item.reorder_recommendation === 'REDUCE_STOCK' ? 'destructive' :
-                          item.reorder_recommendation === 'DISCONTINUE' ? 'destructive' : 'outline'
-                        }
-                        onClick={() => {
-                          const action = item.reorder_recommendation === 'INCREASE_STOCK' ? 'INCREASE' :
-                                       item.reorder_recommendation === 'REDUCE_STOCK' ? 'DECREASE' : 'MAINTAIN';
-                          onOptimizeStock?.(item.item_code, action);
-                        }}
+                        variant="outline"
+                        onClick={() => onOptimizeStock?.(item.itemCode, 'optimize')}
                         className="gap-1"
                       >
-                        <Package2 className="w-3 h-3" />
                         Optimize
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {/* View details */}}
+                        className="gap-1"
+                      >
+                        Details
                       </Button>
                     </div>
                   </div>
-                );
-              })}
-              {items.length > 50 && (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  ... and {items.length - 50} more items
-                </div>
+                ))
               )}
-              {items.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No items found with current filters
+              {filteredItems.length > 50 && (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  ... and {filteredItems.length - 50} more items
                 </div>
               )}
             </div>

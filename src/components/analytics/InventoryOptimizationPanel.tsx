@@ -1,317 +1,242 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Target, TrendingDown, RefreshCw, DollarSign, Package } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useInventoryOptimization, useRefreshAnalytics } from "@/hooks/useInventoryOptimization";
-import { useCategories } from "@/hooks/useCategories";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Zap, TrendingUp, TrendingDown, Target, Filter, Download } from "lucide-react";
+import { useInventoryOptimization } from "@/hooks/useInventoryOptimization";
+import { useState } from "react";
 
-export const InventoryOptimizationPanel = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [serviceLevel, setServiceLevel] = useState<number>(0.95);
-
-  const { data: categories } = useCategories();
+export function InventoryOptimizationPanel() {
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   
-  const { data: optimizations, isLoading, refetch } = useInventoryOptimization({
-    categoryId: selectedCategory || undefined,
-    serviceLevel,
+  const { 
+    optimizationRecommendations, 
+    optimizationSummary 
+  } = useInventoryOptimization({
+    category: categoryFilter === "all" ? undefined : categoryFilter,
+    priority: priorityFilter === "all" ? undefined : priorityFilter
   });
 
-  const refreshMutation = useRefreshAnalytics();
-
-  const handleRefresh = async () => {
-    try {
-      await refreshMutation.mutateAsync();
-      toast.success("Analytics refreshed successfully");
-      refetch();
-    } catch (error) {
-      toast.error("Failed to refresh analytics");
+  const getPriorityColor = (priority: string) => {
+    switch (priority.toLowerCase()) {
+      case 'high': return 'bg-red-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'low': return 'bg-green-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getTotalSavings = () => {
-    if (!optimizations) return 0;
-    return optimizations.reduce((sum, opt) => sum + opt.total_cost_reduction, 0);
+  const getActionIcon = (action: string) => {
+    switch (action.toLowerCase()) {
+      case 'increase': return <TrendingUp className="w-4 h-4 text-green-500" />;
+      case 'decrease': return <TrendingDown className="w-4 h-4 text-red-500" />;
+      case 'optimize': return <Target className="w-4 h-4 text-blue-500" />;
+      default: return <Zap className="w-4 h-4" />;
+    }
   };
 
-  const getPriorityDistribution = () => {
-    if (!optimizations) return [];
-    
-    const distribution = optimizations.reduce((acc, opt) => {
-      acc[opt.implementation_priority] = (acc[opt.implementation_priority] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+  const recommendations = optimizationRecommendations.data || [];
+  const filteredRecommendations = recommendations.filter(rec => {
+    const categoryMatch = categoryFilter === "all" || rec.category === categoryFilter;
+    const priorityMatch = priorityFilter === "all" || rec.priority === priorityFilter;
+    return categoryMatch && priorityMatch;
+  });
 
-    return Object.entries(distribution).map(([priority, count]) => ({
-      name: priority,
-      value: count,
-      color: priority === 'HIGH' ? '#ef4444' : priority === 'MEDIUM' ? '#f59e0b' : '#10b981'
-    }));
-  };
-
-  const getTopOptimizations = () => {
-    if (!optimizations) return [];
-    return optimizations
-      .sort((a, b) => b.total_cost_reduction - a.total_cost_reduction)
-      .slice(0, 10)
-      .map(opt => ({
-        item: opt.item_name,
-        savings: opt.total_cost_reduction,
-        priority: opt.implementation_priority,
-        currentStock: opt.current_stock,
-        recommendedReorder: opt.recommended_reorder_point,
-        eoq: opt.economic_order_quantity,
-      }));
-  };
-
-  const COLORS = {
-    HIGH: '#ef4444',
-    MEDIUM: '#f59e0b',
-    LOW: '#10b981'
-  };
-
-  return (
-    <div className="space-y-6">
+  if (optimizationRecommendations.isLoading) {
+    return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Inventory Level Optimization
+            <Zap className="w-5 h-5" />
+            Inventory Optimization
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Category Filter</label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <div className="text-center py-8 text-muted-foreground">
+            Analyzing inventory optimization opportunities...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Optimization Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Category</label>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All categories" />
+                  <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
-                  {categories?.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.category_name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="raw_materials">Raw Materials</SelectItem>
+                  <SelectItem value="finished_goods">Finished Goods</SelectItem>
+                  <SelectItem value="work_in_progress">Work in Progress</SelectItem>
+                  <SelectItem value="consumables">Consumables</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Service Level</label>
-              <Select value={serviceLevel.toString()} onValueChange={(v) => setServiceLevel(Number(v))}>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Priority</label>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Filter by priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0.90">90% Service Level</SelectItem>
-                  <SelectItem value="0.95">95% Service Level</SelectItem>
-                  <SelectItem value="0.99">99% Service Level</SelectItem>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="high">High Priority</SelectItem>
+                  <SelectItem value="medium">Medium Priority</SelectItem>
+                  <SelectItem value="low">Low Priority</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             <div className="flex items-end">
-              <Button 
-                onClick={handleRefresh}
-                disabled={refreshMutation.isPending}
-                className="w-full"
-              >
-                {refreshMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Analytics
+              <Button variant="outline" className="w-full gap-2">
+                <Download className="w-4 h-4" />
+                Export Report
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin" />
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Target className="w-4 h-4 text-blue-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium leading-none">Total Recommendations</p>
+                <p className="text-2xl font-bold">{optimizationSummary.data?.totalRecommendations || 0}</p>
+              </div>
             </div>
-          ) : optimizations && optimizations.length > 0 ? (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-5 w-5 text-green-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Savings</p>
-                        <p className="text-2xl font-bold">₹{getTotalSavings().toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Items Analyzed</p>
-                        <p className="text-2xl font-bold">{optimizations.length}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+          </CardContent>
+        </Card>
 
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-5 w-5 text-red-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">High Priority</p>
-                        <p className="text-2xl font-bold">
-                          {optimizations.filter(o => o.implementation_priority === 'HIGH').length}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
-                      <TrendingDown className="h-5 w-5 text-orange-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Avg Savings/Item</p>
-                        <p className="text-2xl font-bold">
-                          ₹{(getTotalSavings() / optimizations.length).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4 text-green-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium leading-none">Potential Savings</p>
+                <p className="text-2xl font-bold text-green-500">
+                  ₹{(optimizationSummary.data?.potentialSavings || 0).toLocaleString()}
+                </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Optimizations Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Top Cost Reduction Opportunities</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={getTopOptimizations()}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="item" 
-                          angle={-45}
-                          textAnchor="end"
-                          height={60}
-                          fontSize={10}
-                        />
-                        <YAxis />
-                        <Tooltip 
-                          formatter={(value: any, name: string) => [
-                            name === 'savings' ? `₹${value.toLocaleString()}` : value,
-                            name === 'savings' ? 'Cost Reduction' : name
-                          ]}
-                        />
-                        <Bar 
-                          dataKey="savings" 
-                          fill="#8884d8"
-                          name="Cost Reduction (₹)"
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                {/* Priority Distribution */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Implementation Priority Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={getPriorityDistribution()}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {getPriorityDistribution().map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Zap className="w-4 h-4 text-orange-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium leading-none">High Priority Items</p>
+                <p className="text-2xl font-bold text-orange-500">
+                  {optimizationSummary.data?.highPriorityItems || 0}
+                </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Detailed Recommendations Table */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Detailed Optimization Recommendations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2">Item</th>
-                          <th className="text-left p-2">Current Stock</th>
-                          <th className="text-left p-2">Recommended Reorder</th>
-                          <th className="text-left p-2">Max Stock</th>
-                          <th className="text-left p-2">EOQ</th>
-                          <th className="text-left p-2">Cost Reduction</th>
-                          <th className="text-left p-2">Priority</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {optimizations.slice(0, 20).map((opt, index) => (
-                          <tr key={index} className="border-b hover:bg-muted/50">
-                            <td className="p-2">
-                              <div>
-                                <p className="font-medium">{opt.item_name}</p>
-                                <p className="text-xs text-muted-foreground">{opt.item_code}</p>
-                              </div>
-                            </td>
-                            <td className="p-2">{opt.current_stock.toFixed(0)}</td>
-                            <td className="p-2">{opt.recommended_reorder_point.toFixed(0)}</td>
-                            <td className="p-2">{opt.recommended_max_stock.toFixed(0)}</td>
-                            <td className="p-2">{opt.economic_order_quantity.toFixed(0)}</td>
-                            <td className="p-2">₹{opt.total_cost_reduction.toLocaleString()}</td>
-                            <td className="p-2">
-                              <Badge 
-                                variant={
-                                  opt.implementation_priority === 'HIGH' ? 'destructive' :
-                                  opt.implementation_priority === 'MEDIUM' ? 'default' : 'secondary'
-                                }
-                              >
-                                {opt.implementation_priority}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <Target className="w-4 h-4 text-purple-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium leading-none">Turnover Improvement</p>
+                <p className="text-2xl font-bold text-purple-500">
+                  {optimizationSummary.data?.turnoverImprovement || 0}%
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recommendations List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Optimization Recommendations</CardTitle>
+          <CardDescription>
+            AI-powered suggestions to improve inventory efficiency and reduce costs
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-2">
+              {filteredRecommendations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No optimization recommendations found with current filters
+                </div>
+              ) : (
+                filteredRecommendations.map((recommendation) => (
+                  <div
+                    key={recommendation.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                  >
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        {getActionIcon(recommendation.action)}
+                        <p className="font-medium">{recommendation.itemCode}</p>
+                        <Badge className={`${getPriorityColor(recommendation.priority)} text-white`}>
+                          {recommendation.priority}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{recommendation.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>Category: {recommendation.category}</span>
+                        <span>Current Stock: {recommendation.currentStock}</span>
+                        <span>Recommended: {recommendation.recommendedStock}</span>
+                        <span>Impact: ₹{recommendation.impactValue?.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {/* Implement action */}}
+                        className="gap-1"
+                      >
+                        {recommendation.action === 'increase' ? 'Order More' : 
+                         recommendation.action === 'decrease' ? 'Reduce Stock' : 
+                         'Optimize'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {/* View details */}}
+                        className="gap-1"
+                      >
+                        Details
+                      </Button>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                ))
+              )}
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              No optimization data available. Ensure you have sufficient transaction history.
-            </div>
-          )}
+          </ScrollArea>
         </CardContent>
       </Card>
     </div>
   );
-};
+}

@@ -6,7 +6,7 @@ import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 
 export function StockAlertsPanel() {
-  const { data: alerts, isLoading, error } = useLowStockAlerts();
+  const { lowStockAlerts } = useLowStockAlerts();
 
   const getDaysOfCover = (currentQty: number, dailyConsumption: number = 1) => {
     if (dailyConsumption <= 0) return Infinity;
@@ -26,7 +26,7 @@ export function StockAlertsPanel() {
     return `${days} days`;
   };
 
-  if (isLoading) {
+  if (lowStockAlerts.isLoading) {
     return (
       <Card>
         <CardHeader>
@@ -42,7 +42,7 @@ export function StockAlertsPanel() {
     );
   }
 
-  if (error || !alerts) {
+  if (lowStockAlerts.error || !lowStockAlerts.data) {
     return (
       <Card>
         <CardHeader>
@@ -57,6 +57,8 @@ export function StockAlertsPanel() {
       </Card>
     );
   }
+
+  const alerts = lowStockAlerts.data;
 
   return (
     <Card>

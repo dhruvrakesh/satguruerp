@@ -12,7 +12,7 @@ export interface LowStockAlert {
   urgency_level: string;
   estimated_days_stock: number;
   shortage_qty: number;
-  unit_of_measure: string;
+  uom: string;
   suggested_order_qty: number;
   avg_daily_consumption: number;
 }
@@ -70,7 +70,7 @@ export const useLowStockAlerts = (filters: LowStockFilters = {}) => {
                         item.current_qty <= item.reorder_level ? 'MEDIUM' : 'LOW',
           estimated_days_stock: Math.max(0, Math.floor((item.current_qty || 0) / 1)), // Assuming 1 unit per day consumption
           shortage_qty: Math.max(0, (item.reorder_level || 0) - (item.current_qty || 0)),
-          unit_of_measure: item.unit_of_measure || 'PCS',
+          uom: item.uom || 'PCS',
           suggested_order_qty: Math.max(0, (item.reorder_level || 0) * 2 - (item.current_qty || 0)),
           avg_daily_consumption: 1 // Default consumption rate
         }));
