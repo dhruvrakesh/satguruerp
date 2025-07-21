@@ -158,12 +158,12 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
               current_qty: Number(item.current_qty) || 0,
               received_30_days: received30Days,
               consumption_30_days: consumption30Days,
-              reorder_level: 0, // Default since column doesn't exist
+              reorder_level: Number(item.reorder_level) || 0,
               stock_status: item.stock_status,
               last_updated: item.last_updated,
-              opening_stock: 0, // Will be calculated separately if needed
-              total_grns: 0, // Will be calculated separately if needed  
-              total_issues: 0, // Will be calculated separately if needed
+              opening_stock: Number(item.opening_stock) || 0,
+              total_grns: Number(item.total_grns) || 0,
+              total_issues: Number(item.total_issues) || 0,
               uom: item.uom || 'KG'
             };
 
