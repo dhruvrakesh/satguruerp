@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette, FileText, Search, Filter, Download, Eye, ExternalLink, Database, Settings, ChevronLeft, ChevronRight, Edit, Upload, Users, TrendingDown } from "lucide-react";
@@ -596,7 +595,7 @@ export default function ArtworkManagement() {
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Cylinders</p>
-                                <p className="font-medium">{getArtworkCylinders(artwork.item_code).length}</p>
+                                <p className="font-medium">{artwork.cyl_qty || 'N/A'}</p>
                               </div>
                             </div>
 

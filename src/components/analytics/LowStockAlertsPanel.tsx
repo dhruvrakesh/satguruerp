@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -326,7 +325,7 @@ export function LowStockAlertsPanel({
                     <p className="text-sm text-muted-foreground">{item.item_name}</p>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span>Category: {item.category_name}</span>
-                      <span>Current: {item.current_qty} {item.unit_of_measure}</span>
+                      <span>Current: {item.current_qty} {item.uom}</span>
                       <span>Reorder Level: {item.reorder_level}</span>
                       <span>Shortage: {item.shortage_qty}</span>
                     </div>
