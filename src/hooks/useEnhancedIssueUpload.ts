@@ -39,7 +39,8 @@ const BATCH_CONFIG = {
   SUB_QUERY_SIZE: 10, // Maximum records per sub-query
   INTER_BATCH_DELAY: 150, // Increased delay for better resource recovery
   MAX_RETRIES: 3,
-  RETRY_DELAY: 500
+  RETRY_DELAY: 500,
+  STOCK_VALIDATION_BATCH_SIZE: 500 // New: Batch size for stock validation
 };
 
 export function useEnhancedIssueUpload() {
@@ -115,6 +116,76 @@ export function useEnhancedIssueUpload() {
 
   // Utility function for batch delays and resource recovery
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // EMERGENCY OPTIMIZATION: Batch Stock Validation
+  const validateStockBatch = async (records: IssueRecord[]): Promise<Array<{ row: number; message: string }>> => {
+    console.log('🚀 Emergency stock validation optimization starting for', records.length, 'records...');
+    
+    const stockValidationErrors: Array<{ row: number; message: string }> = [];
+    
+    try {
+      // Step 1: Get unique item codes
+      const uniqueItemCodes = [...new Set(records.map(r => r.item_code))];
+      console.log('📊 Validating stock for', uniqueItemCodes.length, 'unique items...');
+      
+      // Step 2: Batch fetch ALL stock data in a single query (EMERGENCY FIX)
+      setUploadProgress(82); // Sub-progress: Starting stock fetch
+      const { data: stockData, error: stockError } = await supabase
+        .from('satguru_stock_summary_view')
+        .select('item_code, current_qty, item_name')
+        .in('item_code', uniqueItemCodes);
+
+      if (stockError) {
+        console.error('❌ Stock validation query failed:', stockError);
+        throw new Error(`Stock validation failed: ${stockError.message}`);
+      }
+
+      setUploadProgress(84); // Sub-progress: Stock data received
+      
+      // Step 3: Create instant lookup map
+      const stockMap = new Map(stockData?.map(s => [s.item_code, { current_qty: s.current_qty, item_name: s.item_name }]) || []);
+      console.log('✅ Stock lookup map created with', stockMap.size, 'items');
+      
+      setUploadProgress(86); // Sub-progress: Processing validations
+      
+      // Step 4: Validate each record using the lookup map (instant lookups)
+      records.forEach((record, index) => {
+        const stockInfo = stockMap.get(record.item_code);
+        const originalIndex = index + 1; // Row number for error reporting
+        
+        if (!stockInfo) {
+          stockValidationErrors.push({
+            row: originalIndex,
+            message: `Item code '${record.item_code}' not found in stock database`
+          });
+          return;
+        }
+        
+        const availableQty = stockInfo.current_qty || 0;
+        if (availableQty < record.qty_issued) {
+          stockValidationErrors.push({
+            row: originalIndex,
+            message: `Insufficient stock for ${record.item_code}. Available: ${availableQty}, Requested: ${record.qty_issued}`
+          });
+        }
+      });
+      
+      setUploadProgress(88); // Sub-progress: Validation complete
+      
+      console.log('✅ Emergency stock validation complete:', {
+        total_records: records.length,
+        unique_items: uniqueItemCodes.length,
+        validation_errors: stockValidationErrors.length,
+        time_saved: 'Massive - single query instead of 2611 individual queries!'
+      });
+      
+      return stockValidationErrors;
+      
+    } catch (error: any) {
+      console.error('💥 Emergency stock validation failed:', error);
+      throw new Error(`Stock validation optimization failed: ${error.message}`);
+    }
+  };
 
   // Optimized duplicate checking with simplified query strategy
   const checkForDuplicatesBatched = async (records: IssueRecord[]): Promise<DuplicateRecord[]> => {
@@ -322,12 +393,13 @@ export function useEnhancedIssueUpload() {
     setUploadProgress(0);
 
     try {
-      console.log('🚀 Starting enhanced upload with optimized query management...', {
+      console.log('🚀 Starting enhanced upload with EMERGENCY OPTIMIZATIONS...', {
         total_records: records.length,
         skip_duplicates: options.skipDuplicates,
         show_warnings: options.showDuplicateWarning,
         batch_size: BATCH_CONFIG.DUPLICATE_CHECK_BATCH_SIZE,
-        sub_query_size: BATCH_CONFIG.SUB_QUERY_SIZE
+        sub_query_size: BATCH_CONFIG.SUB_QUERY_SIZE,
+        emergency_optimization: 'ACTIVE'
       });
 
       // Step 1: Preprocess records with date parsing (20% progress)
@@ -388,40 +460,12 @@ export function useEnhancedIssueUpload() {
         };
       }
 
-      // Step 4: Validate stock availability (80% progress)
+      // Step 4: EMERGENCY OPTIMIZED Stock Validation (80-88% progress)
       setUploadProgress(80);
-      const stockValidationErrors: Array<{ row: number; message: string }> = [];
+      console.log('🚀 EMERGENCY: Starting optimized batch stock validation...');
+      const stockValidationErrors = await validateStockBatch(recordsToProcess);
       
-      for (let i = 0; i < recordsToProcess.length; i++) {
-        const record = recordsToProcess[i];
-        const originalIndex = validRecords.findIndex(r => 
-          r.item_code === record.item_code && 
-          r.date === record.date && 
-          r.qty_issued === record.qty_issued
-        );
-
-        try {
-          const { data: stockData } = await supabase
-            .from('satguru_stock_summary_view')
-            .select('current_qty')
-            .eq('item_code', record.item_code)
-            .single();
-
-          if (!stockData || stockData.current_qty < record.qty_issued) {
-            stockValidationErrors.push({
-              row: originalIndex + 1,
-              message: `Insufficient stock for ${record.item_code}. Available: ${stockData?.current_qty || 0}, Requested: ${record.qty_issued}`
-            });
-          }
-        } catch (error) {
-          stockValidationErrors.push({
-            row: originalIndex + 1,
-            message: `Stock validation failed for ${record.item_code}: ${error}`
-          });
-        }
-      }
-
-      // Step 5: Insert valid records (90% progress)
+      // Step 5: Filter out stock validation errors (90% progress)
       setUploadProgress(90);
       const finalRecordsToInsert = recordsToProcess.filter((_, index) => {
         const originalIndex = validRecords.findIndex(r => 
@@ -432,6 +476,8 @@ export function useEnhancedIssueUpload() {
         return !stockValidationErrors.some(error => error.row === originalIndex + 1);
       });
 
+      // Step 6: Insert valid records (95% progress)
+      setUploadProgress(95);
       let successfulInserts = 0;
       const insertErrors: Array<{ row: number; message: string }> = [];
 
@@ -463,7 +509,7 @@ export function useEnhancedIssueUpload() {
         }
       }
 
-      // Step 6: Complete (100% progress)
+      // Step 7: Complete (100% progress)
       setUploadProgress(100);
 
       const allErrors = [...preprocessingErrors, ...stockValidationErrors, ...insertErrors];
@@ -478,7 +524,7 @@ export function useEnhancedIssueUpload() {
         date_format_errors: preprocessingErrors.filter(e => e.message.includes('Date format')).length
       };
 
-      console.log('✅ Enhanced optimized upload complete:', result);
+      console.log('✅ EMERGENCY OPTIMIZATION SUCCESS! Upload complete:', result);
 
       // Show appropriate toast message
       if (result.successful_inserts > 0) {
