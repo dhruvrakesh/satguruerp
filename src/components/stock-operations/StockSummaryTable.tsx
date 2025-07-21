@@ -40,10 +40,14 @@ export function StockSummaryTable() {
   };
 
   const handleSort = (column: string) => {
-    setSort(prev => ({
-      column,
-      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+    try {
+      setSort(prev => ({
+        column,
+        direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+      }));
+    } catch (error) {
+      console.error('Error in handleSort:', error);
+    }
   };
 
   const clearFilters = () => {
@@ -74,6 +78,11 @@ export function StockSummaryTable() {
     return sort.direction === 'asc' ? 
       <SortAsc className="ml-1 h-4 w-4" /> : 
       <SortDesc className="ml-1 h-4 w-4" />;
+  };
+
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || isNaN(value)) return '0';
+    return Number(value).toLocaleString();
   };
 
   if (error) {
@@ -146,21 +155,21 @@ export function StockSummaryTable() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Category</label>
+                <label className="text-sm font-medium mb-2 block">Usage Type</label>
                 <Select
                   value={filters.category || 'all'}
                   onValueChange={(value) => handleFilterChange('category', value === 'all' ? undefined : value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All categories" />
+                    <SelectValue placeholder="All usage types" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {(categories || []).map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">All Usage Types</SelectItem>
+                    <SelectItem value="RAW_MATERIAL">Raw Material</SelectItem>
+                    <SelectItem value="CONSUMABLE">Consumable</SelectItem>
+                    <SelectItem value="FINISHED_GOOD">Finished Good</SelectItem>
+                    <SelectItem value="PACKAGING">Packaging</SelectItem>
+                    <SelectItem value="WIP">Work in Progress</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -245,7 +254,7 @@ export function StockSummaryTable() {
                 onClick={() => handleSort('category_name')}
               >
                 <div className="flex items-center">
-                  Category
+                  Usage Type
                   <SortIcon column="category_name" />
                 </div>
               </TableHead>
@@ -260,7 +269,7 @@ export function StockSummaryTable() {
                   <SortIcon column="current_qty" />
                 </div>
               </TableHead>
-              <TableHead className="text-right">Reorder Level</TableHead>
+              <TableHead className="text-right">UOM</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Updated</TableHead>
             </TableRow>
@@ -284,13 +293,17 @@ export function StockSummaryTable() {
                 <TableRow key={item.item_code} className="hover:bg-muted/50">
                   <TableCell className="font-medium">{item.item_code}</TableCell>
                   <TableCell>{item.item_name}</TableCell>
-                  <TableCell>{item.category_name}</TableCell>
-                  <TableCell className="text-right">{item.received_30_days?.toLocaleString() || 0}</TableCell>
-                  <TableCell className="text-right">{item.consumption_30_days?.toLocaleString() || 0}</TableCell>
-                  <TableCell className="text-right font-semibold text-green-600">
-                    {item.current_qty?.toLocaleString() || 0}
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {item.category_name}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="text-right">{item.reorder_level?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{formatNumber(item.received_30_days)}</TableCell>
+                  <TableCell className="text-right">{formatNumber(item.consumption_30_days)}</TableCell>
+                  <TableCell className="text-right font-semibold text-green-600">
+                    {formatNumber(item.current_qty)}
+                  </TableCell>
+                  <TableCell className="text-right">{item.uom}</TableCell>
                   <TableCell>
                     {getStockStatusBadge(item.stock_status, item.current_qty)}
                   </TableCell>

@@ -72,10 +72,10 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
       try {
         console.log('Fetching stock summary with accurate calculation...');
         
-        // Get all items from satguru_item_master (without non-existent columns)
+        // Get all items from satguru_item_master with usage_type for categories
         const { data: items, error: itemsError } = await supabase
           .from('satguru_item_master')
-          .select('item_code, item_name, category_id, uom')
+          .select('item_code, item_name, category_id, uom, usage_type')
           .order('item_code');
         
         if (itemsError) {
@@ -125,16 +125,10 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
             const totalGrns = Number(stockResult.total_grns) || 0;
             const totalIssues = Number(stockResult.total_issues) || 0;
 
-            // Get category name
-            let categoryName = 'Uncategorized';
-            if (item.category_id) {
-              const { data: category } = await supabase
-                .from('categories')
-                .select('category_name')
-                .eq('id', item.category_id)
-                .single();
-              if (category) categoryName = category.category_name;
-            }
+            // Use usage_type as category instead of looking up category table
+            const categoryName = item.usage_type || 'UNKNOWN';
+            const displayCategory = categoryName.replace('_', ' ').toLowerCase()
+              .replace(/\b\w/g, l => l.toUpperCase());
 
             // Calculate 30-day metrics
             const thirtyDaysAgo = new Date();
@@ -167,7 +161,7 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
             const record: StockSummaryRecord = {
               item_code: item.item_code,
               item_name: item.item_name,
-              category_name: categoryName,
+              category_name: displayCategory,
               category_id: item.category_id || '',
               current_qty: currentQty,
               received_30_days: received30Days,
@@ -195,7 +189,9 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
         let finalResults = validResults;
         
         if (optimizedFilters.category && optimizedFilters.category !== 'all') {
-          finalResults = finalResults.filter(item => item.category_name === optimizedFilters.category);
+          finalResults = finalResults.filter(item => 
+            item.category_name.toLowerCase().includes(optimizedFilters.category!.toLowerCase())
+          );
         }
         
         if (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') {
@@ -210,20 +206,25 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
           finalResults = finalResults.filter(item => item.current_qty <= optimizedFilters.maxQty!);
         }
 
-        // Apply sorting
+        // Apply sorting with proper numeric handling
         if (sort) {
           finalResults.sort((a, b) => {
             const aValue = a[sort.column as keyof StockSummaryRecord];
             const bValue = b[sort.column as keyof StockSummaryRecord];
             
+            // Handle numeric columns specifically
+            if (sort.column === 'current_qty' || sort.column === 'received_30_days' || 
+                sort.column === 'consumption_30_days' || sort.column === 'opening_stock') {
+              const aNum = Number(aValue) || 0;
+              const bNum = Number(bValue) || 0;
+              return sort.direction === 'asc' ? aNum - bNum : bNum - aNum;
+            }
+            
+            // Handle string columns
             if (typeof aValue === 'string' && typeof bValue === 'string') {
               return sort.direction === 'asc' 
                 ? aValue.localeCompare(bValue)
                 : bValue.localeCompare(aValue);
-            }
-            
-            if (typeof aValue === 'number' && typeof bValue === 'number') {
-              return sort.direction === 'asc' ? aValue - bValue : bValue - aValue;
             }
             
             return 0;
