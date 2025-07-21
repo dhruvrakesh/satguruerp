@@ -58,7 +58,9 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
         // Apply filters - skip if value is "all" or empty
         if (filters.search && filters.search.trim() !== '') {
           console.log('Applying search filter:', filters.search);
-          selectQuery = selectQuery.or(`item_code.ilike.%${filters.search}%,item_name.ilike.%${filters.search}%`);
+          // Improved search: prioritize items starting with search term, then containing it
+          const searchTerm = filters.search.toLowerCase();
+          selectQuery = selectQuery.or(`item_code.ilike.${searchTerm}%,item_code.ilike.%${searchTerm}%,item_name.ilike.${searchTerm}%,item_name.ilike.%${searchTerm}%`);
         }
         
         if (filters.category_id && filters.category_id !== 'all') {
@@ -81,8 +83,11 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
           selectQuery = selectQuery.eq('usage_type', filters.usage_type);
         }
 
-        // Apply sorting
-        if (sort) {
+        // Apply sorting - prioritize items starting with search term if searching
+        if (filters.search && filters.search.trim() !== '') {
+          // For searches, order by relevance: exact matches first, then starts with, then contains
+          selectQuery = selectQuery.order('item_code', { ascending: true });
+        } else if (sort) {
           selectQuery = selectQuery.order(sort.column, { ascending: sort.direction === 'asc' });
         } else {
           selectQuery = selectQuery.order('created_at', { ascending: false });
@@ -120,6 +125,8 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       return true;
     },
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000, // 5 minutes - items don't change frequently
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 

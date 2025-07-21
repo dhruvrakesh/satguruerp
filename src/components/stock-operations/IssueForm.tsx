@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { AlertTriangle, Package, Search } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,9 +12,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useStockIssueMutations, StockIssueFormData } from "@/hooks/useStockIssues";
-import { useItemMaster } from "@/hooks/useItemMaster";
 import { useStockValidation, useItemCodeValidation } from "@/hooks/useStockValidation";
 import { StockValidationAlert } from "./StockValidationAlert";
+import { ItemCodeSelector } from "@/components/shared/ItemCodeSelector";
 import { toast } from "@/hooks/use-toast";
 
 const issueSchema = z.object({
@@ -43,15 +44,7 @@ interface IssueFormProps {
 }
 
 export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
-  const [isSearching, setIsSearching] = useState(false);
-  const [itemSearchQuery, setItemSearchQuery] = useState("");
-  
   const { createIssue } = useStockIssueMutations();
-  
-  const { data: itemsData } = useItemMaster({
-    filters: { search: itemSearchQuery },
-    pageSize: 10
-  });
 
   const form = useForm<z.infer<typeof issueSchema>>({
     resolver: zodResolver(issueSchema),
@@ -143,38 +136,12 @@ export function IssueForm({ onSuccess, initialData }: IssueFormProps) {
             <FormItem>
               <FormLabel>Item Code</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    {...field}
-                    placeholder="Search and select item..."
-                    className="pl-10"
-                    onChange={(e) => {
-                      field.onChange(e);
-                      setItemSearchQuery(e.target.value);
-                      setIsSearching(true);
-                    }}
-                  />
-                  {itemsData?.data && itemSearchQuery && isSearching && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {itemsData.data.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-3 hover:bg-muted cursor-pointer border-b"
-                          onClick={() => {
-                            form.setValue("item_code", item.item_code);
-                            setIsSearching(false);
-                            setItemSearchQuery("");
-                          }}
-                        >
-                          <div className="font-medium">{item.item_code}</div>
-                          <div className="text-sm text-muted-foreground">{item.item_name}</div>
-                          <div className="text-xs text-muted-foreground">UOM: {item.uom}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <ItemCodeSelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Click to search and select item..."
+                  error={form.formState.errors.item_code?.message}
+                />
               </FormControl>
               {itemValidation && (
                 <div className="text-sm text-muted-foreground">
