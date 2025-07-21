@@ -8548,14 +8548,6 @@ export type Database = {
         Args: { p_item_code: string }
         Returns: boolean
       }
-      satguru_validate_stock_transaction: {
-        Args: {
-          p_item_code: string
-          p_transaction_type: string
-          p_quantity: number
-        }
-        Returns: boolean
-      }
       satguru_validate_unique_item_code: {
         Args: { p_item_code: string; p_exclude_id?: string }
         Returns: boolean
