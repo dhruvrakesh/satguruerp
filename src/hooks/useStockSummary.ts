@@ -14,11 +14,11 @@ export interface StockSummaryRecord {
   reorder_level: number;
   stock_status: string;
   last_updated: string;
-  // These fields might be available via calculate_current_stock function
-  opening_stock?: number;
-  total_grns?: number;
-  total_issues?: number;
-  uom?: string;
+  // These fields are now available via the new calculation function
+  opening_stock: number;
+  total_grns: number;
+  total_issues: number;
+  uom: string;
 }
 
 export interface StockSummaryFilters {
@@ -55,60 +55,37 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
   };
   
   return useQuery({
-    queryKey: ['stock-summary', page, pageSize, optimizedFilters, sort],
+    queryKey: ['stock-summary-calculated', page, pageSize, optimizedFilters, sort],
     queryFn: async () => {
       try {
-        let query = supabase
-          .from('satguru_stock_summary_view')
-          .select('*', { count: 'exact' });
-
-        // Apply search filter
-        if (optimizedFilters.search) {
-          query = query.or(`item_code.ilike.%${optimizedFilters.search}%,item_name.ilike.%${optimizedFilters.search}%`);
-        }
+        console.log('Fetching stock summary with accurate calculation...');
         
-        // Apply category filter
-        if (optimizedFilters.category && optimizedFilters.category !== 'all') {
-          query = query.eq('category_name', optimizedFilters.category);
-        }
-        
-        // Apply stock status filter
-        if (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') {
-          query = query.eq('stock_status', optimizedFilters.stockStatus);
-        }
-        
-        // Apply quantity range filters
-        if (optimizedFilters.minQty !== undefined) {
-          query = query.gte('current_qty', optimizedFilters.minQty);
-        }
-        
-        if (optimizedFilters.maxQty !== undefined) {
-          query = query.lte('current_qty', optimizedFilters.maxQty);
-        }
-
-        // Apply sorting
-        if (sort) {
-          query = query.order(sort.column, { ascending: sort.direction === 'asc' });
-        } else {
-          query = query.order('item_code', { ascending: true });
-        }
-
-        // Apply pagination
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize - 1;
-        query = query.range(from, to);
-
-        const { data, error, count } = await query;
+        // Use the new database function for accurate stock calculation
+        const { data, error } = await supabase.rpc('get_stock_summary_with_calculation', {
+          p_limit: pageSize,
+          p_offset: (page - 1) * pageSize,
+          p_search: optimizedFilters.search || null,
+          p_category: (optimizedFilters.category && optimizedFilters.category !== 'all') ? optimizedFilters.category : null,
+          p_stock_status: (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') ? optimizedFilters.stockStatus : null,
+          p_min_qty: optimizedFilters.minQty || null,
+          p_max_qty: optimizedFilters.maxQty || null,
+          p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
+        });
         
         if (error) {
           console.error('Stock summary query error:', error);
           throw error;
         }
         
+        console.log(`✅ Retrieved ${data?.length || 0} stock records with accurate calculation`);
+        
+        // Get total count from the first record (all records have the same total_count)
+        const totalCount = data && data.length > 0 ? data[0].total_count : 0;
+        
         return {
           data: data || [],
-          count: count || 0,
-          totalPages: Math.ceil((count || 0) / pageSize)
+          count: totalCount,
+          totalPages: Math.ceil(totalCount / pageSize)
         };
       } catch (error) {
         console.error('Stock summary hook error:', error);
@@ -126,9 +103,9 @@ export function useStockCategories() {
     queryKey: ['stock-categories'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('satguru_stock_summary_view')
+        .from('categories')
         .select('category_name')
-        .not('category_name', 'is', null);
+        .eq('is_active', true);
       
       if (error) throw error;
       

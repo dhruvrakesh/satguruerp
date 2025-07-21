@@ -264,7 +264,7 @@ export function StockSummaryTable() {
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8">
-                  Loading stock data...
+                  Loading stock data with accurate calculation...
                 </TableCell>
               </TableRow>
             ) : stockData?.data.length === 0 ? (
@@ -282,7 +282,7 @@ export function StockSummaryTable() {
                   <TableCell>{item.category_name}</TableCell>
                   <TableCell className="text-right">{item.received_30_days?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">{item.consumption_30_days?.toLocaleString() || 0}</TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell className="text-right font-semibold text-green-600">
                     {item.current_qty?.toLocaleString() || 0}
                   </TableCell>
                   <TableCell className="text-right">{item.reorder_level?.toLocaleString() || 0}</TableCell>
