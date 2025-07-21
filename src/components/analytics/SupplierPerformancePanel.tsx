@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,6 @@ export function SupplierPerformancePanel({ onContactSupplier }: SupplierPerforma
     supplierPerformance, 
     supplierSummary 
   } = useSupplierAnalytics({
-    performance: performanceFilter === "all" ? undefined : performanceFilter,
     category: categoryFilter === "all" ? undefined : categoryFilter,
     days: parseInt(periodFilter)
   });

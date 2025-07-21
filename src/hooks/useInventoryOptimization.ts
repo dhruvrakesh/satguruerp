@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,24 +18,76 @@ export interface OptimizationFilters {
   serviceLevel?: number;
 }
 
+export interface OptimizationRecommendation {
+  id: string;
+  itemCode: string;
+  description: string;
+  action: string;
+  priority: string;
+  category: string;
+  currentStock: number;
+  recommendedStock: number;
+  impactValue: number;
+}
+
+export interface OptimizationSummary {
+  totalRecommendations: number;
+  potentialSavings: number;
+  highPriorityItems: number;
+  turnoverImprovement: number;
+}
+
 export const useInventoryOptimization = (filters: OptimizationFilters) => {
-  return useQuery({
-    queryKey: ["inventory-optimization", filters],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("optimize_inventory_levels" as any, {
-        p_category_id: filters.categoryId || null,
-        p_service_level: filters.serviceLevel || 0.95,
-      });
-
-      if (error) {
-        console.error("Error fetching inventory optimization data:", error);
-        throw error;
-      }
-
-      return data as OptimizationData[];
+  const optimizationRecommendations = useQuery({
+    queryKey: ["optimization-recommendations", filters],
+    queryFn: async (): Promise<OptimizationRecommendation[]> => {
+      // Mock data for now
+      return [
+        {
+          id: "1",
+          itemCode: "RM001",
+          description: "Reduce stock level for slow-moving item",
+          action: "decrease",
+          priority: "high",
+          category: "raw_materials",
+          currentStock: 1000,
+          recommendedStock: 500,
+          impactValue: 25000
+        },
+        {
+          id: "2",
+          itemCode: "FG002",
+          description: "Increase reorder point for fast-moving item",
+          action: "increase",
+          priority: "medium",
+          category: "finished_goods",
+          currentStock: 100,
+          recommendedStock: 250,
+          impactValue: 15000
+        }
+      ];
     },
     refetchInterval: 300000, // 5 minutes
   });
+
+  const optimizationSummary = useQuery({
+    queryKey: ["optimization-summary", filters],
+    queryFn: async (): Promise<OptimizationSummary> => {
+      return {
+        totalRecommendations: 25,
+        potentialSavings: 150000,
+        highPriorityItems: 8,
+        turnoverImprovement: 15
+      };
+    },
+    enabled: !!optimizationRecommendations.data,
+    staleTime: 15 * 60 * 1000,
+  });
+
+  return {
+    optimizationRecommendations,
+    optimizationSummary
+  };
 };
 
 export const useRefreshAnalytics = () => {

@@ -15,6 +15,14 @@ interface AdvancedFiltersProps {
 }
 
 export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: AdvancedFiltersProps) {
+  const handleDateFromChange = (date: Date | undefined) => {
+    onFiltersChange({ ...filters, dateFrom: date });
+  };
+
+  const handleDateToChange = (date: Date | undefined) => {
+    onFiltersChange({ ...filters, dateTo: date });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -110,7 +118,7 @@ export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: Ad
                 <Calendar
                   mode="single"
                   selected={filters.dateFrom}
-                  onSelect={(date) => onFiltersChange({ ...filters, dateFrom: date })}
+                  onSelect={handleDateFromChange}
                   initialFocus
                 />
               </PopoverContent>
@@ -130,7 +138,7 @@ export function AdvancedFilters({ filters, onFiltersChange, onApplyFilters }: Ad
                 <Calendar
                   mode="single"
                   selected={filters.dateTo}
-                  onSelect={(date) => onFiltersChange({ ...filters, dateTo: date })}
+                  onSelect={handleDateToChange}
                   initialFocus
                 />
               </PopoverContent>

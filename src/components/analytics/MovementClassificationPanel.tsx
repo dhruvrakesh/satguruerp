@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,12 @@ const movementColors = {
   'Fast Moving': '#22c55e',
   'Medium Moving': '#f59e0b', 
   'Slow Moving': '#ef4444',
-  'Non Moving': '#6b7280'
+  'Dead Stock': '#6b7280'
 };
 
 export function MovementClassificationPanel({ onOptimizeStock }: MovementClassificationPanelProps) {
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [movementFilter, setMovementFilter] = useState("all");
+  const [classificationFilter, setClassificationFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("90");
   
   const { 
@@ -30,52 +29,56 @@ export function MovementClassificationPanel({ onOptimizeStock }: MovementClassif
     movementSummary 
   } = useMovementClassification({
     category: categoryFilter === "all" ? undefined : categoryFilter,
-    movementType: movementFilter === "all" ? undefined : movementFilter,
-    days: parseInt(periodFilter)
+    classification: classificationFilter === "all" ? undefined : classificationFilter as any,
+    dateFrom: undefined,
+    dateTo: undefined
   });
 
   const getMovementIcon = (movement: string) => {
     switch (movement.toLowerCase()) {
-      case 'fast moving': return <TrendingUp className="w-4 h-4 text-green-500" />;
-      case 'medium moving': return <Minus className="w-4 h-4 text-yellow-500" />;
-      case 'slow moving': return <TrendingDown className="w-4 h-4 text-orange-500" />;
-      case 'non moving': return <Minus className="w-4 h-4 text-red-500" />;
+      case 'fast_moving': return <TrendingUp className="w-4 h-4 text-green-500" />;
+      case 'medium_moving': return <Minus className="w-4 h-4 text-yellow-500" />;
+      case 'slow_moving': return <TrendingDown className="w-4 h-4 text-orange-500" />;
+      case 'dead_stock': return <Minus className="w-4 h-4 text-red-500" />;
       default: return <TrendingUp className="w-4 h-4" />;
     }
   };
 
   const getMovementColor = (movement: string) => {
     switch (movement.toLowerCase()) {
-      case 'fast moving': return 'bg-green-500';
-      case 'medium moving': return 'bg-yellow-500';
-      case 'slow moving': return 'bg-orange-500';
-      case 'non moving': return 'bg-red-500';
+      case 'fast_moving': return 'bg-green-500';
+      case 'medium_moving': return 'bg-yellow-500';
+      case 'slow_moving': return 'bg-orange-500';
+      case 'dead_stock': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
 
   const items = movementClassification.data || [];
   const filteredItems = items.filter(item => {
-    const categoryMatch = categoryFilter === "all" || item.category === categoryFilter;
-    const movementMatch = movementFilter === "all" || item.movementClassification === movementFilter;
-    return categoryMatch && movementMatch;
+    const categoryMatch = categoryFilter === "all" || item.category_name === categoryFilter;
+    const classificationMatch = classificationFilter === "all" || item.classification === classificationFilter;
+    return categoryMatch && classificationMatch;
   });
 
   // Prepare chart data
   const movementData = Object.entries(movementColors).map(([name, color]) => ({
     name,
-    value: items.filter(item => item.movementClassification === name).length,
+    value: items.filter(item => {
+      const displayName = item.classification.replace('_', ' ').toLowerCase();
+      return displayName === name.toLowerCase();
+    }).length,
     color
   }));
 
   const categoryData = items.reduce((acc, item) => {
-    const category = item.category || 'Uncategorized';
+    const category = item.category_name || 'Uncategorized';
     if (!acc[category]) {
-      acc[category] = { name: category, fastMoving: 0, slowMoving: 0, nonMoving: 0 };
+      acc[category] = { name: category, fastMoving: 0, slowMoving: 0, deadStock: 0 };
     }
-    if (item.movementClassification === 'Fast Moving') acc[category].fastMoving++;
-    else if (item.movementClassification === 'Slow Moving') acc[category].slowMoving++;
-    else if (item.movementClassification === 'Non Moving') acc[category].nonMoving++;
+    if (item.classification === 'FAST_MOVING') acc[category].fastMoving++;
+    else if (item.classification === 'SLOW_MOVING') acc[category].slowMoving++;
+    else if (item.classification === 'DEAD_STOCK') acc[category].deadStock++;
     return acc;
   }, {} as Record<string, any>);
 
@@ -142,16 +145,16 @@ export function MovementClassificationPanel({ onOptimizeStock }: MovementClassif
             
             <div className="space-y-2">
               <label className="text-sm font-medium">Movement Type</label>
-              <Select value={movementFilter} onValueChange={setMovementFilter}>
+              <Select value={classificationFilter} onValueChange={setClassificationFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter by movement" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Movement Types</SelectItem>
-                  <SelectItem value="Fast Moving">Fast Moving</SelectItem>
-                  <SelectItem value="Medium Moving">Medium Moving</SelectItem>
-                  <SelectItem value="Slow Moving">Slow Moving</SelectItem>
-                  <SelectItem value="Non Moving">Non Moving</SelectItem>
+                  <SelectItem value="FAST_MOVING">Fast Moving</SelectItem>
+                  <SelectItem value="MEDIUM_MOVING">Medium Moving</SelectItem>
+                  <SelectItem value="SLOW_MOVING">Slow Moving</SelectItem>
+                  <SelectItem value="DEAD_STOCK">Dead Stock</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -215,9 +218,9 @@ export function MovementClassificationPanel({ onOptimizeStock }: MovementClassif
             <div className="flex items-center space-x-2">
               <Minus className="w-4 h-4 text-red-500" />
               <div className="space-y-1">
-                <p className="text-sm font-medium leading-none">Non Moving</p>
+                <p className="text-sm font-medium leading-none">Dead Stock</p>
                 <p className="text-2xl font-bold text-red-500">
-                  {movementSummary.data?.nonMovingItems || 0}
+                  {movementSummary.data?.deadStockItems || 0}
                 </p>
               </div>
             </div>
@@ -275,7 +278,7 @@ export function MovementClassificationPanel({ onOptimizeStock }: MovementClassif
                 <Tooltip />
                 <Bar dataKey="fastMoving" fill="#22c55e" name="Fast Moving" />
                 <Bar dataKey="slowMoving" fill="#ef4444" name="Slow Moving" />
-                <Bar dataKey="nonMoving" fill="#6b7280" name="Non Moving" />
+                <Bar dataKey="deadStock" fill="#6b7280" name="Dead Stock" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -300,30 +303,30 @@ export function MovementClassificationPanel({ onOptimizeStock }: MovementClassif
               ) : (
                 filteredItems.slice(0, 50).map((item) => (
                   <div
-                    key={item.itemCode}
+                    key={item.item_code}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                   >
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        {getMovementIcon(item.movementClassification)}
-                        <p className="font-medium">{item.itemCode}</p>
-                        <Badge className={`${getMovementColor(item.movementClassification)} text-white`}>
-                          {item.movementClassification}
+                        {getMovementIcon(item.classification)}
+                        <p className="font-medium">{item.item_code}</p>
+                        <Badge className={`${getMovementColor(item.classification)} text-white`}>
+                          {item.classification.replace('_', ' ')}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{item.itemName}</p>
+                      <p className="text-sm text-muted-foreground">{item.item_name}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Category: {item.category}</span>
-                        <span>Current Stock: {item.currentStock}</span>
-                        <span>Avg Monthly Usage: {item.avgMonthlyUsage}</span>
-                        <span>Days Since Last Issue: {item.daysSinceLastMovement}</span>
+                        <span>Category: {item.category_name}</span>
+                        <span>Current Stock: {item.current_qty}</span>
+                        <span>Avg Monthly Usage: {item.avg_monthly_consumption}</span>
+                        <span>Velocity: {item.movement_velocity}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onOptimizeStock?.(item.itemCode, 'optimize')}
+                        onClick={() => onOptimizeStock?.(item.item_code, 'optimize')}
                         className="gap-1"
                       >
                         Optimize
