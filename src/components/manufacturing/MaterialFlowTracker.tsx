@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useRawMaterials } from "@/hooks/useRawMaterials";
 import { 
   ArrowRight, 
   Package, 
@@ -75,6 +77,9 @@ export function MaterialFlowTracker({
   const [availableInputs, setAvailableInputs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  
+  // Fetch raw materials for dropdown
+  const { data: rawMaterials = [], isLoading: isLoadingMaterials } = useRawMaterials();
 
   useEffect(() => {
     if (uiorn && processStage) {
@@ -206,6 +211,14 @@ export function MaterialFlowTracker({
     });
   };
 
+  const handleMaterialSelect = (itemCode: string) => {
+    const selectedMaterial = rawMaterials.find(m => m.item_code === itemCode);
+    if (selectedMaterial) {
+      updateFlow('input_material_type', selectedMaterial.item_code);
+      updateFlow('input_unit', selectedMaterial.uom || 'KG');
+    }
+  };
+
   const getYieldColor = (yield_pct: number) => {
     if (yield_pct >= 95) return 'text-green-600';
     if (yield_pct >= 85) return 'text-yellow-600';
@@ -254,12 +267,31 @@ export function MaterialFlowTracker({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Material Type</label>
-                  <Input
+                  <Select
                     value={currentFlow.input_material_type || ''}
-                    onChange={(e) => updateFlow('input_material_type', e.target.value)}
-                    placeholder="e.g., BOPP Film, Laminated Roll"
-                  />
+                    onValueChange={handleMaterialSelect}
+                    disabled={isLoadingMaterials}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={
+                        isLoadingMaterials ? "Loading materials..." : "Select material type"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rawMaterials.map((material) => (
+                        <SelectItem key={material.item_code} value={material.item_code}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{material.display_name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {material.category_name} • {material.uom}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                
                 <div>
                   <label className="text-sm font-medium">Input Quantity</label>
                   <Input
@@ -269,6 +301,7 @@ export function MaterialFlowTracker({
                     placeholder="0.00"
                   />
                 </div>
+                
                 <div>
                   <label className="text-sm font-medium">Unit</label>
                   <select
@@ -283,6 +316,19 @@ export function MaterialFlowTracker({
                   </select>
                 </div>
               </div>
+
+              {/* Show selected material details */}
+              {currentFlow.input_material_type && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 text-blue-800 mb-1">
+                    <Package className="h-4 w-4" />
+                    <span className="font-medium">Selected Material</span>
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    {rawMaterials.find(m => m.item_code === currentFlow.input_material_type)?.display_name}
+                  </div>
+                </div>
+              )}
 
               {previousProcessStage && availableInputs.length > 0 && (
                 <div>
