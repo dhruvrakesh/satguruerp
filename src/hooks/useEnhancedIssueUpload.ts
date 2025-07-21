@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -151,7 +152,7 @@ export function useEnhancedIssueUpload() {
         };
       }
 
-      // Step 3: Validate stock availability (60% progress)
+      // Step 3: Validate stock availability (60% progress) - USING SINGLE SOURCE OF TRUTH
       setUploadProgress(60);
       const stockValidationErrors: Array<{ row: number; message: string }> = [];
       
@@ -164,8 +165,9 @@ export function useEnhancedIssueUpload() {
         );
 
         try {
+          // Use satguru_stock_summary_view as single source of truth
           const { data: stockData } = await supabase
-            .from('satguru_stock')
+            .from('satguru_stock_summary_view')
             .select('current_qty')
             .eq('item_code', record.item_code)
             .single();

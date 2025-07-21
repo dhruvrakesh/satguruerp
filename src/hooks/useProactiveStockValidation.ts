@@ -19,9 +19,9 @@ export function useProactiveStockValidation(items: Array<{ item_code: string; qt
       
       const itemCodes = items.map(i => i.item_code).filter(Boolean);
       
-      // Get stock data for all items
+      // Get stock data for all items using single source of truth
       const { data: stockData, error: stockError } = await supabase
-        .from('satguru_stock')
+        .from('satguru_stock_summary_view')
         .select('item_code, current_qty')
         .in('item_code', itemCodes);
       
