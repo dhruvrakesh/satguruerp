@@ -14,7 +14,6 @@ export interface StockSummaryRecord {
   reorder_level: number;
   stock_status: string;
   last_updated: string;
-  // These fields are now available via the new calculation function
   opening_stock: number;
   total_grns: number;
   total_issues: number;
@@ -42,6 +41,18 @@ export interface UseStockSummaryOptions {
   sort?: StockSummarySort;
 }
 
+interface StockCalculationResult {
+  item_code: string;
+  item_name: string;
+  opening_stock: number;
+  total_grns: number;
+  total_issues: number;
+  current_stock: number;
+  calculation_date: string;
+  opening_stock_date: string;
+  has_explicit_opening: boolean;
+}
+
 export function useStockSummary(options: UseStockSummaryOptions = {}) {
   const { page = 1, pageSize = 50, filters = {}, sort } = options;
   
@@ -60,10 +71,10 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
       try {
         console.log('Fetching stock summary with accurate calculation...');
         
-        // Get all active items first
+        // Get all active items (without reorder_level since it doesn't exist)
         const { data: items, error: itemsError } = await supabase
           .from('satguru_item_master')
-          .select('item_code, item_name, category_id, reorder_level, uom')
+          .select('item_code, item_name, category_id, uom')
           .eq('is_active', true)
           .order('item_code');
         
@@ -91,79 +102,90 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
 
         // Calculate stock for each item
         const stockPromises = filteredItems.map(async (item) => {
-          const { data: stockData, error: stockError } = await supabase
-            .rpc('calculate_current_stock', {
-              p_item_code: item.item_code,
-              p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
-            });
+          try {
+            const { data: stockData, error: stockError } = await supabase
+              .rpc('calculate_current_stock', {
+                p_item_code: item.item_code,
+                p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
+              });
 
-          if (stockError) {
-            console.error(`Error calculating stock for ${item.item_code}:`, stockError);
+            if (stockError) {
+              console.error(`Error calculating stock for ${item.item_code}:`, stockError);
+              return null;
+            }
+
+            // Type-safe parsing of the stock calculation result
+            const stockResult = stockData as StockCalculationResult;
+            const currentQty = stockResult?.current_stock || 0;
+            const openingStock = stockResult?.opening_stock || 0;
+            const totalGrns = stockResult?.total_grns || 0;
+            const totalIssues = stockResult?.total_issues || 0;
+
+            // Get category name
+            let categoryName = 'Uncategorized';
+            if (item.category_id) {
+              const { data: category } = await supabase
+                .from('categories')
+                .select('category_name')
+                .eq('id', item.category_id)
+                .single();
+              if (category) categoryName = category.category_name;
+            }
+
+            // Calculate 30-day metrics
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const { data: grnData } = await supabase
+              .from('satguru_grn_log')
+              .select('qty_received')
+              .eq('item_code', item.item_code)
+              .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+            const { data: issueData } = await supabase
+              .from('satguru_issue_log')
+              .select('qty_issued')
+              .eq('item_code', item.item_code)
+              .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+            const received30Days = grnData?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
+            const consumption30Days = issueData?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
+
+            // Set default reorder level since column doesn't exist
+            const reorderLevel = 0;
+
+            // Determine stock status
+            let stockStatus = 'normal';
+            if (currentQty <= 0) stockStatus = 'out_of_stock';
+            else if (currentQty <= reorderLevel) stockStatus = 'low_stock';
+            else if (currentQty > reorderLevel * 3) stockStatus = 'overstock';
+
+            const record: StockSummaryRecord = {
+              item_code: item.item_code,
+              item_name: item.item_name,
+              category_name: categoryName,
+              category_id: item.category_id || '',
+              current_qty: currentQty,
+              received_30_days: received30Days,
+              consumption_30_days: consumption30Days,
+              reorder_level: reorderLevel,
+              stock_status: stockStatus,
+              last_updated: new Date().toISOString().split('T')[0],
+              opening_stock: openingStock,
+              total_grns: totalGrns,
+              total_issues: totalIssues,
+              uom: item.uom || 'KG'
+            };
+
+            return record;
+          } catch (error) {
+            console.error(`Error processing item ${item.item_code}:`, error);
             return null;
           }
-
-          const parsedStock = stockData || {};
-          const currentQty = parsedStock.current_stock || 0;
-          const openingStock = parsedStock.opening_stock || 0;
-          const totalGrns = parsedStock.total_grns || 0;
-          const totalIssues = parsedStock.total_issues || 0;
-
-          // Get category name
-          let categoryName = 'Uncategorized';
-          if (item.category_id) {
-            const { data: category } = await supabase
-              .from('categories')
-              .select('category_name')
-              .eq('id', item.category_id)
-              .single();
-            if (category) categoryName = category.category_name;
-          }
-
-          // Calculate 30-day metrics
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-          const { data: grnData } = await supabase
-            .from('satguru_grn_log')
-            .select('qty_received')
-            .eq('item_code', item.item_code)
-            .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
-
-          const { data: issueData } = await supabase
-            .from('satguru_issue_log')
-            .select('qty_issued')
-            .eq('item_code', item.item_code)
-            .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
-
-          const received30Days = grnData?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
-          const consumption30Days = issueData?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
-
-          // Determine stock status
-          let stockStatus = 'normal';
-          if (currentQty <= 0) stockStatus = 'out_of_stock';
-          else if (currentQty <= (item.reorder_level || 0)) stockStatus = 'low_stock';
-          else if (currentQty > (item.reorder_level || 0) * 3) stockStatus = 'overstock';
-
-          return {
-            item_code: item.item_code,
-            item_name: item.item_name,
-            category_name: categoryName,
-            category_id: item.category_id || '',
-            current_qty: currentQty,
-            received_30_days: received30Days,
-            consumption_30_days: consumption30Days,
-            reorder_level: item.reorder_level || 0,
-            stock_status: stockStatus,
-            last_updated: new Date().toISOString().split('T')[0],
-            opening_stock: openingStock,
-            total_grns: totalGrns,
-            total_issues: totalIssues,
-            uom: item.uom || 'KG'
-          };
         });
 
         const stockResults = await Promise.all(stockPromises);
-        const validResults = stockResults.filter(result => result !== null) as StockSummaryRecord[];
+        const validResults = stockResults.filter((result): result is StockSummaryRecord => result !== null);
 
         // Apply additional filters
         let finalResults = validResults;
