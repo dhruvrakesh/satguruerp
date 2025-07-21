@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { MoreHorizontal, Edit, Trash2, ChevronUp, ChevronDown, Download } from "lucide-react";
@@ -13,6 +12,7 @@ import { useStockIssueExport } from "@/hooks/useDataExport";
 import { OptimizedSearchInput } from "@/components/ui/optimized-search-input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { ExportProgressModal } from "@/components/ui/export-progress-modal";
 import { toast } from "@/hooks/use-toast";
 
 const PURPOSE_OPTIONS = [
@@ -82,7 +82,6 @@ export function OptimizedIssueTable({ onEdit }: OptimizedIssueTableProps) {
     setPage(1);
   }, []);
 
-  // Handle errors gracefully
   if (error) {
     console.error('Issue Table Error:', error);
     return (
@@ -399,7 +398,6 @@ export function OptimizedIssueTable({ onEdit }: OptimizedIssueTableProps) {
         )}
       </div>
 
-      {/* Pagination */}
       {data && data.totalPages > 1 && (
         <div className="flex justify-center gap-2">
           <Button
@@ -423,6 +421,14 @@ export function OptimizedIssueTable({ onEdit }: OptimizedIssueTableProps) {
           </Button>
         </div>
       )}
+
+      {/* Export Progress Modal */}
+      <ExportProgressModal
+        open={exportIssues.progress.isExporting}
+        onOpenChange={() => {}}
+        progress={exportIssues.progress}
+        exportType="Stock Issues"
+      />
 
       {/* Delete Confirmation */}
       <ConfirmationDialog

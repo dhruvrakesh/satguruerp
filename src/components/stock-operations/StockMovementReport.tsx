@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { format } from "date-fns";
 import { FileSpreadsheet, Calendar } from "lucide-react";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useStockMovementExport } from "@/hooks/useDataExport";
+import { ExportProgressModal } from "@/components/ui/export-progress-modal";
 import { toast } from "@/hooks/use-toast";
 
 export function StockMovementReport() {
@@ -93,9 +95,18 @@ export function StockMovementReport() {
             <li>Item-wise total issued quantities</li>
             <li>Net movement calculations</li>
             <li>Excel format for easy analysis</li>
+            <li>Optimized for large datasets (handles 40,000+ records)</li>
           </ul>
         </div>
       </CardContent>
+
+      {/* Export Progress Modal */}
+      <ExportProgressModal
+        open={exportMovement.progress.isExporting}
+        onOpenChange={() => {}}
+        progress={exportMovement.progress}
+        exportType="Stock Movement Summary"
+      />
     </Card>
   );
 }

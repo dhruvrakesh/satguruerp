@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { MoreHorizontal, Filter, Edit, Trash2, ChevronUp, ChevronDown, Download, TrendingUp } from "lucide-react";
@@ -11,6 +10,7 @@ import { useGRNExport } from "@/hooks/useDataExport";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { OptimizedSearchInput } from "@/components/ui/optimized-search-input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ExportProgressModal } from "@/components/ui/export-progress-modal";
 import { toast } from "@/hooks/use-toast";
 
 interface GRNRecord {
@@ -63,7 +63,6 @@ export function OptimizedGRNTable({ onEdit }: OptimizedGRNTableProps) {
     setPage(1);
   }, []);
 
-  // Handle errors gracefully
   if (error) {
     console.error('GRN Table Error:', error);
     return (
@@ -323,7 +322,6 @@ export function OptimizedGRNTable({ onEdit }: OptimizedGRNTableProps) {
         )}
       </div>
 
-      {/* Pagination */}
       {data && data.totalPages > 1 && (
         <div className="flex justify-center gap-2">
           <Button
@@ -347,6 +345,14 @@ export function OptimizedGRNTable({ onEdit }: OptimizedGRNTableProps) {
           </Button>
         </div>
       )}
+
+      {/* Export Progress Modal */}
+      <ExportProgressModal
+        open={exportGRN.progress.isExporting}
+        onOpenChange={() => {}}
+        progress={exportGRN.progress}
+        exportType="GRN Data"
+      />
 
       {/* Delete Confirmation */}
       <ConfirmationDialog
