@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity, Calendar, AlertTriangle } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Info, TrendingDown, Activity, Calendar, AlertTriangle, Database } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useEnhancedIssueUpload } from "@/hooks/useEnhancedIssueUpload";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
@@ -27,7 +26,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   const [activeTab, setActiveTab] = useState("upload");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { uploadWithDuplicateHandling, isProcessing, uploadProgress } = useEnhancedIssueUpload();
+  const { uploadWithDuplicateHandling, isProcessing, uploadProgress, batchProgress } = useEnhancedIssueUpload();
 
   const downloadTemplate = () => {
     const csvContent = `item_code,qty_issued,date,purpose,remarks
@@ -94,7 +93,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
         setCsvData(results.data);
         toast({
           title: "File Ready",
-          description: `${selectedFile.name} loaded with ${results.data.length} records. Date formats will be automatically parsed.`,
+          description: `${selectedFile.name} loaded with ${results.data.length} records. Advanced batched processing enabled for optimal performance.`,
         });
       },
       error: (error) => {
@@ -119,7 +118,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
     }
 
     try {
-      console.log('🚀 Starting enhanced upload process with date format handling...');
+      console.log('🚀 Starting enhanced batched upload process...');
       
       const uploadResult = await uploadWithDuplicateHandling(csvData, {
         skipDuplicates: true,
@@ -208,7 +207,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingDown className="w-5 h-5" />
-            Enhanced Bulk Upload - Stock Issues (Date Format Fixed)
+            Enhanced Bulk Upload - Stock Issues (Resource Optimized)
           </DialogTitle>
         </DialogHeader>
 
@@ -283,21 +282,43 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                             <p><strong>Records:</strong> {csvData.length}</p>
                             <p><strong>Size:</strong> {(file.size / 1024).toFixed(1)} KB</p>
                           </div>
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            Date Format Ready
-                          </Badge>
+                          <div className="flex gap-2">
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              Date Format Ready
+                            </Badge>
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Database className="w-3 h-3" />
+                              Batch Processing
+                            </Badge>
+                          </div>
                         </div>
                       </AlertDescription>
                     </Alert>
                   )}
 
                   {isProcessing && (
-                    <div className="space-y-2">
-                      <Progress value={uploadProgress} />
-                      <p className="text-sm text-muted-foreground">
-                        Processing upload with date format handling... {Math.round(uploadProgress)}%
-                      </p>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Progress value={uploadProgress} />
+                        <p className="text-sm text-muted-foreground">
+                          Processing upload with optimized batching... {Math.round(uploadProgress)}%
+                        </p>
+                      </div>
+                      
+                      {batchProgress.total > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4" />
+                            <span className="text-sm font-medium">Batch Progress:</span>
+                          </div>
+                          <Progress value={(batchProgress.current / batchProgress.total) * 100} />
+                          <p className="text-xs text-muted-foreground">
+                            Processing batch {batchProgress.current} of {batchProgress.total} 
+                            (50 records per batch for optimal performance)
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -403,7 +424,7 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                         <div className="max-h-40 overflow-y-auto space-y-2">
                           {result.errors.map((error: any, index: number) => (
                             <Alert key={index} variant="destructive">
-                              <AlertCircle className="w-4 h-4" />
+                              <AlertCircle className="w-4 w-4" />
                               <AlertDescription>
                                 <strong>Row {error.row}:</strong> {error.message}
                               </AlertDescription>
@@ -435,10 +456,22 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
             <TabsContent value="help" className="space-y-6 mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Enhanced Upload Features</CardTitle>
+                  <CardTitle>Enhanced Upload Features with Resource Management</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        Batched Processing
+                      </h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• 50 records processed per batch</li>
+                        <li>• Prevents browser resource exhaustion</li>
+                        <li>• Automatic retry on batch failures</li>
+                        <li>• Optimized SQL queries for bulk operations</li>
+                      </ul>
+                    </div>
                     <div>
                       <h4 className="font-medium mb-2 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
@@ -458,6 +491,15 @@ PE-WRAP-80,25,17-05-2025,Production Order PO-002,Wrapper material`;
                         <li>• Automatic duplicate detection</li>
                         <li>• Data format validation</li>
                         <li>• Item code verification</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-2">Performance Features</h4>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Can handle 5000+ records efficiently</li>
+                        <li>• Resource recovery and retry logic</li>
+                        <li>• Progress tracking at batch level</li>
+                        <li>• Optimized for large datasets</li>
                       </ul>
                     </div>
                   </div>
