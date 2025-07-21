@@ -41,7 +41,8 @@ export interface UseStockSummaryOptions {
   sort?: StockSummarySort;
 }
 
-interface StockCalculationResult {
+// Simple interface for stock calculation result
+interface StockResult {
   item_code: string;
   item_name: string;
   opening_stock: number;
@@ -71,11 +72,10 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
       try {
         console.log('Fetching stock summary with accurate calculation...');
         
-        // Get all active items (without reorder_level since it doesn't exist)
+        // Get all items from satguru_item_master (without non-existent columns)
         const { data: items, error: itemsError } = await supabase
           .from('satguru_item_master')
           .select('item_code, item_name, category_id, uom')
-          .eq('is_active', true)
           .order('item_code');
         
         if (itemsError) {
@@ -114,12 +114,16 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
               return null;
             }
 
-            // Type-safe parsing of the stock calculation result
-            const stockResult = stockData as StockCalculationResult;
-            const currentQty = stockResult?.current_stock || 0;
-            const openingStock = stockResult?.opening_stock || 0;
-            const totalGrns = stockResult?.total_grns || 0;
-            const totalIssues = stockResult?.total_issues || 0;
+            // Simple casting to avoid TypeScript issues
+            const stockResult = stockData as any;
+            if (!stockResult) {
+              return null;
+            }
+
+            const currentQty = Number(stockResult.current_stock) || 0;
+            const openingStock = Number(stockResult.opening_stock) || 0;
+            const totalGrns = Number(stockResult.total_grns) || 0;
+            const totalIssues = Number(stockResult.total_issues) || 0;
 
             // Get category name
             let categoryName = 'Uncategorized';
