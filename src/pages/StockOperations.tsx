@@ -9,13 +9,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GRNForm } from "@/components/stock-operations/GRNForm";
 import { OptimizedGRNTable } from "@/components/stock-operations/OptimizedGRNTable";
 import { IssueForm } from "@/components/stock-operations/IssueForm";
-import { IssueTable } from "@/components/stock-operations/IssueTable";
+import { OptimizedIssueTable } from "@/components/stock-operations/OptimizedIssueTable";
 import { TransactionHistory } from "@/components/stock-operations/TransactionHistory";
 import { BulkUploadGRN } from "@/components/stock-operations/BulkUploadGRN";
 import { EnhancedBulkUploadIssues } from "@/components/stock-operations/EnhancedBulkUploadIssues";
 import { BulkUploadOpeningStock } from "@/components/stock-operations/BulkUploadOpeningStock";
 import { StockMovementReport } from "@/components/stock-operations/StockMovementReport";
-import { OpeningStockTable } from "@/components/stock-operations/OpeningStockTable";
+import { OptimizedOpeningStockTable } from "@/components/stock-operations/OptimizedOpeningStockTable";
 
 export default function StockOperations() {
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
@@ -124,11 +124,11 @@ export default function StockOperations() {
                 Opening Stock
               </CardTitle>
               <CardDescription>
-                View and manage opening stock balances (read-only)
+                View and manage opening stock balances with optimized search
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <OpeningStockTable />
+              <OptimizedOpeningStockTable />
             </CardContent>
           </Card>
         </TabsContent>
@@ -141,7 +141,7 @@ export default function StockOperations() {
                 Regular GRNs
               </CardTitle>
               <CardDescription>
-                Manage operational goods receipt notes (excluding opening stock)
+                Manage operational goods receipt notes with optimized search
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -158,11 +158,11 @@ export default function StockOperations() {
                 Stock Issues
               </CardTitle>
               <CardDescription>
-                Track outgoing stock and material issues
+                Track outgoing stock and material issues with optimized search
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IssueTable />
+              <OptimizedIssueTable />
             </CardContent>
           </Card>
         </TabsContent>
