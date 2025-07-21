@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +63,8 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     isProcessing: isBulkProcessing,
     correctedRecords,
     applyCorrectedQuantity,
-    getCorrectedQuantity
+    getCorrectedQuantity,
+    getProcessableRecords
   } = useBulkIssueValidation();
 
   const steps: UploadStep[] = [
@@ -284,10 +286,16 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         filename = 'issue_upload_corrections.csv';
         break;
       case 'retry-ready':
-        // Generate retry-ready CSV with all valid records
-        csvData = processedRecords
-          .filter(r => r.errors.length === 0)
-          .map(r => r.data);
+        // Generate retry-ready CSV with all valid records (including corrected ones)
+        const processableRecords = getProcessableRecords(validationResults);
+        csvData = processableRecords.map(record => {
+          const originalRecord = processedRecords.find(r => r.rowIndex === record.row_num - 1)?.data;
+          return {
+            ...originalRecord,
+            qty_issued: record.requested_qty,
+            quantity: record.requested_qty
+          };
+        });
         filename = 'issue_upload_retry_ready.csv';
         break;
     }
@@ -351,27 +359,27 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
 
     console.log('🚀 Processing upload with', validationResults.length, 'total validation results');
 
-    // Process ALL valid records (not just first 1000)
-    const validRecords = validationResults.filter(r => r.validation_status === 'sufficient');
-    console.log('📊 Found', validRecords.length, 'valid records out of', validationResults.length, 'total');
-    
-    if (validRecords.length === 0) {
-      toast({
-        title: "No Valid Records",
-        description: "All records have validation errors. Please fix them first.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
-      console.log('🔄 Processing', validRecords.length, 'valid records...');
+      // Get processable records (applies corrections and filters for sufficient stock)
+      const processableRecords = getProcessableRecords(validationResults);
+      console.log('📊 Processable records after corrections:', processableRecords.length);
+      
+      if (processableRecords.length === 0) {
+        toast({
+          title: "No Valid Records",
+          description: "All records have validation errors. Please fix them first using the correction tools.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('🔄 Processing', processableRecords.length, 'valid records...');
       const result = await processBulk(validationResults);
       
       if (result.success) {
         toast({
           title: "Upload Successful",
-          description: `Successfully processed ${result.processed_count} issue records out of ${validationResults.length} total`,
+          description: `Successfully processed ${result.processed_count} issue records${correctedRecords.length > 0 ? ` (including ${correctedRecords.length} corrected items)` : ''}`,
           variant: "default"
         });
         
@@ -413,9 +421,16 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     return <div className="w-5 h-5 rounded-full border-2 border-current" />;
   };
 
-  // Calculate counts based on validation results - USE FULL DATASET
-  const validRecordsCount = validationResults.filter(r => r.validation_status === 'sufficient').length;
-  const insufficientStockCount = validationResults.filter(r => r.validation_status === 'insufficient_stock').length;
+  // Calculate counts based on validation results with corrections applied
+  const processableRecords = validationResults.length > 0 ? getProcessableRecords(validationResults) : [];
+  const validRecordsCount = processableRecords.length;
+  const insufficientStockCount = validationResults.filter(r => {
+    const correction = correctedRecords.find(c => c.rowIndex === r.row_num - 1);
+    if (correction) {
+      return correction.corrected_qty > r.available_qty;
+    }
+    return r.validation_status === 'insufficient_stock';
+  }).length;
   const insufficientStockItems = validationResults.filter(r => r.validation_status === 'insufficient_stock');
 
   return (
@@ -498,7 +513,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                   </div>
                   <div className="text-center p-3 bg-green-50 rounded-lg">
                     <div className="text-2xl font-bold text-green-600">{validRecordsCount}</div>
-                    <div className="text-sm text-green-700">Valid Records</div>
+                    <div className="text-sm text-green-700">Ready to Process</div>
                   </div>
                   <div className="text-center p-3 bg-red-50 rounded-lg">
                     <div className="text-2xl font-bold text-red-600">
@@ -647,7 +662,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     onClick={handleProcessUpload}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    {isBulkProcessing ? 'Processing...' : `Process ${validationResults.length} Issues`}
+                    {isBulkProcessing ? 'Processing...' : `Process ${validRecordsCount} Issues`}
                   </Button>
                 </div>
               </CardContent>

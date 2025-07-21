@@ -70,7 +70,7 @@ export function IssueUploadDebugger({
   const [correctionData, setCorrectionData] = useState<any>({});
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { validateBulk, isValidating, getCorrectedQuantity, correctedRecords } = useBulkIssueValidation();
+  const { validateBulk, isValidating, getCorrectedQuantity, correctedRecords, getProcessableRecords } = useBulkIssueValidation();
 
   useEffect(() => {
     if (csvData?.length > 0) {
@@ -108,6 +108,9 @@ export function IssueUploadDebugger({
       const validationResults = await validateBulk(issueItems);
       console.log('✅ Debug validation complete:', validationResults.length, 'results for', issueItems.length, 'items');
       
+      // Get processable records (with corrections applied)
+      const processableRecords = getProcessableRecords(validationResults);
+      
       // Process results and combine with CSV data
       const records: IssueDebugRecord[] = correctedCsvData.map((row, index) => {
         const errors: string[] = [];
@@ -136,8 +139,20 @@ export function IssueUploadDebugger({
           if (validationResult.validation_status === 'not_found') {
             errors.push('Item code not found in master data');
           } else if (validationResult.validation_status === 'insufficient_stock') {
-            errors.push(validationResult.error_message);
-            stockStatus = availableStock > requiredStock * 0.5 ? 'insufficient' : 'critical';
+            // Check if this item has been corrected
+            const correctedQty = getCorrectedQuantity(index);
+            if (correctedQty !== null) {
+              requiredStock = correctedQty;
+              if (correctedQty <= availableStock) {
+                stockStatus = 'sufficient';
+              } else {
+                errors.push(`Still insufficient after correction. Available: ${availableStock}, Corrected to: ${correctedQty}`);
+                stockStatus = availableStock > correctedQty * 0.5 ? 'insufficient' : 'critical';
+              }
+            } else {
+              errors.push(validationResult.error_message);
+              stockStatus = availableStock > requiredStock * 0.5 ? 'insufficient' : 'critical';
+            }
           } else if (validationResult.validation_status === 'sufficient') {
             stockStatus = 'sufficient';
           }
@@ -145,6 +160,7 @@ export function IssueUploadDebugger({
 
         // Check if this record has been corrected
         const hasCorrectedQty = getCorrectedQuantity(index) !== null;
+        const isProcessable = processableRecords.some(p => p.row_num === index + 1);
         
         return {
           rowIndex: index,
@@ -155,14 +171,14 @@ export function IssueUploadDebugger({
           stockStatus,
           availableStock,
           requiredStock,
-          status: hasCorrectedQty ? 'corrected' : (errors.length > 0 ? 'failed' : warnings.length > 0 ? 'pending' : 'success')
+          status: hasCorrectedQty ? 'corrected' : isProcessable ? 'success' : (errors.length > 0 ? 'failed' : warnings.length > 0 ? 'pending' : 'success')
         };
       });
       
       // Calculate summary statistics for ALL records
       const analysis: IssueDebugAnalysis = {
         totalRecords: records.length,
-        validRecords: records.filter(r => r.status === 'success' || r.status === 'corrected').length,
+        validRecords: processableRecords.length,
         errorRecords: records.filter(r => r.status === 'failed').length,
         warningRecords: records.filter(r => r.status === 'pending').length,
         stockIssues: records.filter(r => r.stockStatus === 'insufficient' || r.stockStatus === 'critical').length,
@@ -235,56 +251,7 @@ export function IssueUploadDebugger({
   };
 
   const handleDownloadCorrectedCSV = (mode: 'errors' | 'corrections' | 'retry-ready') => {
-    if (!debugAnalysis) return;
-    
-    console.log(`📥 Downloading corrected Issue CSV in ${mode} mode...`);
-    
-    let csvData: any[] = [];
-    let filename = '';
-    
-    switch (mode) {
-      case 'errors':
-        csvData = debugAnalysis.records.filter(r => r.status === 'failed').map(r => r.originalData);
-        filename = 'issue_upload_errors.csv';
-        break;
-      case 'corrections':
-        csvData = debugAnalysis.records.filter(r => r.status === 'corrected').map(r => r.originalData);
-        filename = 'issue_upload_corrections.csv';
-        break;
-      case 'retry-ready':
-        csvData = debugAnalysis.records.filter(r => r.status === 'success' || r.status === 'corrected').map(r => r.originalData);
-        filename = 'issue_upload_retry_ready.csv';
-        break;
-    }
-    
-    // Issue-specific CSV headers
-    const headers = ['item_code', 'qty_issued', 'date', 'purpose', 'remarks'];
-    
-    // Convert to Issue CSV format
-    const csvRows = csvData.map(record => [
-      record.item_code || '',
-      record.qty_issued || record.quantity || '',
-      record.date || new Date().toISOString().split('T')[0],
-      record.purpose || record.issued_to || 'General Issue',
-      record.remarks || 'Bulk upload'
-    ]);
-    
-    // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...csvRows.map(row => row.join(','))
-    ].join('\n');
-    
-    // Download CSV
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
-    console.log(`✅ Downloaded ${filename} with ${csvRows.length} records`);
+    onDownloadCorrectedCSV(mode);
   };
 
   if (!debugAnalysis) {
@@ -338,7 +305,7 @@ export function IssueUploadDebugger({
               </div>
               <div className="p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">{debugAnalysis?.validRecords || 0}</div>
-                <div className="text-sm text-green-700">Valid Records</div>
+                <div className="text-sm text-green-700">Ready to Process</div>
               </div>
               <div className="p-4 bg-red-50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600">{debugAnalysis?.errorRecords || 0}</div>

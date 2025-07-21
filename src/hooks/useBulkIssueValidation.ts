@@ -81,13 +81,88 @@ export function useBulkIssueValidation() {
     }
   };
 
-  const processBulk = async (validatedItems: BulkValidationResult[]): Promise<BulkProcessResult> => {
+  // NEW: Function to merge corrected records into validation results
+  const applyCorrectionsToValidationResults = (validationResults: BulkValidationResult[]): BulkValidationResult[] => {
+    console.log('🔧 Applying corrections to validation results:', {
+      originalResults: validationResults.length,
+      corrections: correctedRecords.length
+    });
+
+    return validationResults.map(result => {
+      const correction = correctedRecords.find(c => c.rowIndex === result.row_num - 1);
+      
+      if (correction) {
+        const updatedResult = {
+          ...result,
+          requested_qty: correction.corrected_qty,
+          validation_status: correction.corrected_qty <= result.available_qty ? 'sufficient' : 'insufficient_stock',
+          error_message: correction.corrected_qty <= result.available_qty 
+            ? 'Stock sufficient (corrected)'
+            : `Still insufficient after correction. Available: ${result.available_qty}, Requested: ${correction.corrected_qty}`
+        };
+        
+        console.log('✏️ Applied correction to row', result.row_num, {
+          original: result.requested_qty,
+          corrected: correction.corrected_qty,
+          newStatus: updatedResult.validation_status
+        });
+        
+        return updatedResult;
+      }
+      
+      return result;
+    });
+  };
+
+  // NEW: Function to get processable records (sufficient + corrected to sufficient)
+  const getProcessableRecords = (validationResults: BulkValidationResult[]): BulkValidationResult[] => {
+    const correctedResults = applyCorrectionsToValidationResults(validationResults);
+    const processableRecords = correctedResults.filter(r => r.validation_status === 'sufficient');
+    
+    console.log('📋 Processable records analysis:', {
+      totalResults: correctedResults.length,
+      processableRecords: processableRecords.length,
+      correctedItems: correctedRecords.length,
+      breakdown: {
+        sufficient: correctedResults.filter(r => r.validation_status === 'sufficient').length,
+        insufficient: correctedResults.filter(r => r.validation_status === 'insufficient_stock').length,
+        notFound: correctedResults.filter(r => r.validation_status === 'not_found').length
+      }
+    });
+    
+    return processableRecords;
+  };
+
+  const processBulk = async (validationResults: BulkValidationResult[]): Promise<BulkProcessResult> => {
     setIsProcessing(true);
     try {
-      console.log('🚀 Processing bulk issues - Total items:', validatedItems.length);
+      // Apply corrections and filter for processable records only
+      const processableRecords = getProcessableRecords(validationResults);
+      
+      if (processableRecords.length === 0) {
+        console.warn('⚠️ No processable records found');
+        return {
+          processed_count: 0,
+          error_count: 0,
+          total_count: validationResults.length,
+          success: false
+        };
+      }
+
+      console.log('🚀 Processing bulk issues - Processable records:', processableRecords.length);
+      
+      // Ensure all records have required fields and valid data
+      const sanitizedRecords = processableRecords.map(record => ({
+        ...record,
+        requested_qty: record.requested_qty || 0,
+        available_qty: record.available_qty || 0,
+        item_code: record.item_code || '',
+        item_name: record.item_name || '',
+        error_message: record.error_message || 'No errors'
+      }));
       
       const { data, error } = await supabase.rpc('process_issue_batch', {
-        p_rows: validatedItems as any
+        p_rows: sanitizedRecords as any
       });
 
       if (error) {
@@ -101,7 +176,7 @@ export function useBulkIssueValidation() {
       return {
         processed_count: result?.processed_count || 0,
         error_count: result?.error_count || 0,
-        total_count: result?.total_count || 0,
+        total_count: processableRecords.length,
         success: result?.success || false
       };
     } finally {
@@ -120,12 +195,25 @@ export function useBulkIssueValidation() {
 
     setCorrectedRecords(prev => {
       const existing = prev.filter(r => r.rowIndex !== rowIndex);
-      return [...existing, correction];
+      const updated = [...existing, correction];
+      console.log('💾 Applied correction for row', rowIndex + 1, {
+        item_code,
+        originalQty,
+        correctedQty,
+        totalCorrections: updated.length
+      });
+      return updated;
     });
   };
 
   const removeCorrectedQuantity = (rowIndex: number) => {
-    setCorrectedRecords(prev => prev.filter(r => r.rowIndex !== rowIndex));
+    setCorrectedRecords(prev => {
+      const updated = prev.filter(r => r.rowIndex !== rowIndex);
+      console.log('🗑️ Removed correction for row', rowIndex + 1, {
+        remainingCorrections: updated.length
+      });
+      return updated;
+    });
   };
 
   const getCorrectedQuantity = (rowIndex: number): number | null => {
@@ -141,6 +229,8 @@ export function useBulkIssueValidation() {
     correctedRecords,
     applyCorrectedQuantity,
     removeCorrectedQuantity,
-    getCorrectedQuantity
+    getCorrectedQuantity,
+    applyCorrectionsToValidationResults,
+    getProcessableRecords
   };
 }
