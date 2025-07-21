@@ -66,7 +66,7 @@ export function useIssueValidation(
     let status: IssueValidationResult['status'] = 'sufficient';
     let suggestion = '';
 
-    // Enhanced validation logic with better threshold handling
+    // Use the same stock calculation logic as the updated backend function
     if (currentStock >= requestedQty) {
       status = 'sufficient';
       const remainingStock = currentStock - requestedQty;
