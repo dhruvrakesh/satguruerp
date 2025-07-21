@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkIssueValidation, BulkValidationResult } from "@/hooks/useBulkIssueValidation";
+import { useEnhancedIssueUpload, DuplicateRecord, EnhancedUploadResult } from "@/hooks/useEnhancedIssueUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { IssueCSVCorrectionManager } from "./IssueCSVCorrectionManager";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
@@ -67,6 +68,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [duplicateCheckResult, setDuplicateCheckResult] = useState<DuplicateCheckResult | null>(null);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [detectedDuplicates, setDetectedDuplicates] = useState<DuplicateRecord[]>([]);
   const { toast } = useToast();
   const { 
     validateBulk, 
@@ -78,6 +80,12 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     getCorrectedQuantity,
     getProcessableRecords
   } = useBulkIssueValidation();
+  const { 
+    uploadWithDuplicateHandling, 
+    checkForDuplicates: checkForDuplicatesNew, 
+    isProcessing: isEnhancedProcessing,
+    uploadProgress 
+  } = useEnhancedIssueUpload();
 
   const steps: UploadStep[] = [
     {
@@ -125,24 +133,47 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     setIsProcessing(true);
     
     try {
-      // For now, simulate no duplicates (duplicate prevention will be implemented after types update)
-      const simulatedResult: DuplicateCheckResult = {
+      // Convert CSV data to issue records format
+      const issueRecords = csvData.map(row => ({
+        item_code: row.item_code || '',
+        qty_issued: Number(row.qty_issued || row.quantity || 0),
+        date: row.date || new Date().toISOString().split('T')[0],
+        purpose: row.purpose || row.issued_to || 'Bulk upload',
+        remarks: row.remarks || 'Bulk upload'
+      })).filter(record => record.item_code && record.qty_issued > 0);
+
+      // Check for duplicates using the enhanced hook
+      const duplicateResults = await checkForDuplicatesNew(issueRecords);
+      const duplicates = duplicateResults.filter(result => result.is_duplicate);
+      
+      setDetectedDuplicates(duplicates);
+      
+      const duplicateCheckResult: DuplicateCheckResult = {
         total_checked: csvData.length,
-        total_duplicates: 0,
-        has_duplicates: false,
-        duplicates: [],
+        total_duplicates: duplicates.length,
+        has_duplicates: duplicates.length > 0,
+        duplicates: duplicates,
         upload_type: 'ISSUE',
         check_timestamp: new Date().toISOString()
       };
 
-      console.log('✅ Duplicate check result (simulated - no duplicates):', simulatedResult);
-      setDuplicateCheckResult(simulatedResult);
-      setShowDuplicateWarning(false);
+      console.log('✅ Real duplicate check result:', duplicateCheckResult);
+      setDuplicateCheckResult(duplicateCheckResult);
       
-      // Proceed with validation since no duplicates detected
-      performBulkValidation();
+      if (duplicates.length > 0) {
+        setShowDuplicateWarning(true);
+        toast({
+          title: "Duplicates Detected",
+          description: `Found ${duplicates.length} potential duplicate records. Review and decide how to proceed.`,
+          variant: "destructive"
+        });
+      } else {
+        setShowDuplicateWarning(false);
+        performBulkValidation();
+      }
     } catch (error: any) {
       console.error('❌ Duplicate check error:', error);
+      setShowDuplicateWarning(false);
       performBulkValidation(); // Proceed with validation on error
     } finally {
       setIsProcessing(false);
@@ -456,6 +487,66 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
   };
 
+  const handleProcessUploadWithSkipDuplicates = async () => {
+    if (!csvData.length) {
+      toast({
+        title: "No Data to Process",
+        description: "Please upload CSV data first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    console.log('🚀 Processing upload with skip duplicates option...');
+
+    try {
+      // Convert CSV data to issue records format
+      const issueRecords = csvData.map(row => ({
+        item_code: row.item_code || '',
+        qty_issued: Number(row.qty_issued || row.quantity || 0),
+        date: row.date || new Date().toISOString().split('T')[0],
+        purpose: row.purpose || row.issued_to || 'Bulk upload',
+        remarks: row.remarks || 'Bulk upload'
+      })).filter(record => record.item_code && record.qty_issued > 0);
+
+      // Use enhanced upload with skip duplicates enabled
+      const result = await uploadWithDuplicateHandling(issueRecords, {
+        skipDuplicates: true,
+        showDuplicateWarning: false
+      });
+
+      if (result.success) {
+        toast({
+          title: "Upload Successful",
+          description: `Successfully uploaded ${result.successful_inserts} records. ${result.duplicates_skipped} duplicates were skipped.`,
+          variant: "default"
+        });
+        
+        // Reset form after successful upload
+        setCurrentStep(1);
+        setUploadFile(null);
+        setCsvData([]);
+        setProcessedRecords([]);
+        setValidationResults([]);
+        setShowDuplicateWarning(false);
+        onOpenChange(false);
+      } else {
+        toast({
+          title: "Upload Failed",
+          description: `Failed to process upload. ${result.errors.length} errors occurred.`,
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Enhanced upload failed:', error);
+      toast({
+        title: "Upload Error",
+        description: error.message || "Failed to process upload",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getStepStatus = (step: UploadStep) => {
     if (step.status === 'completed') return 'text-green-600 bg-green-50';
     if (step.status === 'active') return 'text-blue-600 bg-blue-50';
@@ -527,13 +618,20 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     >
                       Cancel & Choose Different File
                     </Button>
-                    <Button 
-                      variant="default" 
-                      size="sm"
-                      onClick={() => handleDownloadCorrectedCSV('retry-ready')}
-                    >
-                      Download Non-Duplicate Records Only
-                    </Button>
+                     <Button 
+                       variant="default" 
+                       size="sm"
+                       onClick={() => handleDownloadCorrectedCSV('retry-ready')}
+                     >
+                       Download Non-Duplicate Records Only
+                     </Button>
+                     <Button 
+                       variant="secondary" 
+                       size="sm"
+                       onClick={() => handleProcessUploadWithSkipDuplicates()}
+                     >
+                       Skip Duplicates & Process
+                     </Button>
                   </div>
                 </div>
               </AlertDescription>
