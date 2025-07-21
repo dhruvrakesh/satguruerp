@@ -59,32 +59,20 @@ export function useStockValidation(itemCode?: string) {
         };
       }
       
-      // Get stock and item details
-      const [stockResult, itemResult] = await Promise.all([
-        supabase
-          .from('satguru_stock')
-          .select('current_qty, last_updated')
-          .eq('item_code', itemCode)
-          .single(),
-        supabase
-          .from('satguru_item_master')
-          .select('item_name, uom')
-          .eq('item_code', itemCode)
-          .single()
-      ]);
+      // Get stock from the standardized summary view
+      const { data: stockData, error: stockError } = await supabase
+        .from('satguru_stock_summary_view')
+        .select('current_qty, last_updated, item_name, uom')
+        .eq('item_code', itemCode)
+        .single();
       
-      const stockData = stockResult.error?.code === 'PGRST116' 
-        ? { current_qty: 0, last_updated: null }
-        : stockResult.data;
+      const data = stockError?.code === 'PGRST116' 
+        ? { current_qty: 0, last_updated: null, item_name: null, uom: null }
+        : stockData;
         
-      const itemData = itemResult.error?.code === 'PGRST116'
-        ? null
-        : itemResult.data;
+      if (stockError && stockError.code !== 'PGRST116') throw stockError;
       
-      if (stockResult.error && stockResult.error.code !== 'PGRST116') throw stockResult.error;
-      if (itemResult.error && itemResult.error.code !== 'PGRST116') throw itemResult.error;
-      
-      const availableQty = stockData?.current_qty || 0;
+      const availableQty = data?.current_qty || 0;
       
       return {
         itemCode,
@@ -92,11 +80,11 @@ export function useStockValidation(itemCode?: string) {
         current_qty: availableQty,
         required: 0, // Will be set by component
         status: 'unknown', // Will be calculated by component
-        itemExists: !!itemData,
+        itemExists: !!data?.item_name,
         isAvailable: availableQty > 0,
-        itemName: itemData?.item_name,
-        uom: itemData?.uom,
-        lastUpdated: stockData?.last_updated
+        itemName: data?.item_name,
+        uom: data?.uom,
+        lastUpdated: data?.last_updated
       };
     },
     enabled: !!itemCode,
@@ -131,31 +119,21 @@ export function useBulkStockValidation(itemCodes: string[]) {
     queryFn: async (): Promise<StockValidationResult[]> => {
       if (!itemCodes.length) return [];
       
-      // Get all stock data in one query
-      const { data: stockData, error: stockError } = await supabase
-        .from('satguru_stock')
-        .select('item_code, current_qty, last_updated')
+      // Get all data from the standardized summary view in one query
+      const { data: summaryData, error: summaryError } = await supabase
+        .from('satguru_stock_summary_view')
+        .select('item_code, current_qty, last_updated, item_name, uom')
         .in('item_code', itemCodes);
       
-      if (stockError) throw stockError;
+      if (summaryError) throw summaryError;
       
-      // Get all item data in one query
-      const { data: itemData, error: itemError } = await supabase
-        .from('satguru_item_master')
-        .select('item_code, item_name, uom')
-        .in('item_code', itemCodes);
-      
-      if (itemError) throw itemError;
-      
-      // Create lookup maps
-      const stockMap = new Map(stockData?.map(s => [s.item_code, s]) || []);
-      const itemMap = new Map(itemData?.map(i => [i.item_code, i]) || []);
+      // Create lookup map
+      const summaryMap = new Map(summaryData?.map(s => [s.item_code, s]) || []);
       
       // Build results
       return itemCodes.map(itemCode => {
-        const stock = stockMap.get(itemCode);
-        const item = itemMap.get(itemCode);
-        const availableQty = stock?.current_qty || 0;
+        const summary = summaryMap.get(itemCode);
+        const availableQty = summary?.current_qty || 0;
         
         return {
           itemCode,
@@ -163,11 +141,11 @@ export function useBulkStockValidation(itemCodes: string[]) {
           current_qty: availableQty,
           required: 0,
           status: 'unknown' as const,
-          itemExists: !!item,
+          itemExists: !!summary?.item_name,
           isAvailable: availableQty > 0,
-          itemName: item?.item_name,
-          uom: item?.uom,
-          lastUpdated: stock?.last_updated
+          itemName: summary?.item_name,
+          uom: summary?.uom,
+          lastUpdated: summary?.last_updated
         };
       });
     },

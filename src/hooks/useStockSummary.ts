@@ -67,23 +67,60 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
   };
   
   return useQuery({
-    queryKey: ['stock-summary-calculated', page, pageSize, optimizedFilters, sort],
+    queryKey: ['stock-summary-view', page, pageSize, optimizedFilters, sort],
     queryFn: async () => {
       try {
-        console.log('Fetching stock summary with accurate calculation...');
+        console.log('Fetching stock summary from standardized view...');
         
-        // Get all items from satguru_item_master with usage_type for categories
-        const { data: items, error: itemsError } = await supabase
-          .from('satguru_item_master')
-          .select('item_code, item_name, category_id, uom, usage_type')
-          .order('item_code');
-        
-        if (itemsError) {
-          console.error('Error fetching items:', itemsError);
-          throw itemsError;
+        // Build the query from the standardized view
+        let query = supabase
+          .from('satguru_stock_summary_view')
+          .select('*', { count: 'exact' });
+
+        // Apply search filter
+        if (optimizedFilters.search) {
+          query = query.or(`item_code.ilike.%${optimizedFilters.search}%,item_name.ilike.%${optimizedFilters.search}%`);
         }
 
-        if (!items || items.length === 0) {
+        // Apply category filter
+        if (optimizedFilters.category && optimizedFilters.category !== 'all') {
+          query = query.ilike('category_name', `%${optimizedFilters.category}%`);
+        }
+
+        // Apply stock status filter
+        if (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') {
+          query = query.eq('stock_status', optimizedFilters.stockStatus);
+        }
+
+        // Apply quantity filters
+        if (optimizedFilters.minQty !== undefined) {
+          query = query.gte('current_qty', optimizedFilters.minQty);
+        }
+        if (optimizedFilters.maxQty !== undefined) {
+          query = query.lte('current_qty', optimizedFilters.maxQty);
+        }
+
+        // Apply sorting
+        if (sort) {
+          const ascending = sort.direction === 'asc';
+          query = query.order(sort.column, { ascending });
+        } else {
+          // Default sort by item_code
+          query = query.order('item_code');
+        }
+
+        // Apply pagination
+        const startIndex = (page - 1) * pageSize;
+        query = query.range(startIndex, startIndex + pageSize - 1);
+
+        const { data, error, count } = await query;
+
+        if (error) {
+          console.error('Error fetching stock summary:', error);
+          throw error;
+        }
+
+        if (!data) {
           return {
             data: [],
             count: 0,
@@ -91,157 +128,61 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
           };
         }
 
-        // Apply search filter if provided
-        let filteredItems = items;
-        if (optimizedFilters.search) {
-          filteredItems = items.filter(item => 
-            item.item_code.toLowerCase().includes(optimizedFilters.search!.toLowerCase()) ||
-            item.item_name.toLowerCase().includes(optimizedFilters.search!.toLowerCase())
-          );
-        }
-
-        // Calculate stock for each item
-        const stockPromises = filteredItems.map(async (item) => {
+        // Calculate 30-day metrics for each item (this part still needs individual queries)
+        const enrichedData = await Promise.all(data.map(async (item) => {
           try {
-            const { data: stockData, error: stockError } = await supabase
-              .rpc('calculate_current_stock', {
-                p_item_code: item.item_code,
-                p_opening_stock_date: optimizedFilters.openingStockDate || '2024-01-01'
-              });
-
-            if (stockError) {
-              console.error(`Error calculating stock for ${item.item_code}:`, stockError);
-              return null;
-            }
-
-            // Simple casting to avoid TypeScript issues
-            const stockResult = stockData as any;
-            if (!stockResult) {
-              return null;
-            }
-
-            const currentQty = Number(stockResult.current_stock) || 0;
-            const openingStock = Number(stockResult.opening_stock) || 0;
-            const totalGrns = Number(stockResult.total_grns) || 0;
-            const totalIssues = Number(stockResult.total_issues) || 0;
-
-            // Use usage_type as category instead of looking up category table
-            const categoryName = item.usage_type || 'UNKNOWN';
-            const displayCategory = categoryName.replace('_', ' ').toLowerCase()
-              .replace(/\b\w/g, l => l.toUpperCase());
-
-            // Calculate 30-day metrics
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-            const { data: grnData } = await supabase
-              .from('satguru_grn_log')
-              .select('qty_received')
-              .eq('item_code', item.item_code)
-              .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+            const [grnData, issueData] = await Promise.all([
+              supabase
+                .from('satguru_grn_log')
+                .select('qty_received')
+                .eq('item_code', item.item_code)
+                .gte('date', thirtyDaysAgo.toISOString().split('T')[0]),
+              supabase
+                .from('satguru_issue_log')
+                .select('qty_issued')
+                .eq('item_code', item.item_code)
+                .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+            ]);
 
-            const { data: issueData } = await supabase
-              .from('satguru_issue_log')
-              .select('qty_issued')
-              .eq('item_code', item.item_code)
-              .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
-
-            const received30Days = grnData?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
-            const consumption30Days = issueData?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
-
-            // Set default reorder level since column doesn't exist
-            const reorderLevel = 0;
-
-            // Determine stock status
-            let stockStatus = 'normal';
-            if (currentQty <= 0) stockStatus = 'out_of_stock';
-            else if (currentQty <= reorderLevel) stockStatus = 'low_stock';
-            else if (currentQty > reorderLevel * 3) stockStatus = 'overstock';
+            const received30Days = grnData.data?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
+            const consumption30Days = issueData.data?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
 
             const record: StockSummaryRecord = {
               item_code: item.item_code,
               item_name: item.item_name,
-              category_name: displayCategory,
+              category_name: item.category_name || 'UNKNOWN',
               category_id: item.category_id || '',
-              current_qty: currentQty,
+              current_qty: Number(item.current_qty) || 0,
               received_30_days: received30Days,
               consumption_30_days: consumption30Days,
-              reorder_level: reorderLevel,
-              stock_status: stockStatus,
-              last_updated: new Date().toISOString().split('T')[0],
-              opening_stock: openingStock,
-              total_grns: totalGrns,
-              total_issues: totalIssues,
+              reorder_level: 0, // Default since column doesn't exist
+              stock_status: item.stock_status,
+              last_updated: item.last_updated,
+              opening_stock: Number(item.opening_stock) || 0,
+              total_grns: Number(item.total_grns) || 0,
+              total_issues: Number(item.total_issues) || 0,
               uom: item.uom || 'KG'
             };
 
             return record;
           } catch (error) {
-            console.error(`Error processing item ${item.item_code}:`, error);
+            console.error(`Error enriching data for ${item.item_code}:`, error);
             return null;
           }
-        });
+        }));
 
-        const stockResults = await Promise.all(stockPromises);
-        const validResults = stockResults.filter((result): result is StockSummaryRecord => result !== null);
+        const validResults = enrichedData.filter((result): result is StockSummaryRecord => result !== null);
 
-        // Apply additional filters
-        let finalResults = validResults;
-        
-        if (optimizedFilters.category && optimizedFilters.category !== 'all') {
-          finalResults = finalResults.filter(item => 
-            item.category_name.toLowerCase().includes(optimizedFilters.category!.toLowerCase())
-          );
-        }
-        
-        if (optimizedFilters.stockStatus && optimizedFilters.stockStatus !== 'all') {
-          finalResults = finalResults.filter(item => item.stock_status === optimizedFilters.stockStatus);
-        }
-        
-        if (optimizedFilters.minQty !== undefined) {
-          finalResults = finalResults.filter(item => item.current_qty >= optimizedFilters.minQty!);
-        }
-        
-        if (optimizedFilters.maxQty !== undefined) {
-          finalResults = finalResults.filter(item => item.current_qty <= optimizedFilters.maxQty!);
-        }
-
-        // Apply sorting with proper numeric handling
-        if (sort) {
-          finalResults.sort((a, b) => {
-            const aValue = a[sort.column as keyof StockSummaryRecord];
-            const bValue = b[sort.column as keyof StockSummaryRecord];
-            
-            // Handle numeric columns specifically
-            if (sort.column === 'current_qty' || sort.column === 'received_30_days' || 
-                sort.column === 'consumption_30_days' || sort.column === 'opening_stock') {
-              const aNum = Number(aValue) || 0;
-              const bNum = Number(bValue) || 0;
-              return sort.direction === 'asc' ? aNum - bNum : bNum - aNum;
-            }
-            
-            // Handle string columns
-            if (typeof aValue === 'string' && typeof bValue === 'string') {
-              return sort.direction === 'asc' 
-                ? aValue.localeCompare(bValue)
-                : bValue.localeCompare(aValue);
-            }
-            
-            return 0;
-          });
-        }
-
-        // Apply pagination
-        const totalCount = finalResults.length;
+        const totalCount = count || 0;
         const totalPages = Math.ceil(totalCount / pageSize);
-        const startIndex = (page - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        const paginatedResults = finalResults.slice(startIndex, endIndex);
 
-        console.log(`✅ Retrieved ${paginatedResults.length} stock records with accurate calculation`);
+        console.log(`✅ Retrieved ${validResults.length} stock records from standardized view`);
         
         return {
-          data: paginatedResults,
+          data: validResults,
           count: totalCount,
           totalPages: totalPages
         };
