@@ -164,8 +164,9 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
       const issueItems = correctedCsvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
+        requested_qty: Number(row.qty_issued || row.quantity || 0), // Add both field names for backend compatibility
         row_num: index + 1
-      })).filter(item => item.item_code);
+      })).filter(item => item.item_code && item.qty_issued > 0);
 
       console.log('📊 Validating ALL', issueItems.length, 'items (no limits applied)...');
       
@@ -181,12 +182,14 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         const errors: string[] = [];
         const warnings: string[] = [];
         
-        // Basic validation for issue uploads
-        if (!row.item_code) errors.push('Missing item code');
+        // Basic validation for issue uploads with null checks
+        if (!row.item_code || row.item_code.trim() === '') {
+          errors.push('Missing or empty item code');
+        }
         
         const qtyIssued = Number(row.qty_issued || row.quantity || 0);
-        if (!qtyIssued || isNaN(qtyIssued) || qtyIssued <= 0) {
-          errors.push('Invalid or missing quantity to issue');
+        if (!qtyIssued || isNaN(qtyIssued) || qtyIssued <= 0 || qtyIssued === null || qtyIssued === undefined) {
+          errors.push('Invalid or missing quantity to issue - must be a positive number');
         }
         
         if (!row.date) warnings.push('Missing issue date');

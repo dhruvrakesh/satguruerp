@@ -2118,6 +2118,74 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_emails: {
+        Row: {
+          batch_id: string | null
+          created_at: string | null
+          email: string
+          employee_id: string
+          id: string
+          is_primary: boolean | null
+          status: string | null
+          updated_at: string | null
+          uploaded_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          created_at?: string | null
+          email: string
+          employee_id: string
+          id?: string
+          is_primary?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          created_at?: string | null
+          email?: string
+          employee_id?: string
+          id?: string
+          is_primary?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_emails_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_details_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_emails_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "panchkula_payroll_calculation"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_emails_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_calculation_enhanced"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_emails_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_leave_balances: {
         Row: {
           casual_leave_balance: number
@@ -5027,6 +5095,7 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           department_id: string | null
+          email: string | null
           employee_code: string | null
           hra_amount: number | null
           id: string
@@ -5035,6 +5104,7 @@ export type Database = {
           name: string
           other_conv_amount: number | null
           pan_number: string | null
+          preferred_language: string | null
           uan_number: string
           unit_id: string | null
           updated_at: string | null
@@ -5046,6 +5116,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           department_id?: string | null
+          email?: string | null
           employee_code?: string | null
           hra_amount?: number | null
           id?: string
@@ -5054,6 +5125,7 @@ export type Database = {
           name: string
           other_conv_amount?: number | null
           pan_number?: string | null
+          preferred_language?: string | null
           uan_number: string
           unit_id?: string | null
           updated_at?: string | null
@@ -5065,6 +5137,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           department_id?: string | null
+          email?: string | null
           employee_code?: string | null
           hra_amount?: number | null
           id?: string
@@ -5073,6 +5146,7 @@ export type Database = {
           name?: string
           other_conv_amount?: number | null
           pan_number?: string | null
+          preferred_language?: string | null
           uan_number?: string
           unit_id?: string | null
           updated_at?: string | null
@@ -7560,6 +7634,10 @@ export type Database = {
         Args: { p_uiorn: string; p_process_stage: string }
         Returns: Json
       }
+      calculate_current_stock: {
+        Args: { p_item_code: string; p_opening_stock_date?: string }
+        Returns: Json
+      }
       calculate_order_progress: {
         Args: Record<PropertyKey, never> | { p_uiorn: string }
         Returns: {
@@ -8265,6 +8343,10 @@ export type Database = {
       urlencode: {
         Args: { data: Json } | { string: string } | { string: string }
         Returns: string
+      }
+      validate_employee_emails_csv: {
+        Args: { rows: Json }
+        Returns: Json
       }
       validate_issue_batch: {
         Args: { p_items: Json }

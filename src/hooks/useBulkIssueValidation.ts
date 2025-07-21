@@ -162,18 +162,18 @@ export function useBulkIssueValidation() {
 
       console.log('🚀 Processing bulk issues - Processable records:', processableRecords.length);
       
-      // Ensure all records have required fields and valid data
-      const sanitizedRecords = processableRecords.map(record => ({
-        ...record,
-        requested_qty: record.requested_qty || 0,
-        available_qty: record.available_qty || 0,
+      // Transform validation results to proper issue records format for backend
+      const issueRecords = processableRecords.map(record => ({
         item_code: record.item_code || '',
-        item_name: record.item_name || '',
-        error_message: record.error_message || 'No errors'
+        qty_issued: record.requested_qty || 0,
+        requested_qty: record.requested_qty || 0, // For backend compatibility
+        date: new Date().toISOString().split('T')[0], // Default to today
+        purpose: 'Bulk upload',
+        remarks: 'Processed via bulk upload'
       }));
       
       const { data, error } = await supabase.rpc('process_issue_batch', {
-        p_rows: sanitizedRecords as any
+        p_rows: issueRecords
       });
 
       if (error) {

@@ -94,7 +94,7 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
       field: 'qty_issued',
       required: true,
       type: 'number',
-      min: 0
+      min: 0.01
     },
     {
       field: 'date',
@@ -225,6 +225,15 @@ export function BulkUploadIssues({ open, onOpenChange }: BulkUploadIssuesProps) 
           }
 
           const validatedData = validation.transformedData as BulkIssueRow;
+
+          // Additional null validation
+          if (!validatedData.item_code || validatedData.item_code.trim() === '') {
+            throw new Error('Item code cannot be empty or null');
+          }
+
+          if (!validatedData.qty_issued || validatedData.qty_issued <= 0 || isNaN(validatedData.qty_issued)) {
+            throw new Error('Quantity must be a positive number greater than 0');
+          }
 
           if (!validItemSet.has(validatedData.item_code)) {
             throw new Error(

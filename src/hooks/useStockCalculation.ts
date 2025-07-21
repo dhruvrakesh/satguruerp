@@ -29,57 +29,34 @@ export function useStockCalculation(
       const results: StockCalculationResult[] = [];
       
       for (const itemCode of itemCodes) {
-        // Get opening stock for this item
-        const { data: openingStock } = await supabase
-          .from('satguru_grn_log')
-          .select('qty_received')
-          .eq('item_code', itemCode)
-          .eq('transaction_type', 'OPENING_STOCK')
-          .single();
-
-        // Get sum of GRNs from opening stock date to now
-        const { data: grnData } = await supabase
-          .from('satguru_grn_log')
-          .select('qty_received')
-          .eq('item_code', itemCode)
-          .in('transaction_type', ['REGULAR_GRN', 'RETURN', 'ADJUSTMENT'])
-          .gte('created_at', openingStockDate);
-
-        // Get sum of Issues till present date
-        const { data: issueData } = await supabase
-          .from('satguru_issue_log')
-          .select('qty_issued')
-          .eq('item_code', itemCode)
-          .gte('created_at', openingStockDate);
-
-        // Get item name
-        const { data: itemData } = await supabase
-          .from('satguru_item_master')
-          .select('item_name')
-          .eq('item_code', itemCode)
-          .single();
-
-        const openingQty = openingStock?.qty_received || 0;
-        const totalGRNs = grnData?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
-        const totalIssues = issueData?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
-        
-        // Stock = Opening Stock + Sum(GRNs) - Sum(Issues)
-        const currentStock = openingQty + totalGRNs - totalIssues;
-
-        results.push({
-          itemCode,
-          itemName: itemData?.item_name,
-          openingStock: openingQty,
-          totalGRNs,
-          totalIssues,
-          currentStock,
-          calculationDetails: {
-            openingStockDate,
-            calculationDate: new Date().toISOString().split('T')[0],
-            grnEntries: grnData?.length || 0,
-            issueEntries: issueData?.length || 0
-          }
+        // Use the improved backend function for consistent calculation
+        const { data, error } = await supabase.rpc('calculate_current_stock', {
+          p_item_code: itemCode,
+          p_opening_stock_date: openingStockDate
         });
+
+        if (error) {
+          console.error('Error calculating stock for', itemCode, ':', error);
+          continue;
+        }
+
+        if (data) {
+          const stockData = data as any;
+          results.push({
+            itemCode: stockData.item_code || itemCode,
+            itemName: stockData.item_name || '',
+            openingStock: Number(stockData.opening_stock) || 0,
+            totalGRNs: Number(stockData.total_grns) || 0,
+            totalIssues: Number(stockData.total_issues) || 0,
+            currentStock: Number(stockData.current_stock) || 0,
+            calculationDetails: {
+              openingStockDate: stockData.opening_stock_date || openingStockDate,
+              calculationDate: stockData.calculation_date || new Date().toISOString().split('T')[0],
+              grnEntries: Number(stockData.total_grns) || 0,
+              issueEntries: Number(stockData.total_issues) || 0
+            }
+          });
+        }
       }
 
       return results;
