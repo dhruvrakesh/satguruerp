@@ -1,31 +1,28 @@
+
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Items from './pages/Items';
-import Categories from './pages/Categories';
-import UOMs from './pages/UOMs';
-import Stock from './pages/Stock';
-import GRN from './pages/GRN';
-import Issues from './pages/Issues';
-import Reports from './pages/Reports';
+import AuthPage from './pages/AuthPage';
+import Index from './pages/Index';
+import ItemMaster from './pages/ItemMaster';
+import CategoriesManagement from './pages/CategoriesManagement';
+import StockOperations from './pages/StockOperations';
+import StockAnalytics from './pages/StockAnalytics';
 import Settings from './pages/Settings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import AppSidebar from './components/layout/AppSidebar';
-import AppHeader from './components/layout/AppHeader';
+import { AppSidebar } from './components/layout/AppSidebar';
+import { AppHeader } from './components/layout/AppHeader';
 import { Toaster } from "@/components/ui/toaster"
 import StockSummary from './pages/StockSummary';
-import OpeningStock from './pages/OpeningStock';
 import LegacyDataManagement from './pages/LegacyDataManagement';
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   
-  if (!currentUser) {
-    return <Navigate to="/login" />;
+  if (!user) {
+    return <Navigate to="/auth" />;
   }
 
   return <>{children}</>;
@@ -38,7 +35,7 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <div className="min-h-screen bg-background text-foreground">
             <Routes>
-              <Route path="/login" element={<Login />} />
+              <Route path="/auth" element={<AuthPage />} />
               <Route path="/" element={
                 <ProtectedRoute>
                   <div className="flex h-screen">
@@ -46,7 +43,20 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Dashboard />
+                        <Index />
+                      </main>
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <div className="flex h-screen">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <AppHeader />
+                      <main className="flex-1 overflow-auto">
+                        <Index />
                       </main>
                     </div>
                   </div>
@@ -59,7 +69,7 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Items />
+                        <ItemMaster />
                       </main>
                     </div>
                   </div>
@@ -72,20 +82,7 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Categories />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/uoms" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <UOMs />
+                        <CategoriesManagement />
                       </main>
                     </div>
                   </div>
@@ -98,7 +95,7 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Stock />
+                        <StockOperations />
                       </main>
                     </div>
                   </div>
@@ -111,20 +108,33 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <GRN />
+                        <StockOperations />
                       </main>
                     </div>
                   </div>
                 </ProtectedRoute>
               } />
-              <Route path="/issues" element={
+              <Route path="/issue" element={
                 <ProtectedRoute>
                   <div className="flex h-screen">
                     <AppSidebar />
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Issues />
+                        <StockOperations />
+                      </main>
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/opening-stock" element={
+                <ProtectedRoute>
+                  <div className="flex h-screen">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <AppHeader />
+                      <main className="flex-1 overflow-auto">
+                        <StockOperations />
                       </main>
                     </div>
                   </div>
@@ -137,7 +147,7 @@ function App() {
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <AppHeader />
                       <main className="flex-1 overflow-auto">
-                        <Reports />
+                        <StockAnalytics />
                       </main>
                     </div>
                   </div>
@@ -169,20 +179,6 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
-              <Route path="/opening-stock" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <OpeningStock />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              
               <Route path="/legacy-data" element={
                 <ProtectedRoute>
                   <div className="flex h-screen">
@@ -196,7 +192,6 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
-              
             </Routes>
           </div>
           <Toaster />

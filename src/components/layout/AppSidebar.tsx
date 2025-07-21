@@ -1,9 +1,10 @@
+
 import { useState } from "react";
-import { usePathname } from "next/navigation";
-import { Home, Package, LayoutDashboard, Settings, Users, ShoppingCart, File, History } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Home, Package, LayoutDashboard, Settings, Users, ShoppingCart, File, History, ClipboardList } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,7 +34,7 @@ function SidebarMenuButton({ children }: { children: React.ReactNode }) {
 }
 
 export function AppSidebar({ className, ...props }: SidebarProps) {
-  const pathname = usePathname();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -59,7 +60,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             Dashboard
           </h4>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/dashboard" className="flex items-center space-x-2">
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Overview</span>
@@ -67,7 +68,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/stock-summary" className="flex items-center space-x-2">
                 <Package className="w-4 h-4" />
                 <span>Stock Summary</span>
@@ -81,7 +82,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             Stock Operations
           </h4>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/grn" className="flex items-center space-x-2">
                 <ShoppingCart className="w-4 h-4" />
                 <span>GRN</span>
@@ -89,7 +90,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/issue" className="flex items-center space-x-2">
                 <File className="w-4 h-4" />
                 <span>Issue</span>
@@ -97,7 +98,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/opening-stock" className="flex items-center space-x-2">
                 <History className="w-4 h-4" />
                 <span>Opening Stock</span>
@@ -105,9 +106,8 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* Add this in the Stock Operations section after Stock Summary */}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/legacy-data" className="flex items-center space-x-2">
                 <History className="w-4 h-4" />
                 <span>Legacy Data</span>
@@ -121,7 +121,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             Administration
           </h4>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/items" className="flex items-center space-x-2">
                 <Package className="w-4 h-4" />
                 <span>Items</span>
@@ -129,7 +129,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/categories" className="flex items-center space-x-2">
                 <ClipboardList className="w-4 h-4" />
                 <span>Categories</span>
@@ -137,7 +137,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/users" className="flex items-center space-x-2">
                 <Users className="w-4 h-4" />
                 <span>Users</span>
@@ -145,7 +145,7 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton>
               <Link to="/settings" className="flex items-center space-x-2">
                 <Settings className="w-4 h-4" />
                 <span>Settings</span>
@@ -159,10 +159,10 @@ export function AppSidebar({ className, ...props }: SidebarProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="justify-start px-4 py-2 w-full hover:bg-secondary/50">
             <Avatar className="mr-2">
-              <AvatarImage src={user?.image} alt={user?.name || "Avatar"} />
-              <AvatarFallback>{user?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={user?.user_metadata?.image} alt={user?.user_metadata?.full_name || "Avatar"} />
+              <AvatarFallback>{user?.email?.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <span>{user?.name}</span>
+            <span>{user?.user_metadata?.full_name || user?.email}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-80" align="end" forceMount>
