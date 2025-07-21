@@ -134,15 +134,20 @@ export function useOptimizedStockIssueMutations() {
 
   const createIssue = useMutation({
     mutationFn: async (issue: StockIssueFormData) => {
-      // First validate stock availability
+      // First validate stock availability using single source of truth
       const { data: stockData, error: stockError } = await supabase
-        .rpc('satguru_validate_stock_transaction', {
-          p_item_code: issue.item_code,
-          p_transaction_type: 'ISSUE',
-          p_quantity: issue.qty_issued
-        });
+        .from('satguru_stock_summary_view')
+        .select('current_qty, item_name')
+        .eq('item_code', issue.item_code)
+        .single();
 
       if (stockError) throw stockError;
+      
+      // Validate stock availability
+      const currentStock = Number(stockData?.current_qty) || 0;
+      if (currentStock < issue.qty_issued) {
+        throw new Error(`Insufficient stock. Available: ${currentStock}, Requested: ${issue.qty_issued}`);
+      }
 
       const { data, error } = await supabase
         .from('satguru_issue_log')

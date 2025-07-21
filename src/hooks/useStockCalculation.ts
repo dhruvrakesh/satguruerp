@@ -26,83 +26,25 @@ export function useStockCalculation(
     queryFn: async (): Promise<StockCalculationResult[]> => {
       if (!itemCodes.length) return [];
       
-      const results: StockCalculationResult[] = [];
+      console.log(`🔍 Fetching stock data from single source of truth for ${itemCodes.length} items`);
       
-      for (const itemCode of itemCodes) {
-        try {
-          // Use the improved backend function for consistent calculation
-          // This function processes ALL records without any limits
-          const { data, error } = await supabase.rpc('calculate_current_stock', {
-            p_item_code: itemCode,
-            p_opening_stock_date: openingStockDate
-          });
+      // Use single source of truth: satguru_stock_summary_view
+      const { data, error } = await supabase
+        .from('satguru_stock_summary_view')
+        .select('*')
+        .in('item_code', itemCodes);
 
-          if (error) {
-            console.error('Error calculating stock for', itemCode, ':', error);
-            // Add a default entry for failed calculations to maintain data flow
-            results.push({
-              itemCode: itemCode,
-              itemName: '',
-              openingStock: 0,
-              totalGRNs: 0,
-              totalIssues: 0,
-              currentStock: 0,
-              calculationDetails: {
-                openingStockDate: openingStockDate,
-                calculationDate: new Date().toISOString().split('T')[0],
-                grnEntries: 0,
-                issueEntries: 0
-              }
-            });
-            continue;
-          }
+      if (error) {
+        console.error('❌ Error fetching stock data:', error);
+        throw error;
+      }
 
-          if (data && typeof data === 'object') {
-            const stockData = data as any;
-            // Ensure we always have valid numeric values
-            const openingStock = Number(stockData.opening_stock) || 0;
-            const totalGRNs = Number(stockData.total_grns) || 0;
-            const totalIssues = Number(stockData.total_issues) || 0;
-            const currentStock = Number(stockData.current_stock) || 0;
-            
-            results.push({
-              itemCode: stockData.item_code || itemCode,
-              itemName: stockData.item_name || '',
-              openingStock,
-              totalGRNs,
-              totalIssues,
-              currentStock,
-              calculationDetails: {
-                openingStockDate: stockData.opening_stock_date || openingStockDate,
-                calculationDate: stockData.calculation_date || new Date().toISOString().split('T')[0],
-                grnEntries: totalGRNs,
-                issueEntries: totalIssues
-              }
-            });
-            
-            console.log(`✅ Stock calculation for ${itemCode}: Opening=${openingStock}, GRNs=${totalGRNs}, Issues=${totalIssues}, Current=${currentStock}`);
-          } else {
-            console.warn('No data returned for stock calculation of', itemCode);
-            // Add default entry for null/undefined data
-            results.push({
-              itemCode: itemCode,
-              itemName: '',
-              openingStock: 0,
-              totalGRNs: 0,
-              totalIssues: 0,
-              currentStock: 0,
-              calculationDetails: {
-                openingStockDate: openingStockDate,
-                calculationDate: new Date().toISOString().split('T')[0],
-                grnEntries: 0,
-                issueEntries: 0
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Exception calculating stock for', itemCode, ':', error);
-          // Add default entry for exceptions
-          results.push({
+      const results: StockCalculationResult[] = itemCodes.map(itemCode => {
+        const stockData = data?.find(item => item.item_code === itemCode);
+        
+        if (!stockData) {
+          console.warn(`⚠️ No stock data found for ${itemCode}`);
+          return {
             itemCode: itemCode,
             itemName: '',
             openingStock: 0,
@@ -115,9 +57,31 @@ export function useStockCalculation(
               grnEntries: 0,
               issueEntries: 0
             }
-          });
+          };
         }
-      }
+
+        const openingStock = Number(stockData.opening_stock) || 0;
+        const totalGRNs = Number(stockData.total_grns) || 0;
+        const totalIssues = Number(stockData.total_issues) || 0;
+        const currentStock = Number(stockData.current_qty) || 0;
+        
+        console.log(`✅ Stock data for ${itemCode}: Opening=${openingStock}, GRNs=${totalGRNs}, Issues=${totalIssues}, Current=${currentStock}`);
+        
+        return {
+          itemCode: stockData.item_code,
+          itemName: stockData.item_name || '',
+          openingStock,
+          totalGRNs,
+          totalIssues,
+          currentStock,
+          calculationDetails: {
+            openingStockDate: openingStockDate,
+            calculationDate: new Date().toISOString().split('T')[0],
+            grnEntries: totalGRNs,
+            issueEntries: totalIssues
+          }
+        };
+      });
 
       return results;
     },
