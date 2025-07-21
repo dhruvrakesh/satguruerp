@@ -186,7 +186,7 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
   const optimizationSummary = useQuery({
     queryKey: ["inventory-optimization-summary", filters],
     queryFn: async (): Promise<OptimizationSummary> => {
-      const recommendations = await optimizationData.queryFn();
+      const recommendations = optimizationData.data || [];
       
       return {
         totalRecommendations: recommendations.length,
@@ -196,7 +196,7 @@ export const useInventoryOptimization = (filters: OptimizationFilters = {}) => {
           recommendations.reduce((sum, rec) => sum + (rec.metrics.stockoutRisk > 50 ? 15 : 5), 0) / recommendations.length : 0)
       };
     },
-    enabled: optimizationData.isSuccess,
+    enabled: optimizationData.isSuccess && !!optimizationData.data,
   });
 
   return {
