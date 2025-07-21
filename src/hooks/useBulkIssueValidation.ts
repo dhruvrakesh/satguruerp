@@ -43,8 +43,8 @@ export function useBulkIssueValidation() {
 
       console.log('🔍 Validating bulk issues - Total items:', itemsWithRowNum.length);
 
-      // Process ALL items without any limits
-      const { data, error } = await supabase.rpc('validate_issue_batch', {
+      // Use the new batch processing function that handles all records
+      const { data, error } = await supabase.rpc('validate_issue_batch_all', {
         p_items: itemsWithRowNum
       });
 
@@ -53,8 +53,19 @@ export function useBulkIssueValidation() {
         throw error;
       }
 
-      const results = (data || []) as BulkValidationResult[];
+      if (!Array.isArray(data)) {
+        console.error('❌ Expected array but got:', typeof data, data);
+        throw new Error('Invalid response format from validation service');
+      }
+
+      const results = data as unknown as BulkValidationResult[];
       console.log('✅ Bulk validation complete - Input items:', itemsWithRowNum.length, 'Validation results:', results.length);
+      console.log('📊 Results breakdown:', {
+        total: results.length,
+        sufficient: results.filter(r => r.validation_status === 'sufficient').length,
+        insufficient: results.filter(r => r.validation_status === 'insufficient_stock').length,
+        notFound: results.filter(r => r.validation_status === 'not_found').length
+      });
       
       // Ensure we have results for all input items
       if (results.length !== itemsWithRowNum.length) {

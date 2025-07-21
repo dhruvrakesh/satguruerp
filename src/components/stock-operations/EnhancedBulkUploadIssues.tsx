@@ -273,11 +273,14 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         filename = 'issue_upload_errors.csv';
         break;
       case 'corrections':
-        csvData = correctedRecords.map(corr => ({
-          ...csvData.find((_, idx) => idx === corr.rowIndex),
-          qty_issued: corr.corrected_qty,
-          quantity: corr.corrected_qty
-        }));
+        csvData = correctedRecords.map(corr => {
+          const originalRecord = processedRecords.find(r => r.rowIndex === corr.rowIndex)?.data;
+          return {
+            ...originalRecord,
+            qty_issued: corr.corrected_qty,
+            quantity: corr.corrected_qty
+          };
+        });
         filename = 'issue_upload_corrections.csv';
         break;
       case 'retry-ready':
@@ -601,7 +604,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                   errorRecords={errorRecords}
                   correctedRecords={correctedRecords}
                   onDownload={handleDownloadCorrectedCSV}
-                  onReupload={handleBatchReprocess}
+                  onReupload={handleProcessUpload}
                 />
               </TabsContent>
             </Tabs>
@@ -644,7 +647,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     onClick={handleProcessUpload}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    {isBulkProcessing ? 'Processing...' : `Process ${validRecordsCount} Issues`}
+                    {isBulkProcessing ? 'Processing...' : `Process ${validationResults.length} Issues`}
                   </Button>
                 </div>
               </CardContent>

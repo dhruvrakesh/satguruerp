@@ -8278,6 +8278,14 @@ export type Database = {
           error_message: string
         }[]
       }
+      validate_issue_batch_all: {
+        Args: { p_items: Json }
+        Returns: Json
+      }
+      validate_issue_batch_chunked: {
+        Args: { p_items: Json; p_chunk_size?: number; p_chunk_index?: number }
+        Returns: Json
+      }
       validate_leave_consumption: {
         Args: {
           p_employee_id: string
