@@ -1,3 +1,4 @@
+
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -37,7 +38,8 @@ export function useGRNExport() {
             item_name,
             uom
           )
-        `);
+        `)
+        .limit(10000); // Explicit high limit for exports
 
       // Apply filters
       if (options.search) {
@@ -118,6 +120,8 @@ export function useGRNExport() {
 export function useStockIssueExport() {
   return useMutation({
     mutationFn: async (options: ExportOptions = {}): Promise<ExportData> => {
+      console.log('Starting stock issue export with options:', options);
+      
       let query = supabase
         .from('satguru_issue_log')
         .select(`
@@ -132,7 +136,9 @@ export function useStockIssueExport() {
             item_name,
             uom
           )
-        `);
+        `)
+        .limit(15000) // High limit to ensure all records are exported
+        .order('created_at', { ascending: false }); // Consistent ordering
 
       // Apply filters
       if (options.search) {
@@ -151,11 +157,15 @@ export function useStockIssueExport() {
         query = query.lte('date', options.dateTo);
       }
 
-      query = query.order('date', { ascending: false });
-
-      const { data, error } = await query;
+      console.log('Executing export query...');
+      const { data, error, count } = await query;
       
-      if (error) throw error;
+      if (error) {
+        console.error('Export query error:', error);
+        throw error;
+      }
+      
+      console.log(`Export completed: ${data?.length || 0} records retrieved`);
       
       // Transform data for export
       const exportData = data?.map(issue => ({
@@ -179,6 +189,8 @@ export function useStockIssueExport() {
       return { filename, data: exportData };
     },
     onSuccess: ({ filename, data }) => {
+      console.log(`Export successful: ${data.length} records exported to ${filename}`);
+      
       // Create and download Excel file
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -198,6 +210,7 @@ export function useStockIssueExport() {
       });
     },
     onError: (error: any) => {
+      console.error('Export failed:', error);
       toast({
         title: "Export Failed",
         description: error.message || "Failed to export stock issues data", 
@@ -216,13 +229,15 @@ export function useStockMovementExport() {
         .from('satguru_grn_log')
         .select('item_code, qty_received, date, satguru_item_master(item_name)')
         .gte('date', options.dateFrom || '2024-01-01')
-        .lte('date', options.dateTo || format(new Date(), 'yyyy-MM-dd'));
+        .lte('date', options.dateTo || format(new Date(), 'yyyy-MM-dd'))
+        .limit(10000);
 
       const { data: issueData, error: issueError } = await supabase
         .from('satguru_issue_log')
         .select('item_code, qty_issued, date, satguru_item_master(item_name)')
         .gte('date', options.dateFrom || '2024-01-01')
-        .lte('date', options.dateTo || format(new Date(), 'yyyy-MM-dd'));
+        .lte('date', options.dateTo || format(new Date(), 'yyyy-MM-dd'))
+        .limit(10000);
       
       if (grnError || issueError) throw grnError || issueError;
       
