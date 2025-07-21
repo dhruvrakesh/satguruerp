@@ -1,180 +1,176 @@
+import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { Home, Package, LayoutDashboard, Settings, Users, ShoppingCart, File, History } from "lucide-react";
+import { Link } from "react-router-dom";
 
-import { 
-  LayoutDashboard, 
-  Package, 
-  FileText, 
-  TrendingUp, 
-  Settings,
-  Factory,
-  BarChart3,
-  Package2,
-  ArrowUpDown,
-  ClipboardList,
-  Workflow,
-  Layers,
-  Palette,
-  Scissors,
-  PackageCheck,
-  FolderTree,
-  Shield,
-  Image,
-  FileSpreadsheet,
-  CircleDot
-} from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const mainOperationsItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Item Master", url: "/item-master", icon: Package2 },
-  { title: "Specification Master", url: "/specification-master", icon: FileSpreadsheet },
-  { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
-  { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
-];
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
+  className?: string;
+}
 
-const manufacturingItems = [
-  { title: "Manufacturing Workflow", url: "/manufacturing-workflow", icon: Workflow },
-  { title: "Order Punching", url: "/order-punching", icon: FileText },
-  { title: "Artwork Management", url: "/artwork-management", icon: Image },
-  { title: "Cylinder Management", url: "/cylinder-management", icon: CircleDot },
-  { title: "Gravure Printing", url: "/gravure-printing", icon: Palette },
-  { title: "Lamination & Coating", url: "/lamination-coating", icon: Layers },
-  { title: "Slitting & Packaging", url: "/slitting-packaging", icon: Scissors },
-];
+function SidebarMenuItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="w-full">
+      {children}
+    </li>
+  );
+}
 
-const analyticsItems = [
-  { title: "Stock Analytics", url: "/stock-analytics", icon: BarChart3 },
-  { title: "Production Reports", url: "/production-reports", icon: TrendingUp },
-  { title: "Workflow Analytics", url: "/workflow-analytics", icon: Factory },
-];
+function SidebarMenuButton({ children }: { children: React.ReactNode }) {
+  return (
+    <Button variant="ghost" className="justify-start px-4 py-2 w-full hover:bg-secondary/50">
+      {children}
+    </Button>
+  );
+}
 
-const managementItems = [
-  { title: "Categories Management", url: "/categories", icon: FolderTree },
-  { title: "User Management", url: "/user-management", icon: Shield },
-  { title: "Settings", url: "/settings", icon: Settings },
-];
-
-export function AppSidebar() {
-  const { state } = useSidebar();
-  const location = useLocation();
-  const currentPath = location.pathname;
-  const isCollapsed = state === "collapsed";
-
-  const isActive = (path: string) => currentPath === path;
-  const getNavClasses = ({ isActive }: { isActive: boolean }) =>
-    isActive 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm" 
-      : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-accent-foreground";
+export function AppSidebar({ className, ...props }: SidebarProps) {
+  const pathname = usePathname();
+  const { user, signOut } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border/50 pb-4">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Factory className="w-5 h-5 text-primary-foreground" />
-          </div>
-          {!isCollapsed && (
-            <div>
-              <h2 className="text-lg font-bold text-sidebar-foreground">Satguru</h2>
-              <p className="text-xs text-sidebar-foreground/70">Engravures ERP</p>
-            </div>
-          )}
+    <div className={cn(
+      "flex flex-col space-y-4 w-64 border-right bg-secondary min-h-screen py-4",
+      className
+    )} {...props}>
+      <ScrollArea className="flex-1 space-y-4">
+        <div className="px-3 py-2">
+          <Link to="/" className="flex items-center space-x-2">
+            <Avatar>
+              <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+              <AvatarFallback>SC</AvatarFallback>
+            </Avatar>
+            <span className="font-bold">Satguru</span>
+          </Link>
+          <Separator className="my-2" />
         </div>
-      </SidebarHeader>
 
-      <SidebarContent className="px-2">
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            Main Operations
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {mainOperationsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end className={getNavClasses}>
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="space-y-1">
+          <h4 className="mb-2 ml-4 text-sm font-semibold tracking-tight">
+            Dashboard
+          </h4>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/dashboard" className="flex items-center space-x-2">
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Overview</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/stock-summary" className="flex items-center space-x-2">
+                <Package className="w-4 h-4" />
+                <span>Stock Summary</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            Manufacturing
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {manufacturingItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end className={getNavClasses}>
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="space-y-1">
+          <h4 className="mb-2 ml-4 text-sm font-semibold tracking-tight">
+            Stock Operations
+          </h4>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/grn" className="flex items-center space-x-2">
+                <ShoppingCart className="w-4 h-4" />
+                <span>GRN</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/issue" className="flex items-center space-x-2">
+                <File className="w-4 h-4" />
+                <span>Issue</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/opening-stock" className="flex items-center space-x-2">
+                <History className="w-4 h-4" />
+                <span>Opening Stock</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            Analytics
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {analyticsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end className={getNavClasses}>
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          {/* Add this in the Stock Operations section after Stock Summary */}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/legacy-data" className="flex items-center space-x-2">
+                <History className="w-4 h-4" />
+                <span>Legacy Data</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
-            Management
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {managementItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end className={getNavClasses}>
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+        <div className="space-y-1">
+          <h4 className="mb-2 ml-4 text-sm font-semibold tracking-tight">
+            Administration
+          </h4>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/items" className="flex items-center space-x-2">
+                <Package className="w-4 h-4" />
+                <span>Items</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/categories" className="flex items-center space-x-2">
+                <ClipboardList className="w-4 h-4" />
+                <span>Categories</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/users" className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>Users</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/settings" className="flex items-center space-x-2">
+                <Settings className="w-4 h-4" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </div>
+      </ScrollArea>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="justify-start px-4 py-2 w-full hover:bg-secondary/50">
+            <Avatar className="mr-2">
+              <AvatarImage src={user?.image} alt={user?.name || "Avatar"} />
+              <AvatarFallback>{user?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <span>{user?.name}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-80" align="end" forceMount>
+          <DropdownMenuLabel>My Account</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => signOut()}>Sign out</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
