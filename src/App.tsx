@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { AppHeader } from './components/layout/AppHeader';
 import { Toaster } from "@/components/ui/toaster"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import StockSummary from './pages/StockSummary';
 import LegacyDataManagement from './pages/LegacyDataManagement';
 
@@ -28,172 +29,114 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen flex w-full bg-background text-foreground">
+        <AppSidebar />
+        <SidebarInset className="flex-1 flex flex-col overflow-hidden">
+          <AppHeader />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
-          <div className="min-h-screen bg-background text-foreground">
-            <Routes>
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <Index />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <Index />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/items" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <ItemMaster />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/categories" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <CategoriesManagement />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/stock" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockOperations />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/grn" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockOperations />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/issue" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockOperations />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/opening-stock" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockOperations />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/reports" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockAnalytics />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <Settings />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/stock-summary" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <StockSummary />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/legacy-data" element={
-                <ProtectedRoute>
-                  <div className="flex h-screen">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                      <AppHeader />
-                      <main className="flex-1 overflow-auto">
-                        <LegacyDataManagement />
-                      </main>
-                    </div>
-                  </div>
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </div>
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Index />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Index />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/items" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <ItemMaster />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/categories" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CategoriesManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/stock" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockOperations />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/grn" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockOperations />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/issue" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockOperations />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/opening-stock" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockOperations />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/reports" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockAnalytics />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Settings />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/stock-summary" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <StockSummary />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/legacy-data" element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <LegacyDataManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            } />
+          </Routes>
           <Toaster />
         </QueryClientProvider>
       </AuthProvider>
