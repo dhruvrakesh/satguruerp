@@ -36,10 +36,10 @@ export function TransactionHistory() {
     dateRange
   );
 
-  // Combine and transform data
+  // Combine and transform data with proper composite keys
   const allTransactions: Transaction[] = [
     ...(recentGRN.data || []).map(grn => ({
-      id: grn.grn_number,
+      id: `${grn.grn_number}-${grn.item_code}`, // Composite key: GRN + item code
       type: 'GRN' as const,
       date: grn.date,
       item_code: grn.item_code,
@@ -49,7 +49,7 @@ export function TransactionHistory() {
       amount: grn.amount_inr,
     })),
     ...(recentIssues.data || []).map(issue => ({
-      id: issue.id,
+      id: `${issue.id}-${issue.item_code}`, // Composite key: Issue ID + item code
       type: 'ISSUE' as const,
       date: issue.date,
       item_code: issue.item_code,
@@ -208,7 +208,7 @@ export function TransactionHistory() {
           </TableHeader>
           <TableBody>
             {filteredTransactions.map((transaction) => (
-              <TableRow key={`${transaction.type}-${transaction.id}`}>
+              <TableRow key={transaction.id}>
                 <TableCell>
                   <Badge 
                     variant={transaction.type === 'GRN' ? 'default' : 'destructive'}

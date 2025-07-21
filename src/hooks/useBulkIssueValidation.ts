@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface BulkValidationResult {
+  composite_key?: string; // Add composite key for tracking
   row_num: number;
   item_code: string;
   item_name: string;

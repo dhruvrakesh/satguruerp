@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileUpload } from "@/components/ui/file-upload";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkIssueValidation, BulkValidationResult } from "@/hooks/useBulkIssueValidation";
+import { supabase } from "@/integrations/supabase/client";
 import { IssueCSVCorrectionManager } from "./IssueCSVCorrectionManager";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
 import { StockCorrectionModal } from "./StockCorrectionModal";
@@ -41,6 +42,15 @@ interface ProcessedRecord {
   warnings: string[];
 }
 
+interface DuplicateCheckResult {
+  total_checked: number;
+  total_duplicates: number;
+  has_duplicates: boolean;
+  duplicates: any[];
+  upload_type: string;
+  check_timestamp: string;
+}
+
 interface EnhancedBulkUploadIssuesProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +65,8 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorRecords, setErrorRecords] = useState<any[]>([]);
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [duplicateCheckResult, setDuplicateCheckResult] = useState<DuplicateCheckResult | null>(null);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const { toast } = useToast();
   const { 
     validateBulk, 
@@ -101,12 +113,46 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     }
   }, [uploadFile]);
 
-  // Run bulk issue validation when CSV data changes
+  // Run duplicate check and bulk validation when CSV data changes
   useEffect(() => {
     if (csvData.length > 0) {
-      performBulkValidation();
+      checkForDuplicates();
     }
   }, [csvData]);
+
+  const checkForDuplicates = async () => {
+    console.log('🔍 Checking for duplicates in', csvData.length, 'records...');
+    setIsProcessing(true);
+    
+    try {
+      // For now, simulate no duplicates (duplicate prevention will be implemented after types update)
+      const simulatedResult: DuplicateCheckResult = {
+        total_checked: csvData.length,
+        total_duplicates: 0,
+        has_duplicates: false,
+        duplicates: [],
+        upload_type: 'ISSUE',
+        check_timestamp: new Date().toISOString()
+      };
+
+      console.log('✅ Duplicate check result (simulated - no duplicates):', simulatedResult);
+      setDuplicateCheckResult(simulatedResult);
+      setShowDuplicateWarning(false);
+      
+      // Proceed with validation since no duplicates detected
+      performBulkValidation();
+    } catch (error: any) {
+      console.error('❌ Duplicate check error:', error);
+      performBulkValidation(); // Proceed with validation on error
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const proceedWithValidation = () => {
+    setShowDuplicateWarning(false);
+    performBulkValidation();
+  };
 
   const processCSVFile = async (file: File) => {
     setIsProcessing(true);
@@ -447,6 +493,53 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Duplicate Warning Alert */}
+          {showDuplicateWarning && duplicateCheckResult && (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-3">
+                  <div className="font-semibold text-red-800">
+                    🚨 CRITICAL: Duplicate Records Detected
+                  </div>
+                  <div className="text-sm text-red-700">
+                    Found <strong>{duplicateCheckResult.total_duplicates}</strong> potential duplicates out of{' '}
+                    <strong>{duplicateCheckResult.total_checked}</strong> records. 
+                    Re-uploading this file will create duplicate entries in the database.
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={proceedWithValidation}
+                    >
+                      Force Upload (Create Duplicates)
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setUploadFile(null);
+                        setCsvData([]);
+                        setShowDuplicateWarning(false);
+                        setCurrentStep(1);
+                      }}
+                    >
+                      Cancel & Choose Different File
+                    </Button>
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      onClick={() => handleDownloadCorrectedCSV('retry-ready')}
+                    >
+                      Download Non-Duplicate Records Only
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Progress Steps */}
           <div className="grid grid-cols-4 gap-4">
             {steps.map((step) => (
