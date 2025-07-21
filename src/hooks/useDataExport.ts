@@ -20,16 +20,16 @@ export interface ExportData {
 }
 
 // Paginated export helper function
-async function exportDataInChunks(
+async function exportDataInChunks<T>(
   tableName: string,
   selectClause: string,
   filters: ExportOptions,
-  transformData: (data: any[]) => any[],
+  transformData: (data: any[]) => T[],
   chunkSize: number = 1000,
   onProgress?: (current: number, total: number, recordsProcessed: number) => void
-): Promise<any[]> {
-  // First, get the total count using any to bypass strict typing
-  let countQuery = (supabase as any)
+): Promise<T[]> {
+  // First, get the total count
+  let countQuery = supabase
     .from(tableName)
     .select('*', { count: 'exact', head: true });
 
@@ -88,7 +88,7 @@ async function exportDataInChunks(
 
     console.log(`Fetching chunk ${chunkIndex + 1}/${totalChunks} (records ${start}-${Math.min(end, count - 1)})`);
 
-    let dataQuery = (supabase as any)
+    let dataQuery = supabase
       .from(tableName)
       .select(selectClause)
       .range(start, end)
@@ -218,7 +218,7 @@ export function useGRNExport() {
       // Start progress tracking
       startExport(count, 1000);
 
-      const rawData = await exportDataInChunks(
+      const exportData = await exportDataInChunks(
         'satguru_grn_log',
         `
           grn_number,
@@ -236,27 +236,35 @@ export function useGRNExport() {
           )
         `,
         options,
-        (data) => data, // Return raw data, transform separately
+        async (data) => {
+          // Get categories for lookup
+          const { data: categories } = await supabase
+            .from('satguru_categories')
+            .select('id, category_name');
+
+          const categoryMap = new Map(
+            categories?.map(cat => [cat.id, cat.category_name]) || []
+          );
+
+          return data.map(grn => ({
+            'GRN Number': grn.grn_number,
+            'Date': format(new Date(grn.date), 'dd/MM/yyyy'),
+            'Item Code': grn.item_code,
+            'Item Name': grn.satguru_item_master?.item_name || '',
+            'Quantity Received': grn.qty_received,
+            'UOM': grn.satguru_item_master?.uom || '',
+            'Vendor': grn.vendor || '',
+            'Invoice Number': grn.invoice_number || '',
+            'Amount (INR)': grn.amount_inr || '',
+            'Remarks': grn.remarks || '',
+            'Created Date': format(new Date(grn.created_at), 'dd/MM/yyyy HH:mm')
+          }));
+        },
         1000,
         (currentChunk, totalChunks, recordsProcessed) => {
           updateProgress(currentChunk, recordsProcessed);
         }
       );
-
-      // Transform the data after export
-      const exportData = rawData.map(grn => ({
-        'GRN Number': grn.grn_number,
-        'Date': format(new Date(grn.date), 'dd/MM/yyyy'),
-        'Item Code': grn.item_code,
-        'Item Name': grn.satguru_item_master?.item_name || '',
-        'Quantity Received': grn.qty_received,
-        'UOM': grn.satguru_item_master?.uom || '',
-        'Vendor': grn.vendor || '',
-        'Invoice Number': grn.invoice_number || '',
-        'Amount (INR)': grn.amount_inr || '',
-        'Remarks': grn.remarks || '',
-        'Created Date': format(new Date(grn.created_at), 'dd/MM/yyyy HH:mm')
-      }));
 
       const dateRange = options.dateFrom || options.dateTo 
         ? `_${options.dateFrom || 'start'}_to_${options.dateTo || 'end'}`

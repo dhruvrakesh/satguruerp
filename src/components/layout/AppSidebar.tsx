@@ -1,85 +1,112 @@
 
-import { useLocation, NavLink } from "react-router-dom";
-import { Home, Package, LayoutDashboard, Settings, Users, ShoppingCart, File, History, ClipboardList } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
+  LayoutDashboard, 
+  Package, 
+  FileText, 
+  TrendingUp, 
+  Settings,
+  Factory,
+  BarChart3,
+  Package2,
+  ArrowUpDown,
+  ClipboardList,
+  Workflow,
+  Layers,
+  Palette,
+  Scissors,
+  PackageCheck,
+  FolderTree,
+  Shield,
+  Image,
+  FileSpreadsheet,
+  CircleDot
+} from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
+
+import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
-  SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar
+  SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
-const dashboardItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Stock Summary", url: "/stock-summary", icon: Package }
+const mainOperationsItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Item Master", url: "/item-master", icon: Package2 },
+  { title: "Specification Master", url: "/specification-master", icon: FileSpreadsheet },
+  { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
+  { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
 ];
 
-const stockOperationItems = [
-  { title: "GRN", url: "/grn", icon: ShoppingCart },
-  { title: "Issue", url: "/issue", icon: File },
-  { title: "Opening Stock", url: "/opening-stock", icon: History },
-  { title: "Legacy Data", url: "/legacy-data", icon: History }
+const manufacturingItems = [
+  { title: "Manufacturing Workflow", url: "/manufacturing-workflow", icon: Workflow },
+  { title: "Order Punching", url: "/order-punching", icon: FileText },
+  { title: "Artwork Management", url: "/artwork-management", icon: Image },
+  { title: "Cylinder Management", url: "/cylinder-management", icon: CircleDot },
+  { title: "Gravure Printing", url: "/gravure-printing", icon: Palette },
+  { title: "Lamination & Coating", url: "/lamination-coating", icon: Layers },
+  { title: "Slitting & Packaging", url: "/slitting-packaging", icon: Scissors },
 ];
 
-const administrationItems = [
-  { title: "Items", url: "/items", icon: Package },
-  { title: "Categories", url: "/categories", icon: ClipboardList },
-  { title: "Users", url: "/users", icon: Users },
-  { title: "Settings", url: "/settings", icon: Settings }
+const analyticsItems = [
+  { title: "Stock Analytics", url: "/stock-analytics", icon: BarChart3 },
+  { title: "Production Reports", url: "/production-reports", icon: TrendingUp },
+  { title: "Workflow Analytics", url: "/workflow-analytics", icon: Factory },
+];
+
+const managementItems = [
+  { title: "Categories Management", url: "/categories", icon: FolderTree },
+  { title: "User Management", url: "/user-management", icon: Shield },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
-  const { user, signOut } = useAuth();
-  const location = useLocation();
   const { state } = useSidebar();
+  const location = useLocation();
+  const currentPath = location.pathname;
   const isCollapsed = state === "collapsed";
 
-  const isActive = (path: string) => {
-    if (path === "/dashboard" && location.pathname === "/") return true;
-    return location.pathname === path;
-  };
-
-  const getNavClassName = (path: string) => {
-    return isActive(path) 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
-      : "hover:bg-sidebar-accent/50";
-  };
+  const isActive = (path: string) => currentPath === path;
+  const getNavClasses = ({ isActive }: { isActive: boolean }) =>
+    isActive 
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm" 
+      : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-accent-foreground";
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4">
-        <NavLink to="/" className="flex items-center space-x-2">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src="https://github.com/shadcn.png" alt="Satguru" />
-            <AvatarFallback>SG</AvatarFallback>
-          </Avatar>
-          {!isCollapsed && <span className="font-bold text-lg">Satguru</span>}
-        </NavLink>
-        {!isCollapsed && <Separator className="mt-2" />}
+    <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
+      <SidebarHeader className="border-b border-sidebar-border/50 pb-4">
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <Factory className="w-5 h-5 text-primary-foreground" />
+          </div>
+          {!isCollapsed && (
+            <div>
+              <h2 className="text-lg font-bold text-sidebar-foreground">Satguru</h2>
+              <p className="text-xs text-sidebar-foreground/70">Engravures ERP</p>
+            </div>
+          )}
+        </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Main Operations
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {dashboardItems.map((item) => (
+            <SidebarMenu className="space-y-1">
+              {mainOperationsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className={getNavClassName(item.url)}>
-                    <NavLink to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      {!isCollapsed && <span>{item.title}</span>}
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -89,15 +116,17 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Stock Operations</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Manufacturing
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {stockOperationItems.map((item) => (
+            <SidebarMenu className="space-y-1">
+              {manufacturingItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className={getNavClassName(item.url)}>
-                    <NavLink to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      {!isCollapsed && <span>{item.title}</span>}
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -107,15 +136,37 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Administration</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Analytics
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {administrationItems.map((item) => (
+            <SidebarMenu className="space-y-1">
+              {analyticsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className={getNavClassName(item.url)}>
-                    <NavLink to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      {!isCollapsed && <span>{item.title}</span>}
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Management
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              {managementItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -124,33 +175,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start p-2 h-auto">
-              <Avatar className="h-6 w-6 mr-2">
-                <AvatarImage src={user?.user_metadata?.image} alt={user?.user_metadata?.full_name || "Avatar"} />
-                <AvatarFallback className="text-xs">
-                  {user?.email?.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              {!isCollapsed && (
-                <span className="truncate text-sm">
-                  {user?.user_metadata?.full_name || user?.email}
-                </span>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut()}>
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }
