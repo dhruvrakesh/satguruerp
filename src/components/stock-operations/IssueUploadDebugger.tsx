@@ -39,6 +39,7 @@ interface IssueDebugAnalysis {
   errorRecords: number;
   warningRecords: number;
   stockIssues: number;
+  correctedRecords: number;
   processingProgress: number;
   records: IssueDebugRecord[];
   stockAnalysis: {
@@ -70,20 +71,33 @@ export function IssueUploadDebugger({
   const [correctionData, setCorrectionData] = useState<any>({});
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { validateBulk, isValidating } = useBulkIssueValidation();
+  const { validateBulk, isValidating, getCorrectedQuantity, correctedRecords } = useBulkIssueValidation();
 
   useEffect(() => {
     if (csvData?.length > 0) {
       performIssueDebugAnalysis();
     }
-  }, [csvData]);
+  }, [csvData, correctedRecords]);
 
   const performIssueDebugAnalysis = async () => {
     console.log('🔧 Starting Issue upload debug analysis...');
     
     try {
+      // Apply corrections to CSV data before analysis
+      const correctedCsvData = csvData.map((row, index) => {
+        const correctedQty = getCorrectedQuantity(index);
+        if (correctedQty !== null) {
+          return {
+            ...row,
+            qty_issued: correctedQty,
+            quantity: correctedQty
+          };
+        }
+        return row;
+      });
+
       // Prepare items for bulk validation
-      const issueItems = csvData.map((row, index) => ({
+      const issueItems = correctedCsvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         row_num: index + 1
@@ -95,7 +109,7 @@ export function IssueUploadDebugger({
       const validationResults = await validateBulk(issueItems);
       
       // Process results and combine with CSV data
-      const records: IssueDebugRecord[] = csvData.map((row, index) => {
+      const records: IssueDebugRecord[] = correctedCsvData.map((row, index) => {
         const errors: string[] = [];
         const warnings: string[] = [];
         
@@ -128,6 +142,9 @@ export function IssueUploadDebugger({
             stockStatus = 'sufficient';
           }
         }
+
+        // Check if this record has been corrected
+        const hasCorrectedQty = getCorrectedQuantity(index) !== null;
         
         return {
           rowIndex: index,
@@ -138,17 +155,18 @@ export function IssueUploadDebugger({
           stockStatus,
           availableStock,
           requiredStock,
-          status: errors.length > 0 ? 'failed' : warnings.length > 0 ? 'pending' : 'success'
+          status: hasCorrectedQty ? 'corrected' : (errors.length > 0 ? 'failed' : warnings.length > 0 ? 'pending' : 'success')
         };
       });
       
       // Calculate summary statistics
       const analysis: IssueDebugAnalysis = {
         totalRecords: records.length,
-        validRecords: records.filter(r => r.status === 'success').length,
+        validRecords: records.filter(r => r.status === 'success' || r.status === 'corrected').length,
         errorRecords: records.filter(r => r.status === 'failed').length,
         warningRecords: records.filter(r => r.status === 'pending').length,
         stockIssues: records.filter(r => r.stockStatus === 'insufficient' || r.stockStatus === 'critical').length,
+        correctedRecords: records.filter(r => r.status === 'corrected').length,
         processingProgress: 100, // Complete after bulk validation
         records,
         stockAnalysis: {
@@ -243,6 +261,11 @@ export function IssueUploadDebugger({
         <CardTitle className="flex items-center gap-2">
           <TrendingDown className="h-5 w-5" />
           Issue Upload Debug Console
+          {debugAnalysis.correctedRecords > 0 && (
+            <Badge variant="outline" className="bg-blue-50">
+              {debugAnalysis.correctedRecords} Corrected
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -255,7 +278,7 @@ export function IssueUploadDebugger({
           </TabsList>
           
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="p-4 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">{debugAnalysis.totalRecords}</div>
                 <div className="text-sm text-blue-700">Total Records</div>
@@ -271,6 +294,10 @@ export function IssueUploadDebugger({
               <div className="p-4 bg-yellow-50 rounded-lg">
                 <div className="text-2xl font-bold text-yellow-600">{debugAnalysis.warningRecords}</div>
                 <div className="text-sm text-yellow-700">Warning Records</div>
+              </div>
+              <div className="p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{debugAnalysis.correctedRecords}</div>
+                <div className="text-sm text-purple-700">Corrected Records</div>
               </div>
             </div>
             
@@ -290,16 +317,16 @@ export function IssueUploadDebugger({
                   variant="outline" 
                   size="sm"
                   onClick={() => onDownloadCorrectedCSV('corrections')}
-                  disabled={debugAnalysis.records.filter(r => r.status === 'corrected').length === 0}
+                  disabled={debugAnalysis.correctedRecords === 0}
                 >
                   <Download className="w-4 h-4 mr-1" />
-                  Download Corrections ({debugAnalysis.records.filter(r => r.status === 'corrected').length})
+                  Download Corrections ({debugAnalysis.correctedRecords})
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => onDownloadCorrectedCSV('retry-ready')}
-                  disabled={debugAnalysis.validRecords + debugAnalysis.records.filter(r => r.status === 'corrected').length === 0}
+                  disabled={debugAnalysis.validRecords === 0}
                 >
                   <Download className="w-4 h-4 mr-1" />
                   Download Retry-Ready CSV
@@ -321,6 +348,11 @@ export function IssueUploadDebugger({
                         {record.stockStatus && (
                           <Badge className={getStockStatusColor(record.stockStatus)}>
                             {record.stockStatus}
+                          </Badge>
+                        )}
+                        {record.status === 'corrected' && (
+                          <Badge variant="outline" className="bg-blue-50">
+                            Corrected
                           </Badge>
                         )}
                       </div>
@@ -361,9 +393,13 @@ export function IssueUploadDebugger({
                     )}
                     
                     <div className="text-xs text-muted-foreground">
-                      Item: {record.originalData.item_code} | Qty: {record.originalData.qty_issued || record.originalData.quantity}
+                      Item: {record.originalData.item_code} | 
+                      Qty: {getCorrectedQuantity(record.rowIndex) || record.originalData.qty_issued || record.originalData.quantity}
                       {record.stockStatus !== 'unknown' && (
                         <> | Stock: {record.availableStock}/{record.requiredStock}</>
+                      )}
+                      {getCorrectedQuantity(record.rowIndex) !== null && (
+                        <> | Original: {record.originalData.qty_issued || record.originalData.quantity}</>
                       )}
                     </div>
                   </div>
@@ -397,7 +433,7 @@ export function IssueUploadDebugger({
                 <TrendingDown className="h-4 w-4" />
                 <AlertDescription>
                   {debugAnalysis.stockAnalysis.insufficientStock} items have insufficient stock levels. 
-                  Consider updating stock levels or adjusting quantities before processing.
+                  Use the Stock Correction feature to adjust quantities before processing.
                 </AlertDescription>
               </Alert>
             )}
@@ -480,7 +516,7 @@ export function IssueUploadDebugger({
             )}
             
             <div className="text-sm text-muted-foreground">
-              {debugAnalysis.records.filter(r => r.status === 'corrected').length} records have been corrected and are ready for reprocessing.
+              {debugAnalysis.correctedRecords} records have been corrected and are ready for reprocessing.
             </div>
           </TabsContent>
         </Tabs>

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBulkIssueValidation, BulkValidationResult } from "@/hooks/useBulkIssueValidation";
 import { CSVCorrectionManager } from "./CSVCorrectionManager";
 import { IssueUploadDebugger } from "./IssueUploadDebugger";
+import { StockCorrectionModal } from "./StockCorrectionModal";
 import { 
   Upload, 
   FileText, 
@@ -20,7 +21,8 @@ import {
   Activity,
   TrendingDown,
   Eye,
-  Download
+  Download,
+  Edit3
 } from "lucide-react";
 import Papa from "papaparse";
 
@@ -52,9 +54,17 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   const [validationResults, setValidationResults] = useState<BulkValidationResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorRecords, setErrorRecords] = useState<any[]>([]);
-  const [correctedRecords, setCorrectedRecords] = useState<any[]>([]);
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const { toast } = useToast();
-  const { validateBulk, processBulk, isValidating, isProcessing: isBulkProcessing } = useBulkIssueValidation();
+  const { 
+    validateBulk, 
+    processBulk, 
+    isValidating, 
+    isProcessing: isBulkProcessing,
+    correctedRecords,
+    applyCorrectedQuantity,
+    getCorrectedQuantity
+  } = useBulkIssueValidation();
 
   const steps: UploadStep[] = [
     {
@@ -71,8 +81,8 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     },
     {
       id: 3,
-      title: "Debug Console",
-      description: "Advanced debugging and correction tools",
+      title: "Debug Console & Corrections",
+      description: "Advanced debugging and stock correction tools",
       status: processedRecords.length > 0 ? 'completed' : csvData.length > 0 ? 'active' : 'pending'
     },
     {
@@ -136,8 +146,21 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     setIsProcessing(true);
     
     try {
+      // Apply corrections to CSV data before validation
+      const correctedCsvData = csvData.map((row, index) => {
+        const correctedQty = getCorrectedQuantity(index);
+        if (correctedQty !== null) {
+          return {
+            ...row,
+            qty_issued: correctedQty,
+            quantity: correctedQty
+          };
+        }
+        return row;
+      });
+
       // Extract issue items from CSV data for bulk validation
-      const issueItems = csvData.map((row, index) => ({
+      const issueItems = correctedCsvData.map((row, index) => ({
         item_code: row.item_code || '',
         qty_issued: Number(row.qty_issued || row.quantity || 0),
         row_num: index + 1
@@ -145,12 +168,15 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
 
       console.log('📊 Validating', issueItems.length, 'unique items...');
       
-      // Perform bulk validation using the new RPC function
+      // Perform bulk validation using the RPC function - NO LIMIT!
       const results = await validateBulk(issueItems);
+      console.log('✅ Validation results received:', results.length, 'records');
+      
+      // Store ALL validation results (no truncation)
       setValidationResults(results);
       
       // Process results and combine with CSV data
-      const processed: ProcessedRecord[] = csvData.map((row, index) => {
+      const processed: ProcessedRecord[] = correctedCsvData.map((row, index) => {
         const errors: string[] = [];
         const warnings: string[] = [];
         
@@ -196,7 +222,8 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
         totalRecords: processed.length,
         validRecords: processed.filter(r => r.errors.length === 0).length,
         errorRecords: errors.length,
-        stockIssues: results.filter(r => r.validation_status === 'insufficient_stock').length
+        stockIssues: results.filter(r => r.validation_status === 'insufficient_stock').length,
+        validationResultsCount: results.length // This should match totalRecords
       });
       
     } catch (error: any) {
@@ -212,20 +239,23 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
   };
 
   const handleRecordCorrection = (rowIndex: number, correctedData: any) => {
-    setCorrectedRecords(prev => [
-      ...prev.filter(r => r.rowIndex !== rowIndex),
-      { rowIndex, original: processedRecords[rowIndex]?.data, corrected: correctedData }
-    ]);
+    // Update CSV data with corrections
+    const updatedCsvData = [...csvData];
+    updatedCsvData[rowIndex] = correctedData;
+    setCsvData(updatedCsvData);
+    
+    // Re-run validation
+    performBulkValidation();
     
     toast({
       title: "Record Corrected",
-      description: `Row ${rowIndex + 1} has been corrected and is ready for upload`
+      description: `Row ${rowIndex + 1} has been corrected and re-validated`
     });
   };
 
-  const handleBatchReprocess = (correctedRecords: any[]) => {
-    // Reprocess with corrections
-    performBulkValidation();
+  const handleBatchReprocess = async () => {
+    // Reprocess with all corrections
+    await performBulkValidation();
     toast({
       title: "Batch Reprocessed",
       description: "All corrections have been applied and validated"
@@ -234,6 +264,24 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
 
   const handleDownloadCorrectedCSV = (mode: string) => {
     console.log(`📥 Downloading corrected Issue CSV in ${mode} mode`);
+    // Implementation for CSV download would go here
+  };
+
+  const handleOpenStockCorrection = () => {
+    setCorrectionModalOpen(true);
+  };
+
+  const handleApplyStockCorrections = (corrections: any[]) => {
+    // Apply corrections via the hook
+    corrections.forEach(correction => {
+      applyCorrectedQuantity(
+        correction.rowIndex,
+        correction.item_code,
+        correction.original_qty,
+        correction.corrected_qty,
+        correction.available_qty
+      );
+    });
   };
 
   const handleProcessUpload = async () => {
@@ -246,6 +294,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
       return;
     }
 
+    // Process ALL valid records (not just 1000)
     const validRecords = validationResults.filter(r => r.validation_status === 'sufficient');
     if (validRecords.length === 0) {
       toast({
@@ -303,6 +352,11 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
     if (step.status === 'error') return <AlertTriangle className="w-5 h-5" />;
     return <div className="w-5 h-5 rounded-full border-2 border-current" />;
   };
+
+  // Calculate counts based on validation results
+  const validRecordsCount = validationResults.filter(r => r.validation_status === 'sufficient').length;
+  const insufficientStockCount = validationResults.filter(r => r.validation_status === 'insufficient_stock').length;
+  const insufficientStockItems = validationResults.filter(r => r.validation_status === 'insufficient_stock');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -379,13 +433,11 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{processedRecords.length}</div>
+                    <div className="text-2xl font-bold text-blue-600">{csvData.length}</div>
                     <div className="text-sm text-blue-700">Total Records</div>
                   </div>
                   <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">
-                      {processedRecords.filter(r => r.errors.length === 0).length}
-                    </div>
+                    <div className="text-2xl font-bold text-green-600">{validRecordsCount}</div>
                     <div className="text-sm text-green-700">Valid Records</div>
                   </div>
                   <div className="text-center p-3 bg-red-50 rounded-lg">
@@ -395,12 +447,33 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     <div className="text-sm text-red-700">Error Records</div>
                   </div>
                   <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {validationResults.filter(r => r.validation_status === 'insufficient_stock').length}
-                    </div>
-                    <div className="text-sm text-yellow-700">Stock Issues</div>
+                    <div className="text-2xl font-bold text-yellow-600">{insufficientStockCount}</div>
+                    <div className="text-sm text-yellow-700">Insufficient Stock</div>
                   </div>
                 </div>
+
+                {/* Stock Correction Actions */}
+                {insufficientStockCount > 0 && (
+                  <div className="mb-4">
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="flex items-center justify-between">
+                        <span>
+                          <strong>{insufficientStockCount} items</strong> have insufficient stock levels that need correction.
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleOpenStockCorrection}
+                          className="ml-4"
+                        >
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Fix Stock Issues
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
 
                 {/* Stock Status Preview */}
                 <ScrollArea className="h-40 border rounded-lg p-3">
@@ -418,9 +491,15 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                               {record.validationResult.validation_status}
                             </Badge>
                           )}
+                          {getCorrectedQuantity(record.rowIndex) !== null && (
+                            <Badge variant="outline" className="text-xs bg-blue-50">
+                              Corrected
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Available: {record.validationResult?.available_qty || 0} | Requested: {record.validationResult?.requested_qty || 0}
+                          Available: {record.validationResult?.available_qty || 0} | 
+                          Requested: {getCorrectedQuantity(record.rowIndex) || record.validationResult?.requested_qty || 0}
                         </div>
                       </div>
                     ))}
@@ -463,7 +542,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                 <CSVCorrectionManager
                   records={csvData}
                   errorRecords={errorRecords}
-                  correctedRecords={correctedRecords}
+                  correctedRecords={[]}
                   onDownload={handleDownloadCorrectedCSV}
                   onReupload={handleBatchReprocess}
                 />
@@ -483,7 +562,7 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
           )}
 
           {/* Step 4: Process Upload */}
-          {processedRecords.filter(r => r.errors.length === 0).length > 0 && (
+          {validRecordsCount > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -495,7 +574,10 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      {validationResults.filter(r => r.validation_status === 'sufficient').length} records are ready for upload
+                      {validRecordsCount} records are ready for upload
+                      {correctedRecords.length > 0 && (
+                        <span className="text-blue-600"> (including {correctedRecords.length} corrected)</span>
+                      )}
                     </p>
                   </div>
                   <Button 
@@ -505,13 +587,23 @@ export function EnhancedBulkUploadIssues({ open, onOpenChange }: EnhancedBulkUpl
                     onClick={handleProcessUpload}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    {isBulkProcessing ? 'Processing...' : `Process ${validationResults.filter(r => r.validation_status === 'sufficient').length} Issues`}
+                    {isBulkProcessing ? 'Processing...' : `Process ${validRecordsCount} Issues`}
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
+
+        {/* Stock Correction Modal */}
+        <StockCorrectionModal
+          open={correctionModalOpen}
+          onOpenChange={setCorrectionModalOpen}
+          insufficientStockItems={insufficientStockItems}
+          onApplyCorrections={handleApplyStockCorrections}
+          onRevalidate={performBulkValidation}
+          existingCorrections={correctedRecords}
+        />
       </DialogContent>
     </Dialog>
   );
