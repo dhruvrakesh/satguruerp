@@ -18,6 +18,12 @@ export interface StockSummaryRecord {
   total_grns: number;
   total_issues: number;
   uom: string;
+  // New fields from enhanced view
+  legacy_baseline?: number;
+  operational_grns?: number;
+  operational_issues?: number;
+  data_quality?: string;
+  net_operational_movement?: number;
 }
 
 export interface StockSummaryFilters {
@@ -128,51 +134,33 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
           };
         }
 
-        // Calculate 30-day metrics for each item (this part still needs individual queries)
-        const enrichedData = await Promise.all(data.map(async (item) => {
-          try {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Enhanced view already includes 30-day metrics, no need for extra queries
+        const enrichedData = data.map((item: any) => {
+          const record: StockSummaryRecord = {
+            item_code: item.item_code,
+            item_name: item.item_name,
+            category_name: item.category_name || 'UNKNOWN',
+            category_id: item.category_id || '',
+            current_qty: Number(item.current_qty) || 0,
+            received_30_days: Number(item.received_30_days) || 0,
+            consumption_30_days: Number(item.consumption_30_days) || 0,
+            reorder_level: Number(item.reorder_level) || 0,
+            stock_status: item.stock_status,
+            last_updated: item.last_updated,
+            opening_stock: Number(item.opening_stock) || 0,
+            total_grns: Number(item.total_grns) || 0,
+            total_issues: Number(item.total_issues) || 0,
+            uom: item.uom || 'KG',
+            // Enhanced view fields
+            legacy_baseline: Number(item.legacy_baseline) || 0,
+            operational_grns: Number(item.operational_grns) || 0,
+            operational_issues: Number(item.operational_issues) || 0,
+            data_quality: item.data_quality || 'CLEAN',
+            net_operational_movement: Number(item.net_operational_movement) || 0
+          };
 
-            const [grnData, issueData] = await Promise.all([
-              supabase
-                .from('satguru_grn_log')
-                .select('qty_received')
-                .eq('item_code', item.item_code)
-                .gte('date', thirtyDaysAgo.toISOString().split('T')[0]),
-              supabase
-                .from('satguru_issue_log')
-                .select('qty_issued')
-                .eq('item_code', item.item_code)
-                .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
-            ]);
-
-            const received30Days = grnData.data?.reduce((sum, grn) => sum + (grn.qty_received || 0), 0) || 0;
-            const consumption30Days = issueData.data?.reduce((sum, issue) => sum + (issue.qty_issued || 0), 0) || 0;
-
-            const record: StockSummaryRecord = {
-              item_code: item.item_code,
-              item_name: item.item_name,
-              category_name: item.category_name || 'UNKNOWN',
-              category_id: item.category_id || '',
-              current_qty: Number(item.current_qty) || 0,
-              received_30_days: received30Days,
-              consumption_30_days: consumption30Days,
-              reorder_level: Number(item.reorder_level) || 0,
-              stock_status: item.stock_status,
-              last_updated: item.last_updated,
-              opening_stock: Number(item.opening_stock) || 0,
-              total_grns: Number(item.total_grns) || 0,
-              total_issues: Number(item.total_issues) || 0,
-              uom: item.uom || 'KG'
-            };
-
-            return record;
-          } catch (error) {
-            console.error(`Error enriching data for ${item.item_code}:`, error);
-            return null;
-          }
-        }));
+          return record;
+        });
 
         const validResults = enrichedData.filter((result): result is StockSummaryRecord => result !== null);
 

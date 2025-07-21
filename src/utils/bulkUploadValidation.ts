@@ -74,11 +74,27 @@ export class BulkUploadValidator {
             break;
 
           case 'date':
-            const dateValue = new Date(value);
+            // CRITICAL FIX: Preserve original date format, don't convert to today
+            let processedDate = value;
+            
+            // Handle different date formats
+            if (value.includes('/')) {
+              const parts = value.split('/');
+              if (parts.length === 3) {
+                // Handle DD/MM/YYYY or MM/DD/YYYY by converting to YYYY-MM-DD
+                if (parts[2].length === 4) {
+                  // Assume DD/MM/YYYY format
+                  processedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+              }
+            }
+            
+            const dateValue = new Date(processedDate);
             if (isNaN(dateValue.getTime())) {
-              result.errors.push(`${rule.field} must be a valid date (YYYY-MM-DD)`);
+              result.errors.push(`${rule.field} must be a valid date (YYYY-MM-DD or DD/MM/YYYY)`);
               result.isValid = false;
             } else {
+              // Preserve the date as-is, don't force it to be today
               result.transformedData[rule.field] = dateValue.toISOString().split('T')[0];
             }
             break;

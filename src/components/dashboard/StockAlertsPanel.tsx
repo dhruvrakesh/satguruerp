@@ -21,7 +21,7 @@ export function StockAlertsPanel() {
       const { data, error } = await supabase
         .from("satguru_stock_summary_view")
         .select("*")
-        .or("stock_status.eq.LOW,stock_status.eq.ZERO")
+        .or("stock_status.eq.low_stock,stock_status.eq.out_of_stock,stock_status.eq.ZERO")
         .order("current_qty", { ascending: true })
         .limit(10);
 
