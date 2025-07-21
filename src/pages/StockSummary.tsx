@@ -21,7 +21,9 @@ export default function StockSummary() {
   // Calculate summary metrics from stock data
   const summaryMetrics = summaryData?.data ? {
     totalItems: summaryData.data.length,
-    lowStockItems: summaryData.data.filter(item => item.stock_status === 'LOW_STOCK' || item.stock_status === 'OUT_OF_STOCK').length,
+    lowStockItems: summaryData.data.filter(item => 
+      item.stock_status === 'low_stock' || item.stock_status === 'out_of_stock'
+    ).length,
     totalValue: summaryData.data.reduce((sum, item) => sum + (item.current_qty * 1), 0), // Simplified value calculation
     activeCategories: new Set(summaryData.data.map(item => item.category_name).filter(Boolean)).size
   } : null;
@@ -32,7 +34,7 @@ export default function StockSummary() {
     return stockDistribution.data.map(item => ({
       category: item.status,
       count: item.count,
-      variant: item.status === 'LOW_STOCK' || item.status === 'OUT_OF_STOCK' ? 'destructive' : 'secondary'
+      variant: item.status === 'low_stock' || item.status === 'out_of_stock' ? 'destructive' : 'secondary'
     }));
   };
 

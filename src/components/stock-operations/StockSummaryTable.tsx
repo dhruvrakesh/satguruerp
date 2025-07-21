@@ -53,10 +53,10 @@ export function StockSummaryTable() {
 
   const getStockStatusBadge = (status: string, qty: number) => {
     const statusConfig = {
-      'LOW_STOCK': { variant: 'destructive' as const, label: 'Low Stock' },
-      'OUT_OF_STOCK': { variant: 'destructive' as const, label: 'Out of Stock' },
-      'GOOD_STOCK': { variant: 'default' as const, label: 'Good Stock' },
-      'EXCESS_STOCK': { variant: 'secondary' as const, label: 'Excess Stock' }
+      'low_stock': { variant: 'destructive' as const, label: 'Low Stock' },
+      'out_of_stock': { variant: 'destructive' as const, label: 'Out of Stock' },
+      'normal': { variant: 'default' as const, label: 'Normal' },
+      'overstock': { variant: 'secondary' as const, label: 'Overstock' }
     };
     
     const config = statusConfig[status as keyof typeof statusConfig] || 
@@ -171,10 +171,10 @@ export function StockSummaryTable() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="LOW_STOCK">Low Stock</SelectItem>
-                    <SelectItem value="OUT_OF_STOCK">Out of Stock</SelectItem>
-                    <SelectItem value="GOOD_STOCK">Good Stock</SelectItem>
-                    <SelectItem value="EXCESS_STOCK">Excess Stock</SelectItem>
+                    <SelectItem value="low_stock">Low Stock</SelectItem>
+                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="overstock">Overstock</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -244,9 +244,8 @@ export function StockSummaryTable() {
                   <SortIcon column="category_name" />
                 </div>
               </TableHead>
-              <TableHead className="text-right">Opening Stock</TableHead>
-              <TableHead className="text-right">Total GRNs</TableHead>
-              <TableHead className="text-right">Total Issues</TableHead>
+              <TableHead className="text-right">Received (30d)</TableHead>
+              <TableHead className="text-right">Consumed (30d)</TableHead>
               <TableHead 
                 className="text-right cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('current_qty')}
@@ -256,7 +255,7 @@ export function StockSummaryTable() {
                   <SortIcon column="current_qty" />
                 </div>
               </TableHead>
-              <TableHead>UOM</TableHead>
+              <TableHead className="text-right">Reorder Level</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Updated</TableHead>
             </TableRow>
@@ -264,13 +263,13 @@ export function StockSummaryTable() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   Loading stock data...
                 </TableCell>
               </TableRow>
             ) : stockData?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No stock data found
                   {filters.search && ` for "${filters.search}"`}
                 </TableCell>
@@ -281,13 +280,12 @@ export function StockSummaryTable() {
                   <TableCell className="font-medium">{item.item_code}</TableCell>
                   <TableCell>{item.item_name}</TableCell>
                   <TableCell>{item.category_name}</TableCell>
-                  <TableCell className="text-right">{item.opening_stock?.toLocaleString() || 0}</TableCell>
-                  <TableCell className="text-right">{item.total_grns?.toLocaleString() || 0}</TableCell>
-                  <TableCell className="text-right">{item.total_issues?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{item.received_30_days?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{item.consumption_30_days?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right font-semibold">
                     {item.current_qty?.toLocaleString() || 0}
                   </TableCell>
-                  <TableCell>{item.uom}</TableCell>
+                  <TableCell className="text-right">{item.reorder_level?.toLocaleString() || 0}</TableCell>
                   <TableCell>
                     {getStockStatusBadge(item.stock_status, item.current_qty)}
                   </TableCell>

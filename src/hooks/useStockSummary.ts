@@ -7,15 +7,18 @@ export interface StockSummaryRecord {
   item_code: string;
   item_name: string;
   category_name: string;
-  uom: string;
-  opening_stock: number;
-  total_grns: number;
-  total_issues: number;
+  category_id: string;
   current_qty: number;
+  received_30_days: number;
+  consumption_30_days: number;
+  reorder_level: number;
   stock_status: string;
   last_updated: string;
-  min_stock_level?: number;
-  max_stock_level?: number;
+  // These fields might be available via calculate_current_stock function
+  opening_stock?: number;
+  total_grns?: number;
+  total_issues?: number;
+  uom?: string;
 }
 
 export interface StockSummaryFilters {
