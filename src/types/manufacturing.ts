@@ -1,5 +1,11 @@
 
-import type { ProcessStage, ProcessStatus, ProductType, OrderStatus } from '@/config/manufacturing';
+import type { MANUFACTURING_CONFIG } from '@/config/manufacturing';
+
+// Extract types from config for consistency
+export type ProcessStage = typeof MANUFACTURING_CONFIG.PROCESS_STAGES[keyof typeof MANUFACTURING_CONFIG.PROCESS_STAGES];
+export type ProcessStatus = typeof MANUFACTURING_CONFIG.PROCESS_STATUS[keyof typeof MANUFACTURING_CONFIG.PROCESS_STATUS];
+export type OrderStatus = typeof MANUFACTURING_CONFIG.ORDER_STATUS[keyof typeof MANUFACTURING_CONFIG.ORDER_STATUS];
+export type ProductType = typeof MANUFACTURING_CONFIG.PRODUCT_TYPES[keyof typeof MANUFACTURING_CONFIG.PRODUCT_TYPES];
 
 export interface Customer {
   id: string;

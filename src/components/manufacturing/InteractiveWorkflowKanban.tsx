@@ -46,18 +46,25 @@ export function InteractiveWorkflowKanban() {
     const order = orders?.find(o => o.id === draggableId);
     if (!order) return;
 
-    // Map UI status to database status
+    // Map UI status to process status for new manufacturing stage status system
     const newStatus = mapUIStatusToDatabase(destination.droppableId);
     
     try {
-      const { error } = await supabase
-        .from('order_punching')
-        .update({ status: newStatus })
-        .eq('id', order.id);
+      // Use the new manufacturing stage transition function
+      const { error } = await supabase.rpc('handle_manufacturing_stage_transition', {
+        p_uiorn: order.uiorn,
+        p_stage: 'GRAVURE_PRINTING', // Default stage - should be determined dynamically
+        p_status: newStatus,
+        p_operator_id: null,
+        p_machine_id: null,
+        p_process_parameters: {},
+        p_quality_metrics: {},
+        p_notes: `Status updated via Kanban board to ${MANUFACTURING_CONFIG.STATUS_LABELS[newStatus]}`
+      });
 
       if (error) throw error;
 
-      toast.success(`Order ${order.uiorn} moved to ${destination.droppableId}`);
+      toast.success(`Order ${order.uiorn} moved to ${MANUFACTURING_CONFIG.STATUS_LABELS[newStatus]}`);
       refetch();
     } catch (error) {
       console.error('Error updating order status:', error);

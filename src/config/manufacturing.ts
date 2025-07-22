@@ -1,17 +1,30 @@
 
-// Manufacturing Configuration - Single Source of Truth
+// Manufacturing Configuration - Single Source of Truth aligned with database
 export const MANUFACTURING_CONFIG = {
-  // Process Stage Mappings - Aligned with database enums
+  // Process Stage Mappings - Aligned with database process_stage enum
   PROCESS_STAGES: {
     ARTWORK_UPLOAD: 'ARTWORK_UPLOAD',
     GRAVURE_PRINTING: 'GRAVURE_PRINTING', 
-    LAMINATION: 'LAMINATION_COATING',
+    LAMINATION_COATING: 'LAMINATION_COATING',
     ADHESIVE_COATING: 'ADHESIVE_COATING',
-    SLITTING: 'SLITTING_PACKING',
-    PACKAGING: 'PACKAGING'
+    SLITTING_PACKING: 'SLITTING_PACKING',
+    PACKAGING: 'PACKAGING',
+    DISPATCH: 'DISPATCH',
+    LAMINATION: 'LAMINATION',
+    PRINTING: 'PRINTING',
+    SLITTING: 'SLITTING'
   } as const,
 
-  // Status Enums aligned with database order_punching table
+  // Process Status for manufacturing stage status - aligned with process_status enum
+  PROCESS_STATUS: {
+    PENDING: 'pending',
+    IN_PROGRESS: 'in_progress',
+    COMPLETED: 'completed',
+    ON_HOLD: 'on_hold',
+    CANCELLED: 'cancelled'
+  } as const,
+
+  // Order Status for order_punching table
   ORDER_STATUS: {
     PENDING: 'PENDING',
     STARTED: 'STARTED',
@@ -21,13 +34,22 @@ export const MANUFACTURING_CONFIG = {
     CANCELLED: 'CANCELLED'
   } as const,
 
-  // Process Status for individual stages
-  PROCESS_STATUS: {
-    PENDING: 'pending',
-    IN_PROGRESS: 'in_progress',
-    COMPLETED: 'completed',
-    ON_HOLD: 'on_hold',
-    CANCELLED: 'cancelled'
+  // UI Display Labels
+  STAGE_LABELS: {
+    'ARTWORK_UPLOAD': 'Artwork Upload',
+    'GRAVURE_PRINTING': 'Gravure Printing',
+    'LAMINATION_COATING': 'Lamination & Coating',
+    'SLITTING_PACKING': 'Slitting & Packing',
+    'PACKAGING': 'Packaging',
+    'DISPATCH': 'Dispatch'
+  } as const,
+
+  STATUS_LABELS: {
+    'pending': 'Pending',
+    'in_progress': 'In Progress',
+    'completed': 'Completed',
+    'on_hold': 'On Hold',
+    'cancelled': 'Cancelled'
   } as const,
 
   // Product Types for Flexible Packaging
@@ -103,18 +125,37 @@ export type ProcessStatus = typeof MANUFACTURING_CONFIG.PROCESS_STATUS[keyof typ
 export type ProductType = typeof MANUFACTURING_CONFIG.PRODUCT_TYPES[keyof typeof MANUFACTURING_CONFIG.PRODUCT_TYPES];
 export type SubstrateMaterial = typeof MANUFACTURING_CONFIG.SUBSTRATE_MATERIALS[keyof typeof MANUFACTURING_CONFIG.SUBSTRATE_MATERIALS];
 
-// Status mapping utilities
+// Status mapping utilities for UI-Database consistency
 export const mapUIStatusToDatabase = (uiStatus: string): string => {
   const statusMap: Record<string, string> = {
-    'pending': MANUFACTURING_CONFIG.ORDER_STATUS.PENDING,
-    'in_progress': MANUFACTURING_CONFIG.ORDER_STATUS.IN_PROGRESS,
-    'completed': MANUFACTURING_CONFIG.ORDER_STATUS.COMPLETED,
-    'on_hold': MANUFACTURING_CONFIG.ORDER_STATUS.ON_HOLD,
-    'cancelled': MANUFACTURING_CONFIG.ORDER_STATUS.CANCELLED
+    'pending': MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING,
+    'in_progress': MANUFACTURING_CONFIG.PROCESS_STATUS.IN_PROGRESS,
+    'completed': MANUFACTURING_CONFIG.PROCESS_STATUS.COMPLETED,
+    'on_hold': MANUFACTURING_CONFIG.PROCESS_STATUS.ON_HOLD,
+    'cancelled': MANUFACTURING_CONFIG.PROCESS_STATUS.CANCELLED
   };
-  return statusMap[uiStatus] || uiStatus.toUpperCase();
+  return statusMap[uiStatus] || uiStatus;
 };
 
 export const mapDatabaseStatusToUI = (dbStatus: string): string => {
   return dbStatus?.toLowerCase() || 'pending';
 };
+
+// Kanban configuration
+export const KANBAN_COLUMNS = [
+  {
+    id: 'pending',
+    title: 'Pending',
+    status: MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING
+  },
+  {
+    id: 'in_progress',
+    title: 'In Progress', 
+    status: MANUFACTURING_CONFIG.PROCESS_STATUS.IN_PROGRESS
+  },
+  {
+    id: 'completed',
+    title: 'Completed',
+    status: MANUFACTURING_CONFIG.PROCESS_STATUS.COMPLETED
+  }
+] as const;
