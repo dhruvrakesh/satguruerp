@@ -35,7 +35,7 @@ export function ItemPricingMaster() {
     search: searchTerm
   });
   
-  const { data: costCategories = [] } = useCostCategories();
+  const { costCategories = [] } = useCostCategories();
   const { data: categories = [] } = useCategories();
   const updatePriceMutation = useUpdateItemPrice();
   const addPriceMutation = useAddItemPrice();

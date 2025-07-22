@@ -13,10 +13,24 @@ import {
   Clock,
   Gauge
 } from "lucide-react";
-import { ProcessStage, QualityMetrics } from "@/types/manufacturing";
+
+// Updated interface to match actual data structure
+interface ProcessStageData {
+  id: string;
+  uiorn: string;
+  stage: string;
+  status: string;
+  started_at?: string;
+  completed_at?: string;
+  operator_id?: string;
+  machine_id?: string;
+  process_parameters?: Record<string, any>;
+  quality_metrics?: Record<string, any>;
+  notes?: string;
+}
 
 interface EnhancedProcessStageCardProps {
-  stage: ProcessStage;
+  stage: ProcessStageData;
   orderData: {
     uiorn: string;
     customer_name: string;
@@ -34,19 +48,27 @@ export function EnhancedProcessStageCard({
   onParametersEdit 
 }: EnhancedProcessStageCardProps) {
   const getStageIcon = (stageType: string) => {
-    const icons = {
+    const icons: Record<string, string> = {
+      'ARTWORK_UPLOAD': '🎨',
       'artwork_upload': '🎨',
+      'GRAVURE_PRINTING': '🖨️',
       'gravure_printing': '🖨️',
+      'LAMINATION_COATING': '📄',
+      'LAMINATION': '📄',
       'lamination': '📄',
+      'ADHESIVE_COATING': '🧪',
       'adhesive_coating': '🧪',
+      'SLITTING_PACKING': '✂️',
+      'SLITTING': '✂️',
       'slitting': '✂️',
+      'PACKAGING': '📦',
       'packaging': '📦'
     };
-    return icons[stageType as keyof typeof icons] || '⚙️';
+    return icons[stageType] || '⚙️';
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'completed': return 'text-green-600 bg-green-50 border-green-200';
       case 'in_progress': return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'on_hold': return 'text-orange-600 bg-orange-50 border-orange-200';
@@ -60,14 +82,15 @@ export function EnhancedProcessStageCard({
     
     let efficiency = 90;
     
-    // Adjust based on quality metrics
-    if (stage.quality_metrics.dimensional_accuracy?.width_variance_mm && 
-        stage.quality_metrics.dimensional_accuracy.width_variance_mm > 0.5) {
+    // Adjust based on quality metrics if available
+    const qualityMetrics = stage.quality_metrics as any;
+    if (qualityMetrics?.dimensional_accuracy?.width_variance_mm && 
+        qualityMetrics.dimensional_accuracy.width_variance_mm > 0.5) {
       efficiency -= 10;
     }
     
-    if (stage.quality_metrics.color_accuracy?.delta_e && 
-        stage.quality_metrics.color_accuracy.delta_e > 2) {
+    if (qualityMetrics?.color_accuracy?.delta_e && 
+        qualityMetrics.color_accuracy.delta_e > 2) {
       efficiency -= 15;
     }
     
@@ -77,7 +100,8 @@ export function EnhancedProcessStageCard({
   const renderQualityMetrics = () => {
     if (!stage.quality_metrics) return null;
 
-    const { color_accuracy, lamination_quality, coating_quality, dimensional_accuracy } = stage.quality_metrics;
+    const qualityMetrics = stage.quality_metrics as any;
+    const { color_accuracy, lamination_quality, coating_quality, dimensional_accuracy } = qualityMetrics;
 
     return (
       <div className="space-y-2 mt-3">
@@ -118,10 +142,10 @@ export function EnhancedProcessStageCard({
   const renderProcessParameters = () => {
     if (!stage.process_parameters) return null;
 
-    const params = stage.process_parameters;
+    const params = stage.process_parameters as any;
     let paramDisplay = null;
 
-    switch (stage.stage) {
+    switch (stage.stage.toLowerCase()) {
       case 'gravure_printing':
         if (params.printing) {
           paramDisplay = (
@@ -135,6 +159,7 @@ export function EnhancedProcessStageCard({
         break;
       
       case 'lamination':
+      case 'lamination_coating':
         if (params.lamination) {
           paramDisplay = (
             <div className="grid grid-cols-3 gap-2 text-xs">
@@ -159,6 +184,7 @@ export function EnhancedProcessStageCard({
         break;
       
       case 'slitting':
+      case 'slitting_packing':
         if (params.slitting) {
           paramDisplay = (
             <div className="grid grid-cols-3 gap-2 text-xs">
@@ -191,10 +217,10 @@ export function EnhancedProcessStageCard({
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <span className="text-lg">{getStageIcon(stage.stage)}</span>
-            {stage.stage.replace('_', ' ').toUpperCase()}
+            {stage.stage.replace(/_/g, ' ').toUpperCase()}
           </CardTitle>
           <Badge className={getStatusColor(stage.status)}>
-            {stage.status.replace('_', ' ').toUpperCase()}
+            {stage.status.replace(/_/g, ' ').toUpperCase()}
           </Badge>
         </div>
         

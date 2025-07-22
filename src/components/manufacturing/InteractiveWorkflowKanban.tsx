@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { MANUFACTURING_CONFIG, mapUIStatusToDatabase } from "@/config/manufacturing";
+import { MANUFACTURING_CONFIG } from "@/config/manufacturing";
 
 export function InteractiveWorkflowKanban() {
   const { data: orders, isLoading, refetch } = useManufacturingOrders();
@@ -46,25 +46,21 @@ export function InteractiveWorkflowKanban() {
     const order = orders?.find(o => o.id === draggableId);
     if (!order) return;
 
-    // Map UI status to process status for new manufacturing stage status system
-    const newStatus = mapUIStatusToDatabase(destination.droppableId);
+    const newStatus = destination.droppableId.toUpperCase();
     
     try {
-      // Use the new manufacturing stage transition function
-      const { error } = await supabase.rpc('handle_manufacturing_stage_transition', {
-        p_uiorn: order.uiorn,
-        p_stage: 'GRAVURE_PRINTING', // Default stage - should be determined dynamically
-        p_status: newStatus,
-        p_operator_id: null,
-        p_machine_id: null,
-        p_process_parameters: {},
-        p_quality_metrics: {},
-        p_notes: `Status updated via Kanban board to ${MANUFACTURING_CONFIG.STATUS_LABELS[newStatus]}`
-      });
+      // Update the order status directly in order_punching table
+      const { error } = await supabase
+        .from('order_punching')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('uiorn', order.uiorn);
 
       if (error) throw error;
 
-      toast.success(`Order ${order.uiorn} moved to ${MANUFACTURING_CONFIG.STATUS_LABELS[newStatus]}`);
+      toast.success(`Order ${order.uiorn} moved to ${newStatus}`);
       refetch();
     } catch (error) {
       console.error('Error updating order status:', error);
