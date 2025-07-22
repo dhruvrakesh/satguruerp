@@ -6324,6 +6324,7 @@ export type Database = {
         Row: {
           amount_inr: number | null
           created_at: string
+          data_source: string | null
           date: string
           grn_number: string
           id: string
@@ -6339,6 +6340,7 @@ export type Database = {
         Insert: {
           amount_inr?: number | null
           created_at?: string
+          data_source?: string | null
           date?: string
           grn_number: string
           id?: string
@@ -6354,6 +6356,7 @@ export type Database = {
         Update: {
           amount_inr?: number | null
           created_at?: string
+          data_source?: string | null
           date?: string
           grn_number?: string
           id?: string
@@ -6393,6 +6396,7 @@ export type Database = {
       satguru_issue_log: {
         Row: {
           created_at: string
+          data_source: string | null
           date: string
           id: string
           item_code: string
@@ -6403,6 +6407,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_source?: string | null
           date?: string
           id?: string
           item_code: string
@@ -6413,6 +6418,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_source?: string | null
           date?: string
           id?: string
           item_code?: string
@@ -7848,10 +7854,17 @@ export type Database = {
           category_name: string | null
           consumption_30_days: number | null
           current_qty: number | null
+          data_quality: string | null
           item_code: string | null
           item_name: string | null
           last_updated: string | null
+          legacy_baseline: number | null
+          legacy_grns: number | null
+          legacy_issues: number | null
+          net_operational_movement: number | null
           opening_stock: number | null
+          operational_grns: number | null
+          operational_issues: number | null
           received_30_days: number | null
           reorder_level: number | null
           stock_status: string | null
@@ -8164,6 +8177,10 @@ export type Database = {
           p_current_status: Database["public"]["Enums"]["process_status"]
         }
         Returns: Database["public"]["Enums"]["process_status"]
+      }
+      get_operational_cutoff_date: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_order_material_progress: {
         Args: { p_uiorn: string }
