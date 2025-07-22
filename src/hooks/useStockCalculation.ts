@@ -14,21 +14,24 @@ export interface StockCalculationResult {
     calculationDate: string;
     grnEntries: number;
     issueEntries: number;
+    legacyBaseline?: number;
+    operationalMovement?: number;
+    dataQuality?: string;
   };
 }
 
 export function useStockCalculation(
   itemCodes: string[], 
-  openingStockDate: string = '2024-01-01'
+  openingStockDate: string = '2025-03-31' // Default to FY 2024-25 end
 ) {
   return useQuery({
     queryKey: ['stock-calculation', itemCodes, openingStockDate],
     queryFn: async (): Promise<StockCalculationResult[]> => {
       if (!itemCodes.length) return [];
       
-      console.log(`🔍 Fetching stock data from single source of truth for ${itemCodes.length} items`);
+      console.log(`🔍 Fetching financial year stock data for ${itemCodes.length} items (Opening Stock Date: ${openingStockDate})`);
       
-      // Use single source of truth: satguru_stock_summary_view
+      // Use single source of truth: satguru_stock_summary_view with legacy cutoff awareness
       const { data, error } = await supabase
         .from('satguru_stock_summary_view')
         .select('*')
@@ -60,12 +63,34 @@ export function useStockCalculation(
           };
         }
 
+        // Extract financial year aware stock data with proper type casting
+        const stockRecord = stockData as any;
         const openingStock = Number(stockData.opening_stock) || 0;
+        const legacyGrns = Number(stockRecord.legacy_grns) || 0;
+        const legacyIssues = Number(stockRecord.legacy_issues) || 0;
+        const operationalGrns = Number(stockRecord.operational_grns) || 0;
+        const operationalIssues = Number(stockRecord.operational_issues) || 0;
+        
+        // Total GRNs and Issues (legacy + operational) - using new view structure
         const totalGRNs = Number(stockData.total_grns) || 0;
         const totalIssues = Number(stockData.total_issues) || 0;
         const currentStock = Number(stockData.current_qty) || 0;
         
-        console.log(`✅ Stock data for ${itemCode}: Opening=${openingStock}, GRNs=${totalGRNs}, Issues=${totalIssues}, Current=${currentStock}`);
+        // Legacy baseline calculation for transparency
+        const legacyBaseline = openingStock + legacyGrns - legacyIssues;
+        
+        console.log(`✅ FY Stock data for ${itemCode}:`, {
+          opening: openingStock,
+          legacyGrns,
+          legacyIssues,
+          legacyBaseline,
+          operationalGrns,
+          operationalIssues,
+          totalGrns: totalGRNs,
+          totalIssues,
+          current: currentStock,
+          dataQuality: stockRecord.data_quality
+        });
         
         return {
           itemCode: stockData.item_code,
@@ -78,7 +103,10 @@ export function useStockCalculation(
             openingStockDate: openingStockDate,
             calculationDate: new Date().toISOString().split('T')[0],
             grnEntries: totalGRNs,
-            issueEntries: totalIssues
+            issueEntries: totalIssues,
+            legacyBaseline,
+            operationalMovement: operationalGrns - operationalIssues,
+            dataQuality: stockRecord.data_quality || 'CLEAN'
           }
         };
       });
