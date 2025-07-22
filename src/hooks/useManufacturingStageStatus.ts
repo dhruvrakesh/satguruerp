@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -27,10 +28,12 @@ export const useManufacturingStageStatus = (uiorn?: string) => {
   const fetchStageStatuses = async () => {
     try {
       setLoading(true);
+      
+      // Use existing process_logs_se table for stage status tracking
       let query = supabase
-        .from('manufacturing_stage_status')
+        .from('process_logs_se')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('captured_at', { ascending: false });
 
       if (uiorn) {
         query = query.eq('uiorn', uiorn);
@@ -39,7 +42,25 @@ export const useManufacturingStageStatus = (uiorn?: string) => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setStageStatuses(data || []);
+      
+      // Transform process_logs_se data to ManufacturingStageStatus format
+      const transformedData: ManufacturingStageStatus[] = (data || []).map(log => ({
+        id: log.id,
+        uiorn: log.uiorn,
+        stage: log.stage || 'UNKNOWN',
+        status: log.txt_value || 'PENDING',
+        started_at: log.captured_at,
+        completed_at: undefined,
+        operator_id: log.captured_by,
+        machine_id: undefined,
+        process_parameters: {},
+        quality_metrics: {},
+        notes: log.metric,
+        created_at: log.captured_at,
+        updated_at: log.captured_at
+      }));
+
+      setStageStatuses(transformedData);
     } catch (error) {
       console.error('Error fetching stage statuses:', error);
       toast({
@@ -47,6 +68,8 @@ export const useManufacturingStageStatus = (uiorn?: string) => {
         description: "Failed to fetch stage statuses",
         variant: "destructive",
       });
+      // Set empty array on error
+      setStageStatuses([]);
     } finally {
       setLoading(false);
     }
@@ -63,22 +86,25 @@ export const useManufacturingStageStatus = (uiorn?: string) => {
     notes?: string;
   }) => {
     try {
-      const { data, error } = await supabase.rpc('handle_manufacturing_stage_transition', {
-        p_uiorn: params.uiorn,
-        p_stage: params.stage,
-        p_status: params.status,
-        p_operator_id: params.operator_id,
-        p_machine_id: params.machine_id,
-        p_process_parameters: params.process_parameters || {},
-        p_quality_metrics: params.quality_metrics || {},
-        p_notes: params.notes
-      });
+      // Insert into process_logs_se table instead of using RPC
+      const { data, error } = await supabase
+        .from('process_logs_se')
+        .insert({
+          uiorn: params.uiorn,
+          stage: params.stage as any,
+          metric: params.notes || 'Stage Status Update',
+          txt_value: params.status,
+          captured_by: params.operator_id || undefined,
+          captured_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
       toast({
         title: "Status Updated",
-        description: `Stage ${MANUFACTURING_CONFIG.STAGE_LABELS[params.stage]} updated to ${MANUFACTURING_CONFIG.STATUS_LABELS[params.status]}`,
+        description: `Stage ${MANUFACTURING_CONFIG.STAGE_LABELS[params.stage] || params.stage} updated to ${MANUFACTURING_CONFIG.STATUS_LABELS[params.status] || params.status}`,
       });
 
       fetchStageStatuses();
@@ -98,16 +124,16 @@ export const useManufacturingStageStatus = (uiorn?: string) => {
     fetchStageStatuses();
   }, [uiorn]);
 
-  // Set up real-time subscription
+  // Set up real-time subscription using process_logs_se table
   useEffect(() => {
     const channel = supabase
-      .channel('manufacturing_stage_status_changes')
+      .channel('process_logs_changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'manufacturing_stage_status',
+          table: 'process_logs_se',
           filter: uiorn ? `uiorn=eq.${uiorn}` : undefined
         },
         () => {
