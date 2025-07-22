@@ -1458,6 +1458,70 @@ export type Database = {
         }
         Relationships: []
       }
+      category_audit_log: {
+        Row: {
+          action: string
+          business_justification: string | null
+          category_id: string | null
+          changed_fields: string[] | null
+          created_at: string | null
+          id: string
+          ip_address: unknown | null
+          new_data: Json | null
+          old_data: Json | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          business_justification?: string | null
+          category_id?: string | null
+          changed_fields?: string[] | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          business_justification?: string | null
+          category_id?: string | null
+          changed_fields?: string[] | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_audit_log_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "category_stats_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_audit_log_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_audit_log_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       colour_targets: {
         Row: {
           created_at: string | null
@@ -6415,27 +6479,76 @@ export type Database = {
       }
       satguru_categories: {
         Row: {
+          business_rules: Json | null
+          category_code: string | null
+          category_level: number | null
           category_name: string
+          category_type: string | null
           created_at: string
           description: string | null
           id: string
+          is_active: boolean | null
+          last_modified_by: string | null
+          metadata: Json | null
+          parent_category_id: string | null
+          sort_order: number | null
           updated_at: string
         }
         Insert: {
+          business_rules?: Json | null
+          category_code?: string | null
+          category_level?: number | null
           category_name: string
+          category_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean | null
+          last_modified_by?: string | null
+          metadata?: Json | null
+          parent_category_id?: string | null
+          sort_order?: number | null
           updated_at?: string
         }
         Update: {
+          business_rules?: Json | null
+          category_code?: string | null
+          category_level?: number | null
           category_name?: string
+          category_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean | null
+          last_modified_by?: string | null
+          metadata?: Json | null
+          parent_category_id?: string | null
+          sort_order?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "satguru_categories_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            isOneToOne: false
+            referencedRelation: "category_stats_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satguru_categories_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satguru_categories_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       satguru_csv_upload_log: {
         Row: {
@@ -6803,6 +6916,13 @@ export type Database = {
           usage_type?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "satguru_item_master_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "category_stats_mv"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "satguru_item_master_category_id_fkey"
             columns: ["category_id"]
@@ -7883,6 +8003,36 @@ export type Database = {
       }
     }
     Views: {
+      category_hierarchy_view: {
+        Row: {
+          category_code: string | null
+          category_level: number | null
+          category_name: string | null
+          full_path: string | null
+          id: string | null
+          parent_category_id: string | null
+          path: string[] | null
+        }
+        Relationships: []
+      }
+      category_stats_mv: {
+        Row: {
+          active_items: number | null
+          avg_item_value: number | null
+          category_name: string | null
+          consumable_items: number | null
+          created_at: string | null
+          description: string | null
+          fg_items: number | null
+          id: string | null
+          last_item_added: string | null
+          packaging_items: number | null
+          rm_items: number | null
+          total_items: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       employee_details_enhanced: {
         Row: {
           aadhaar_number: string | null
@@ -8209,6 +8359,10 @@ export type Database = {
               p_year: number
               p_unit_id?: string
             }
+        Returns: Json
+      }
+      bulk_update_categories: {
+        Args: { p_operations: Json }
         Returns: Json
       }
       bytea_to_text: {
@@ -8706,6 +8860,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      refresh_category_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       refresh_manufacturing_analytics: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -8966,6 +9124,14 @@ export type Database = {
       urlencode: {
         Args: { data: Json } | { string: string } | { string: string }
         Returns: string
+      }
+      validate_category_data: {
+        Args: {
+          p_category_name: string
+          p_category_code?: string
+          p_parent_id?: string
+        }
+        Returns: Json
       }
       validate_employee_emails_csv: {
         Args: { rows: Json }
