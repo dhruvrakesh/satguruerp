@@ -30,7 +30,7 @@ export function useStockValidation(itemCode?: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'satguru_stock',
+          table: 'satguru_stock_summary_view',
           filter: `item_code=eq.${itemCode}`
         },
         (payload) => {
