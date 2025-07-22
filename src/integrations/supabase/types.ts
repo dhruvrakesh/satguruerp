@@ -3163,6 +3163,7 @@ export type Database = {
       item_price_history: {
         Row: {
           approved_by: string | null
+          business_justification: string | null
           change_reason: string | null
           change_type: string | null
           changed_by: string | null
@@ -3173,9 +3174,13 @@ export type Database = {
           new_price: number
           old_price: number | null
           price_change_percentage: number | null
+          record_id: string | null
+          upload_id: string | null
+          validation_flags: Json | null
         }
         Insert: {
           approved_by?: string | null
+          business_justification?: string | null
           change_reason?: string | null
           change_type?: string | null
           changed_by?: string | null
@@ -3186,9 +3191,13 @@ export type Database = {
           new_price: number
           old_price?: number | null
           price_change_percentage?: number | null
+          record_id?: string | null
+          upload_id?: string | null
+          validation_flags?: Json | null
         }
         Update: {
           approved_by?: string | null
+          business_justification?: string | null
           change_reason?: string | null
           change_type?: string | null
           changed_by?: string | null
@@ -3199,6 +3208,78 @@ export type Database = {
           new_price?: number
           old_price?: number | null
           price_change_percentage?: number | null
+          record_id?: string | null
+          upload_id?: string | null
+          validation_flags?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_price_history_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "item_pricing_upload_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_price_history_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "item_pricing_csv_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      item_pricing_csv_uploads: {
+        Row: {
+          approved_records: number
+          completed_at: string | null
+          created_at: string | null
+          error_details: Json | null
+          file_size_bytes: number
+          filename: string
+          id: string
+          pending_records: number
+          processed_records: number
+          processing_status: string | null
+          rejected_records: number
+          total_records: number
+          upload_date: string | null
+          uploaded_by: string | null
+          validation_summary: Json | null
+        }
+        Insert: {
+          approved_records?: number
+          completed_at?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          file_size_bytes?: number
+          filename: string
+          id?: string
+          pending_records?: number
+          processed_records?: number
+          processing_status?: string | null
+          rejected_records?: number
+          total_records?: number
+          upload_date?: string | null
+          uploaded_by?: string | null
+          validation_summary?: Json | null
+        }
+        Update: {
+          approved_records?: number
+          completed_at?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          file_size_bytes?: number
+          filename?: string
+          id?: string
+          pending_records?: number
+          processed_records?: number
+          processing_status?: string | null
+          rejected_records?: number
+          total_records?: number
+          upload_date?: string | null
+          uploaded_by?: string | null
+          validation_summary?: Json | null
         }
         Relationships: []
       }
@@ -3270,6 +3351,80 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      item_pricing_upload_records: {
+        Row: {
+          auto_approved: boolean | null
+          change_reason: string | null
+          cost_category: string | null
+          created_at: string | null
+          current_price: number | null
+          effective_date: string | null
+          id: string
+          item_code: string
+          price_change_percentage: number | null
+          proposed_price: number
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          row_number: number
+          supplier: string | null
+          upload_id: string | null
+          validation_errors: Json | null
+          validation_status: string | null
+          validation_warnings: Json | null
+        }
+        Insert: {
+          auto_approved?: boolean | null
+          change_reason?: string | null
+          cost_category?: string | null
+          created_at?: string | null
+          current_price?: number | null
+          effective_date?: string | null
+          id?: string
+          item_code: string
+          price_change_percentage?: number | null
+          proposed_price: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          row_number: number
+          supplier?: string | null
+          upload_id?: string | null
+          validation_errors?: Json | null
+          validation_status?: string | null
+          validation_warnings?: Json | null
+        }
+        Update: {
+          auto_approved?: boolean | null
+          change_reason?: string | null
+          cost_category?: string | null
+          created_at?: string | null
+          current_price?: number | null
+          effective_date?: string | null
+          id?: string
+          item_code?: string
+          price_change_percentage?: number | null
+          proposed_price?: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          row_number?: number
+          supplier?: string | null
+          upload_id?: string | null
+          validation_errors?: Json | null
+          validation_status?: string | null
+          validation_warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_pricing_upload_records_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "item_pricing_csv_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jobs: {
         Row: {
@@ -8519,6 +8674,14 @@ export type Database = {
         Args: { p_rows: Json }
         Returns: Json
       }
+      process_pricing_upload_batch: {
+        Args: {
+          p_upload_id: string
+          p_records: Json
+          p_auto_approve_threshold?: number
+        }
+        Returns: Json
+      }
       process_queued_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -8836,6 +8999,16 @@ export type Database = {
           p_days?: number
         }
         Returns: boolean
+      }
+      validate_pricing_record: {
+        Args: {
+          p_item_code: string
+          p_proposed_price: number
+          p_effective_date?: string
+          p_cost_category?: string
+          p_supplier?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { useItemPricing, useUpdateItemPrice, useAddItemPrice } from "@/hooks/useItemPricing";
 import { useCostCategories } from "@/hooks/useCostCategories";
 import { useCategories } from "@/hooks/useCategories";
+import { ItemPricingCSVUpload } from "./ItemPricingCSVUpload";
 
 export function ItemPricingMaster() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -20,6 +21,7 @@ export function ItemPricingMaster() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [newItemData, setNewItemData] = useState({
     item_code: "",
     current_price: "",
@@ -122,7 +124,11 @@ export function ItemPricingMaster() {
           <p className="text-muted-foreground">Manage item prices and cost categories</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setShowBulkUpload(!showBulkUpload)}
+          >
             <Upload className="w-4 h-4" />
             Import Prices
           </Button>
@@ -219,6 +225,11 @@ export function ItemPricingMaster() {
           </Dialog>
         </div>
       </div>
+
+      {/* Bulk Upload Section */}
+      {showBulkUpload && (
+        <ItemPricingCSVUpload onUploadComplete={() => setShowBulkUpload(false)} />
+      )}
 
       {/* Filters */}
       <Card>
