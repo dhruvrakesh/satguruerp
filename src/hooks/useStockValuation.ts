@@ -39,9 +39,9 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
     queryKey: ["stock-valuation", filters],
     queryFn: async (): Promise<StockValuationData[]> => {
       try {
-        // Use existing satguru_stock_summary view
+        // Use established source of truth - satguru_stock_summary_view
         let query = supabase
-          .from("satguru_stock_summary")
+          .from("satguru_stock_summary_view")
           .select("*");
 
         // Apply basic filters
@@ -52,19 +52,45 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Transform data to match interface with proper type handling
-        const valuationData: StockValuationData[] = (data || []).map(item => ({
-          item_code: item.item_code || '',
-          item_name: item.item_name || '',
-          category_name: item.category_name || '',
-          current_qty: Number(item.current_qty) || 0,
-          unit_price: item.unit_price ? Number(item.unit_price) : undefined,
-          total_value: Number(item.total_value) || 0,
-          last_grn_price: item.last_grn_price ? Number(item.last_grn_price) : undefined,
-          avg_price: Number(item.unit_price) || 0,
-          stock_age_days: 0, // Default since not available in current schema
-          valuation_method: filters.valuationMethod || 'WEIGHTED_AVG'
-        }));
+        // Get pricing data from GRN logs for unit price calculations
+        const { data: grnData } = await supabase
+          .from("satguru_grn_log")
+          .select("item_code, amount_inr, qty_received, grn_date")
+          .order("grn_date", { ascending: false });
+
+        // Create pricing lookup map (latest GRN price per item)
+        const pricingMap = new Map<string, { unitPrice: number; lastGrnPrice: number }>();
+        if (grnData) {
+          grnData.forEach(grn => {
+            if (!pricingMap.has(grn.item_code) && grn.qty_received > 0) {
+              const unitPrice = (grn.amount_inr || 0) / grn.qty_received;
+              pricingMap.set(grn.item_code, {
+                unitPrice,
+                lastGrnPrice: unitPrice
+              });
+            }
+          });
+        }
+
+        // Transform data to match interface with calculated pricing
+        const valuationData: StockValuationData[] = (data || []).map(item => {
+          const pricing = pricingMap.get(item.item_code);
+          const unitPrice = pricing?.unitPrice || 0;
+          const currentQty = Number(item.current_qty) || 0;
+          
+          return {
+            item_code: item.item_code || '',
+            item_name: item.item_name || '',
+            category_name: item.category_name || '',
+            current_qty: currentQty,
+            unit_price: unitPrice,
+            total_value: currentQty * unitPrice,
+            last_grn_price: pricing?.lastGrnPrice || undefined,
+            avg_price: unitPrice, // Using latest GRN price as average for now
+            stock_age_days: item.days_of_cover || 0, // Using days_of_cover as stock age approximation
+            valuation_method: filters.valuationMethod || 'WEIGHTED_AVG'
+          };
+        });
 
         return valuationData.sort((a, b) => b.total_value - a.total_value);
       } catch (error) {
