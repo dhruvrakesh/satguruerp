@@ -55,18 +55,19 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
         // Get pricing data from GRN logs for unit price calculations
         const { data: grnData } = await supabase
           .from("satguru_grn_log")
-          .select("item_code, amount_inr, qty_received, grn_date")
-          .order("grn_date", { ascending: false });
+          .select("item_code, amount_inr, qty_received, date")
+          .order("date", { ascending: false });
 
         // Create pricing lookup map (latest GRN price per item)
-        const pricingMap = new Map<string, { unitPrice: number; lastGrnPrice: number }>();
+        const pricingMap = new Map<string, { unitPrice: number; lastGrnPrice: number; lastDate: string }>();
         if (grnData) {
           grnData.forEach(grn => {
             if (!pricingMap.has(grn.item_code) && grn.qty_received > 0) {
               const unitPrice = (grn.amount_inr || 0) / grn.qty_received;
               pricingMap.set(grn.item_code, {
                 unitPrice,
-                lastGrnPrice: unitPrice
+                lastGrnPrice: unitPrice,
+                lastDate: grn.date
               });
             }
           });
@@ -78,6 +79,11 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
           const unitPrice = pricing?.unitPrice || 0;
           const currentQty = Number(item.current_qty) || 0;
           
+          // Calculate stock age from last GRN date
+          const stockAgeDays = pricing?.lastDate 
+            ? Math.floor((new Date().getTime() - new Date(pricing.lastDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 999; // Default high value if no GRN data
+          
           return {
             item_code: item.item_code || '',
             item_name: item.item_name || '',
@@ -87,7 +93,7 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
             total_value: currentQty * unitPrice,
             last_grn_price: pricing?.lastGrnPrice || undefined,
             avg_price: unitPrice, // Using latest GRN price as average for now
-            stock_age_days: item.days_of_cover || 0, // Using days_of_cover as stock age approximation
+            stock_age_days: stockAgeDays,
             valuation_method: filters.valuationMethod || 'WEIGHTED_AVG'
           };
         });
