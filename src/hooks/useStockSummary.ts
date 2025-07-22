@@ -24,6 +24,9 @@ export interface StockSummaryRecord {
   operational_issues?: number;
   data_quality?: string;
   net_operational_movement?: number;
+  legacy_received_indicator?: number;
+  legacy_consumed_indicator?: number;
+  metrics_period?: string;
 }
 
 export interface StockSummaryFilters {
@@ -156,7 +159,10 @@ export function useStockSummary(options: UseStockSummaryOptions = {}) {
             operational_grns: Number(item.operational_grns) || 0,
             operational_issues: Number(item.operational_issues) || 0,
             data_quality: item.data_quality || 'CLEAN',
-            net_operational_movement: Number(item.net_operational_movement) || 0
+            net_operational_movement: Number(item.net_operational_movement) || 0,
+            legacy_received_indicator: Number(item.legacy_received_indicator) || 0,
+            legacy_consumed_indicator: Number(item.legacy_consumed_indicator) || 0,
+            metrics_period: item.metrics_period || 'LEGACY_PERIOD'
           };
 
           return record;

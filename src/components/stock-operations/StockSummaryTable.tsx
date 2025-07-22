@@ -298,8 +298,18 @@ export function StockSummaryTable() {
                       {item.category_name}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">{formatNumber(item.received_30_days)}</TableCell>
-                  <TableCell className="text-right">{formatNumber(item.consumption_30_days)}</TableCell>
+                  <TableCell className="text-right">
+                    {item.metrics_period === 'OPERATIONAL_PERIOD' 
+                      ? formatNumber(item.received_30_days)
+                      : formatNumber(item.legacy_received_indicator || 0)
+                    }
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {item.metrics_period === 'OPERATIONAL_PERIOD'
+                      ? formatNumber(item.consumption_30_days)
+                      : formatNumber(item.legacy_consumed_indicator || 0)
+                    }
+                  </TableCell>
                   <TableCell className="text-right font-semibold text-green-600">
                     {formatNumber(item.current_qty)}
                   </TableCell>
