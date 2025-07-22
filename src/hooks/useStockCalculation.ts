@@ -22,16 +22,16 @@ export interface StockCalculationResult {
 
 export function useStockCalculation(
   itemCodes: string[], 
-  openingStockDate: string = '2025-03-31' // Default to FY 2024-25 end
+  openingStockDate: string = '2025-03-31' // Default to FY 2024-25 end (financial year baseline)
 ) {
   return useQuery({
     queryKey: ['stock-calculation', itemCodes, openingStockDate],
     queryFn: async (): Promise<StockCalculationResult[]> => {
       if (!itemCodes.length) return [];
       
-      console.log(`🔍 Fetching financial year stock data for ${itemCodes.length} items (Opening Stock Date: ${openingStockDate})`);
+      console.log(`🔍 Fetching financial year stock data for ${itemCodes.length} items (FY Opening Stock: Mar 31, 2025)`);
       
-      // Use single source of truth: satguru_stock_summary_view with legacy cutoff awareness
+      // Use single source of truth: satguru_stock_summary_view with financial year logic
       const { data, error } = await supabase
         .from('satguru_stock_summary_view')
         .select('*')
@@ -55,39 +55,34 @@ export function useStockCalculation(
             totalIssues: 0,
             currentStock: 0,
             calculationDetails: {
-              openingStockDate: openingStockDate,
+              openingStockDate: '2025-03-31',
               calculationDate: new Date().toISOString().split('T')[0],
               grnEntries: 0,
-              issueEntries: 0
+              issueEntries: 0,
+              dataQuality: 'NO_DATA'
             }
           };
         }
 
-        // Extract financial year aware stock data with proper type casting
+        // Extract financial year stock data from the enhanced view (using type assertion for new fields)
         const stockRecord = stockData as any;
         const openingStock = Number(stockData.opening_stock) || 0;
         const legacyGrns = Number(stockRecord.legacy_grns) || 0;
         const legacyIssues = Number(stockRecord.legacy_issues) || 0;
         const operationalGrns = Number(stockRecord.operational_grns) || 0;
         const operationalIssues = Number(stockRecord.operational_issues) || 0;
+        const legacyBaseline = Number(stockRecord.legacy_baseline) || 0;
         
-        // Total GRNs and Issues (legacy + operational) - using new view structure
+        // Total movements (financial year calculation)
         const totalGRNs = Number(stockData.total_grns) || 0;
         const totalIssues = Number(stockData.total_issues) || 0;
         const currentStock = Number(stockData.current_qty) || 0;
         
-        // Legacy baseline calculation for transparency
-        const legacyBaseline = openingStock + legacyGrns - legacyIssues;
-        
-        console.log(`✅ FY Stock data for ${itemCode}:`, {
+        console.log(`✅ Financial Year Stock for ${itemCode}:`, {
           opening: openingStock,
-          legacyGrns,
-          legacyIssues,
-          legacyBaseline,
-          operationalGrns,
-          operationalIssues,
-          totalGrns: totalGRNs,
-          totalIssues,
+          legacyPeriod: { grns: legacyGrns, issues: legacyIssues, baseline: legacyBaseline },
+          operationalPeriod: { grns: operationalGrns, issues: operationalIssues },
+          totals: { grns: totalGRNs, issues: totalIssues },
           current: currentStock,
           dataQuality: stockRecord.data_quality
         });
@@ -100,7 +95,7 @@ export function useStockCalculation(
           totalIssues,
           currentStock,
           calculationDetails: {
-            openingStockDate: openingStockDate,
+            openingStockDate: '2025-03-31', // Fixed to financial year end
             calculationDate: new Date().toISOString().split('T')[0],
             grnEntries: totalGRNs,
             issueEntries: totalIssues,
@@ -115,6 +110,6 @@ export function useStockCalculation(
     },
     enabled: itemCodes.length > 0,
     staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000, // Refresh every minute for real-time updates
   });
 }
