@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Palette, Droplets, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings, Brain, Package } from "lucide-react";
@@ -12,6 +11,7 @@ import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessInte
 import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
 import { ViscosityTables } from "@/components/manufacturing/ViscosityTables";
 import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
+import { FlexiblePackagingDashboard } from "@/components/manufacturing/FlexiblePackagingDashboard";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -136,9 +136,9 @@ export default function GravurePrinting() {
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
             <Palette className="w-8 h-8 text-primary" />
-            Gravure Printing
+            Gravure Printing - Flexible Packaging
           </h1>
-          <p className="text-muted-foreground">High-quality rotogravure printing with integrated material flow tracking</p>
+          <p className="text-muted-foreground">High-quality rotogravure printing for soap wrappers, stiffeners, laminates, and packaging materials</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -152,8 +152,8 @@ export default function GravurePrinting() {
         </div>
       </div>
 
-      {/* Process Metrics */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* Enhanced Process Metrics for Flexible Packaging */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Print Jobs</CardTitle>
@@ -195,6 +195,19 @@ export default function GravurePrinting() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Substrate Yield</CardTitle>
+            <Gauge className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">91.2%</div>
+            <p className="text-xs text-muted-foreground">
+              Material efficiency
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Quality Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -207,15 +220,53 @@ export default function GravurePrinting() {
         </Card>
       </div>
 
-      <Tabs defaultValue="material-flow" className="space-y-6">
+      <Tabs defaultValue="flexible-packaging" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="flexible-packaging">Flexible Packaging</TabsTrigger>
           <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
           <TabsTrigger value="printing">Print Control</TabsTrigger>
           <TabsTrigger value="colors">Color Management</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
           <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
-          <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="flexible-packaging" className="space-y-6">
+          {selectedOrder ? (
+            <FlexiblePackagingDashboard
+              uiorn={selectedOrder.uiorn}
+              orderData={{
+                ...selectedOrder,
+                product_type: 'SOAP_WRAPPER', // Default to soap wrapper
+                substrate_type: artworkData?.artwork ? `${artworkData.artwork.dimensions} Film` : 'BOPP Film'
+              }}
+            />
+          ) : (
+            <Card>
+              <CardContent className="text-center p-8">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Select Order for Flexible Packaging Production</h3>
+                <p className="text-muted-foreground mb-4">
+                  Choose an order below to start the comprehensive flexible packaging workflow
+                </p>
+                <div className="grid gap-3 max-w-md mx-auto">
+                  {orders.slice(0, 3).map((order) => (
+                    <Button
+                      key={order.uiorn}
+                      variant="outline"
+                      className="justify-start"
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <div className="text-left">
+                        <div className="font-medium">{order.uiorn}</div>
+                        <div className="text-sm text-muted-foreground">{order.customer_name}</div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="material-flow" className="space-y-6">
           {selectedOrder ? (
@@ -459,7 +510,7 @@ export default function GravurePrinting() {
             <CardHeader>
               <CardTitle>Active Printing Operations</CardTitle>
               <CardDescription>
-                Real-time monitoring of gravure printing presses
+                Real-time monitoring of gravure printing presses for flexible packaging
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -518,13 +569,6 @@ export default function GravurePrinting() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="intelligence">
-          <ProcessIntelligencePanel 
-            stage="GRAVURE_PRINTING"
-            onApplyRecommendations={applyRecommendations}
-          />
         </TabsContent>
       </Tabs>
     </div>

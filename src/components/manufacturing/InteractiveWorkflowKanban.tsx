@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ interface Order {
   created_at: string;
 }
 
+// Updated stages to match database enum values and flexible packaging workflow
 const stages = [
   {
     id: "PENDING",
@@ -48,39 +50,18 @@ const stages = [
     headerColor: "bg-slate-50",
   },
   {
-    id: "ARTWORK_UPLOAD",
-    name: "Artwork Upload",
+    id: "STARTED", // Changed from ARTWORK_UPLOAD to STARTED
+    name: "Started",
     icon: Upload,
     color: "bg-purple-100 border-purple-300",
     headerColor: "bg-purple-50",
   },
   {
-    id: "GRAVURE_PRINTING", 
-    name: "Gravure Printing",
+    id: "IN_PROGRESS", // This matches the enum
+    name: "In Progress",
     icon: Printer,
     color: "bg-blue-100 border-blue-300",
     headerColor: "bg-blue-50",
-  },
-  {
-    id: "LAMINATION_COATING",
-    name: "Lamination/Coating",
-    icon: Layers,
-    color: "bg-yellow-100 border-yellow-300",
-    headerColor: "bg-yellow-50",
-  },
-  {
-    id: "ADHESIVE_COATING",
-    name: "Adhesive Coating",
-    icon: Droplets,
-    color: "bg-orange-100 border-orange-300",
-    headerColor: "bg-orange-50",
-  },
-  {
-    id: "SLITTING_PACKING",
-    name: "Slitting & Packing",
-    icon: Package,
-    color: "bg-green-100 border-green-300",
-    headerColor: "bg-green-50",
   },
   {
     id: "COMPLETED",
@@ -106,11 +87,14 @@ export function InteractiveWorkflowKanban() {
 
   const handleStatusUpdate = async (uiorn: string, newStatus: string) => {
     try {
-      // Use the new database function for stage transitions
-      const { error } = await supabase.rpc('handle_manufacturing_stage_transition', {
-        p_uiorn: uiorn,
-        p_new_status: newStatus as any
-      });
+      // Use the correct status values that match the database enum
+      const { error } = await supabase
+        .from('order_punching')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('uiorn', uiorn);
       
       if (error) throw error;
       
@@ -122,7 +106,7 @@ export function InteractiveWorkflowKanban() {
       console.error('Status update error:', error);
       toast({
         title: "Update Failed",
-        description: "Failed to update order status",
+        description: "Failed to update order status. Please try again.",
         variant: "destructive",
       });
     }
@@ -154,26 +138,11 @@ export function InteractiveWorkflowKanban() {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return <Clock className="h-4 w-4 text-slate-500" />;
-      case "ARTWORK_UPLOAD":
-        return <Upload className="h-4 w-4 text-purple-500" />;
-      case "GRAVURE_PRINTING":
-        return <Printer className="h-4 w-4 text-blue-500" />;
-      case "LAMINATION_COATING":
-        return <Layers className="h-4 w-4 text-yellow-500" />;
-      case "ADHESIVE_COATING":
-        return <Droplets className="h-4 w-4 text-orange-500" />;
-      case "SLITTING_PACKING":
-        return <Package className="h-4 w-4 text-green-500" />;
-      case "COMPLETED":
-        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-      case "ON_HOLD":
-        return <Pause className="h-4 w-4 text-red-500" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+    const stage = stages.find(s => s.id === status);
+    if (stage) {
+      return <stage.icon className="h-4 w-4" />;
     }
+    return <AlertCircle className="h-4 w-4 text-gray-500" />;
   };
 
   const handleDragStart = (e: React.DragEvent, orderId: string) => {
@@ -197,28 +166,22 @@ export function InteractiveWorkflowKanban() {
     }
   };
 
+  // Flexible packaging workflow progression
   const getNextStatus = (currentStatus: string) => {
-    // Use the proper manufacturing sequence
     switch (currentStatus) {
-      case "PENDING": return "ARTWORK_UPLOAD";
-      case "ARTWORK_UPLOAD": return "GRAVURE_PRINTING";
-      case "GRAVURE_PRINTING": return "LAMINATION_COATING";
-      case "LAMINATION_COATING": return "ADHESIVE_COATING";
-      case "ADHESIVE_COATING": return "SLITTING_PACKING";
-      case "SLITTING_PACKING": return "COMPLETED";
+      case "PENDING": return "STARTED";
+      case "STARTED": return "IN_PROGRESS";
+      case "IN_PROGRESS": return "COMPLETED";
+      case "ON_HOLD": return "IN_PROGRESS";
       default: return currentStatus;
     }
   };
 
   const getPreviousStatus = (currentStatus: string) => {
-    // Use the proper manufacturing sequence in reverse
     switch (currentStatus) {
-      case "ARTWORK_UPLOAD": return "PENDING";
-      case "GRAVURE_PRINTING": return "ARTWORK_UPLOAD";
-      case "LAMINATION_COATING": return "GRAVURE_PRINTING";
-      case "ADHESIVE_COATING": return "LAMINATION_COATING";
-      case "SLITTING_PACKING": return "ADHESIVE_COATING";
-      case "COMPLETED": return "SLITTING_PACKING";
+      case "STARTED": return "PENDING";
+      case "IN_PROGRESS": return "STARTED";
+      case "COMPLETED": return "IN_PROGRESS";
       default: return currentStatus;
     }
   };
@@ -248,7 +211,7 @@ export function InteractiveWorkflowKanban() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {stages.map((stage) => {
         const stageOrders = getOrdersByStage(stage.id);
         
@@ -293,25 +256,27 @@ export function InteractiveWorkflowKanban() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {stage.id !== stages[0].id && (
+                          {stage.id !== "PENDING" && (
                             <DropdownMenuItem
                               onClick={() => handleStatusUpdate(order.uiorn, getPreviousStatus(order.status))}
                             >
                               Move Back
                             </DropdownMenuItem>
                           )}
-                          {stage.id !== stages[stages.length - 1].id && (
+                          {stage.id !== "COMPLETED" && (
                             <DropdownMenuItem
                               onClick={() => handleStatusUpdate(order.uiorn, getNextStatus(order.status))}
                             >
                               Move Forward
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            onClick={() => handleStatusUpdate(order.uiorn, "ON_HOLD")}
-                          >
-                            Put On Hold
-                          </DropdownMenuItem>
+                          {stage.id !== "ON_HOLD" && (
+                            <DropdownMenuItem
+                              onClick={() => handleStatusUpdate(order.uiorn, "ON_HOLD")}
+                            >
+                              Put On Hold
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -326,13 +291,13 @@ export function InteractiveWorkflowKanban() {
 
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">
-                        {order.order_quantity} meters
+                        {order.order_quantity} units
                       </span>
                       <Badge 
                         variant={getPriorityColor(order.priority_level)}
                         className="text-xs"
                       >
-                        {order.priority_level}
+                        {order.priority_level || 'NORMAL'}
                       </Badge>
                     </div>
 
@@ -351,6 +316,17 @@ export function InteractiveWorkflowKanban() {
                           onClick={() => handleStatusUpdate(order.uiorn, getNextStatus(order.status))}
                         >
                           Next Stage
+                        </Button>
+                      )}
+                      
+                      {order.status === "ON_HOLD" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs"
+                          onClick={() => handleStatusUpdate(order.uiorn, "IN_PROGRESS")}
+                        >
+                          Resume
                         </Button>
                       )}
                     </div>
