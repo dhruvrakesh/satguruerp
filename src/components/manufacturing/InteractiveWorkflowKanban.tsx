@@ -1,349 +1,144 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useManufacturingDashboard, useUpdateOrderStatus } from "@/hooks/useManufacturingOrders";
+import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import {
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  Pause,
-  Play,
-  MoreVertical,
-  Package,
-  Settings,
-  Truck,
-  Upload,
-  Printer,
-  Layers,
-  Droplets,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-interface Order {
-  id: string;
-  uiorn: string;
-  customer_name: string;
-  product_description: string;
-  order_quantity: number;
-  priority_level: string;
-  status: string;
-  delivery_date?: string;
-  created_at: string;
-}
-
-// Updated stages to match database enum values and flexible packaging workflow
-const stages = [
-  {
-    id: "PENDING",
-    name: "Pending",
-    icon: Clock,
-    color: "bg-slate-100 border-slate-300",
-    headerColor: "bg-slate-50",
-  },
-  {
-    id: "STARTED", // Changed from ARTWORK_UPLOAD to STARTED
-    name: "Started",
-    icon: Upload,
-    color: "bg-purple-100 border-purple-300",
-    headerColor: "bg-purple-50",
-  },
-  {
-    id: "IN_PROGRESS", // This matches the enum
-    name: "In Progress",
-    icon: Printer,
-    color: "bg-blue-100 border-blue-300",
-    headerColor: "bg-blue-50",
-  },
-  {
-    id: "COMPLETED",
-    name: "Completed",
-    icon: CheckCircle,
-    color: "bg-emerald-100 border-emerald-300", 
-    headerColor: "bg-emerald-50",
-  },
-  {
-    id: "ON_HOLD",
-    name: "On Hold",
-    icon: Pause,
-    color: "bg-red-100 border-red-300",
-    headerColor: "bg-red-50",
-  },
-];
+import { toast } from "sonner";
+import { MANUFACTURING_CONFIG } from "@/config/manufacturing";
 
 export function InteractiveWorkflowKanban() {
-  const { data: orders = [], isLoading } = useManufacturingDashboard();
-  const updateStatus = useUpdateOrderStatus();
-  const { toast } = useToast();
-  const [draggedOrder, setDraggedOrder] = useState<string | null>(null);
+  const { data: orders, isLoading, refetch } = useManufacturingOrders();
+  const [columns, setColumns] = useState({
+    pending: { id: 'pending', title: 'Pending', orders: [] },
+    in_progress: { id: 'in_progress', title: 'In Progress', orders: [] },
+    completed: { id: 'completed', title: 'Completed', orders: [] }
+  });
 
-  const handleStatusUpdate = async (uiorn: string, newStatus: string) => {
+  useEffect(() => {
+    if (orders) {
+      const newColumns = {
+        pending: { id: 'pending', title: 'Pending', orders: [] },
+        in_progress: { id: 'in_progress', title: 'In Progress', orders: [] },
+        completed: { id: 'completed', title: 'Completed', orders: [] }
+      };
+
+      orders.forEach(order => {
+        const status = order.status?.toLowerCase() || 'pending';
+        if (newColumns[status as keyof typeof newColumns]) {
+          newColumns[status as keyof typeof newColumns].orders.push(order);
+        }
+      });
+
+      setColumns(newColumns);
+    }
+  }, [orders]);
+
+  const handleDragEnd = async (result: any) => {
+    if (!result.destination) return;
+
+    const { source, destination, draggableId } = result;
+    
+    if (source.droppableId === destination.droppableId) return;
+
+    // Find the order being moved
+    const order = orders?.find(o => o.id === draggableId);
+    if (!order) return;
+
+    // Map column IDs to proper status values
+    const statusMapping = {
+      'pending': MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING,
+      'in_progress': MANUFACTURING_CONFIG.PROCESS_STATUS.IN_PROGRESS,
+      'completed': MANUFACTURING_CONFIG.PROCESS_STATUS.COMPLETED
+    };
+
+    const newStatus = statusMapping[destination.droppableId as keyof typeof statusMapping];
+    
     try {
-      // Use the correct status values that match the database enum
       const { error } = await supabase
         .from('order_punching')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('uiorn', uiorn);
-      
+        .update({ status: newStatus.toUpperCase() })
+        .eq('id', order.id);
+
       if (error) throw error;
-      
-      toast({
-        title: "Status Updated",
-        description: `Order ${uiorn} moved to ${getStageLabel(newStatus)}`,
-      });
+
+      toast.success(`Order ${order.uiorn} moved to ${destination.droppableId}`);
+      refetch();
     } catch (error) {
-      console.error('Status update error:', error);
-      toast({
-        title: "Update Failed",
-        description: "Failed to update order status. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getStageLabel = (status: string) => {
-    return stages.find(s => s.id === status)?.name || status;
-  };
-
-  const getOrdersByStage = (stageId: string): Order[] => {
-    return orders.filter((order: Order) => {
-      return order.status === stageId;
-    });
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority?.toUpperCase()) {
-      case "URGENT":
-        return "destructive";
-      case "HIGH":
-        return "default";
-      case "NORMAL":
-        return "outline";
-      case "LOW":
-        return "secondary";
-      default:
-        return "outline";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    const stage = stages.find(s => s.id === status);
-    if (stage) {
-      return <stage.icon className="h-4 w-4" />;
-    }
-    return <AlertCircle className="h-4 w-4 text-gray-500" />;
-  };
-
-  const handleDragStart = (e: React.DragEvent, orderId: string) => {
-    setDraggedOrder(orderId);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDrop = (e: React.DragEvent, targetStage: string) => {
-    e.preventDefault();
-    if (draggedOrder) {
-      const order = orders.find((o: Order) => o.id === draggedOrder);
-      if (order && order.status !== targetStage) {
-        handleStatusUpdate(order.uiorn, targetStage);
-      }
-      setDraggedOrder(null);
-    }
-  };
-
-  // Flexible packaging workflow progression
-  const getNextStatus = (currentStatus: string) => {
-    switch (currentStatus) {
-      case "PENDING": return "STARTED";
-      case "STARTED": return "IN_PROGRESS";
-      case "IN_PROGRESS": return "COMPLETED";
-      case "ON_HOLD": return "IN_PROGRESS";
-      default: return currentStatus;
-    }
-  };
-
-  const getPreviousStatus = (currentStatus: string) => {
-    switch (currentStatus) {
-      case "STARTED": return "PENDING";
-      case "IN_PROGRESS": return "STARTED";
-      case "COMPLETED": return "IN_PROGRESS";
-      default: return currentStatus;
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stages.map((stage) => (
-          <Card key={stage.id} className="h-96">
-            <CardHeader className={stage.headerColor}>
-              <CardTitle className="flex items-center gap-2">
-                <stage.icon className="h-5 w-5" />
-                {stage.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="animate-pulse space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-20 bg-gray-200 rounded" />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
+    return <div className="flex justify-center p-8">Loading workflow...</div>;
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      {stages.map((stage) => {
-        const stageOrders = getOrdersByStage(stage.id);
-        
-        return (
-          <Card
-            key={stage.id}
-            className={`min-h-[600px] ${stage.color}`}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, stage.id)}
-          >
-            <CardHeader className={stage.headerColor}>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <stage.icon className="h-5 w-5" />
-                  {stage.name}
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {stageOrders.length}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3">
-              {stageOrders.map((order: Order) => (
-                <Card
-                  key={order.id}
-                  className="cursor-move hover:shadow-md transition-shadow bg-white border-2 hover:border-primary/20"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, order.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(order.status)}
-                        <span className="font-medium text-sm">
-                          {order.uiorn}
-                        </span>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {stage.id !== "PENDING" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusUpdate(order.uiorn, getPreviousStatus(order.status))}
-                            >
-                              Move Back
-                            </DropdownMenuItem>
-                          )}
-                          {stage.id !== "COMPLETED" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusUpdate(order.uiorn, getNextStatus(order.status))}
-                            >
-                              Move Forward
-                            </DropdownMenuItem>
-                          )}
-                          {stage.id !== "ON_HOLD" && (
-                            <DropdownMenuItem
-                              onClick={() => handleStatusUpdate(order.uiorn, "ON_HOLD")}
-                            >
-                              Put On Hold
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    <h4 className="font-medium text-sm mb-1 line-clamp-2">
-                      {order.customer_name}
-                    </h4>
-
-                    <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                      {order.product_description}
-                    </p>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        {order.order_quantity} units
-                      </span>
-                      <Badge 
-                        variant={getPriorityColor(order.priority_level)}
-                        className="text-xs"
-                      >
-                        {order.priority_level || 'NORMAL'}
-                      </Badge>
-                    </div>
-
-                    {order.delivery_date && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Due: {new Date(order.delivery_date).toLocaleDateString()}
-                      </div>
-                    )}
-
-                    <div className="flex gap-1 mt-2">
-                      {order.status !== "COMPLETED" && order.status !== "ON_HOLD" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-xs"
-                          onClick={() => handleStatusUpdate(order.uiorn, getNextStatus(order.status))}
-                        >
-                          Next Stage
-                        </Button>
-                      )}
-                      
-                      {order.status === "ON_HOLD" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-xs"
-                          onClick={() => handleStatusUpdate(order.uiorn, "IN_PROGRESS")}
-                        >
-                          Resume
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {stageOrders.length === 0 && (
-                <div className="text-center text-muted-foreground py-8">
-                  <stage.icon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No orders in this stage</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-6">Manufacturing Workflow</h2>
+      
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {Object.values(columns).map(column => (
+            <div key={column.id} className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold mb-4 flex items-center justify-between">
+                {column.title}
+                <Badge variant="secondary">{column.orders.length}</Badge>
+              </h3>
+              
+              <Droppable droppableId={column.id}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`min-h-[500px] space-y-3 ${
+                      snapshot.isDraggingOver ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    {column.orders.map((order: any, index: number) => (
+                      <Draggable key={order.id} draggableId={order.id} index={index}>
+                        {(provided, snapshot) => (
+                          <Card
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`cursor-move hover:shadow-md transition-shadow ${
+                              snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
+                            }`}
+                          >
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm">{order.uiorn}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="space-y-2 text-xs">
+                                <div><strong>Customer:</strong> {order.customer_name}</div>
+                                <div><strong>Product:</strong> {order.product_description}</div>
+                                <div><strong>Quantity:</strong> {order.order_quantity}</div>
+                                <div><strong>Priority:</strong> 
+                                  <Badge variant="outline" className="ml-1 text-xs">
+                                    {order.priority_level || 'NORMAL'}
+                                  </Badge>
+                                </div>
+                                {order.delivery_date && (
+                                  <div><strong>Delivery:</strong> {new Date(order.delivery_date).toLocaleDateString()}</div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </div>
+          ))}
+        </div>
+      </DragDropContext>
     </div>
   );
 }

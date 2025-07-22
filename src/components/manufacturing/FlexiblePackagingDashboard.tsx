@@ -217,7 +217,7 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
                 <div className="text-sm text-muted-foreground">On-Time Delivery</div>
               </div>
             </div>
-          </div>
+          </CardContent>
         </Card>
       </div>
 
