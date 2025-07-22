@@ -52,22 +52,43 @@ export const useStockValuation = (filters: StockValuationFilters = {}) => {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Get pricing data from GRN logs for unit price calculations
-        const { data: grnData } = await supabase
-          .from("satguru_grn_log")
-          .select("item_code, amount_inr, qty_received, date")
-          .order("date", { ascending: false });
+        // Get pricing data from both pricing master and GRN logs
+        const [pricingMasterData, grnData] = await Promise.all([
+          supabase
+            .from("item_pricing_master")
+            .select("item_code, current_price, effective_date")
+            .eq("is_active", true)
+            .eq("approval_status", "APPROVED"),
+          supabase
+            .from("satguru_grn_log")
+            .select("item_code, amount_inr, qty_received, date")
+            .order("date", { ascending: false })
+        ]);
 
-        // Create pricing lookup map (latest GRN price per item)
-        const pricingMap = new Map<string, { unitPrice: number; lastGrnPrice: number; lastDate: string }>();
-        if (grnData) {
-          grnData.forEach(grn => {
+        // Create pricing lookup map (prioritize pricing master over GRN prices)
+        const pricingMap = new Map<string, { unitPrice: number; lastGrnPrice?: number; lastDate: string; source: 'MASTER' | 'GRN' }>();
+        
+        // First, populate with pricing master data
+        if (pricingMasterData.data) {
+          pricingMasterData.data.forEach(price => {
+            pricingMap.set(price.item_code, {
+              unitPrice: price.current_price,
+              lastDate: price.effective_date,
+              source: 'MASTER'
+            });
+          });
+        }
+
+        // Then fill gaps with GRN data for items not in pricing master
+        if (grnData.data) {
+          grnData.data.forEach(grn => {
             if (!pricingMap.has(grn.item_code) && grn.qty_received > 0) {
               const unitPrice = (grn.amount_inr || 0) / grn.qty_received;
               pricingMap.set(grn.item_code, {
                 unitPrice,
                 lastGrnPrice: unitPrice,
-                lastDate: grn.date
+                lastDate: grn.date,
+                source: 'GRN'
               });
             }
           });

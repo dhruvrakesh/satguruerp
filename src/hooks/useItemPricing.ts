@@ -36,44 +36,34 @@ export const useItemPricing = (params?: UseItemPricingParams) => {
       setIsLoading(true);
       setError(null);
       
-      // Mock data for now - replace with actual Supabase query once table exists
-      const mockData: ItemPricingEntry[] = [
-        {
-          id: '1',
-          item_code: 'BOPP-001',
-          item_name: 'BOPP Film 20 Micron',
-          category: 'Films',
-          uom: 'KG',
-          current_price: 120.50,
-          previous_price: 118.00,
-          cost_category: 'Raw Materials',
-          supplier: 'SUP-001',
-          effective_date: new Date().toISOString().split('T')[0],
-          approval_status: 'APPROVED',
-          price_change_reason: 'Market rate adjustment',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_active: true
-        },
-        {
-          id: '2',
-          item_code: 'INK-RED-001',
-          item_name: 'Gravure Ink Red',
-          category: 'Inks',
-          uom: 'KG',
-          current_price: 450.00,
-          cost_category: 'Consumables',
-          supplier: 'SUP-002',
-          effective_date: new Date().toISOString().split('T')[0],
-          approval_status: 'PENDING',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_active: true
-        }
-      ];
+      // Fetch from actual database
+      let query = supabase
+        .from('item_pricing_master')
+        .select('*')
+        .eq('is_active', true)
+        .order('effective_date', { ascending: false });
 
-      // Apply filters
-      let filteredData = mockData;
+      const { data: pricingData, error } = await query;
+      if (error) throw error;
+
+      // Apply filters and transform data
+      let filteredData = (pricingData || []).map(item => ({
+        id: item.id,
+        item_code: item.item_code,
+        item_name: item.item_name || '',
+        category: item.category || '',
+        uom: item.uom || 'KG',
+        current_price: item.current_price,
+        previous_price: item.previous_price,
+        cost_category: item.cost_category,
+        supplier: item.supplier,
+        effective_date: item.effective_date,
+        approval_status: item.approval_status as 'APPROVED' | 'PENDING' | 'REJECTED',
+        price_change_reason: item.price_change_reason,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        is_active: item.is_active
+      }));
       
       if (params?.category && params.category !== 'all') {
         filteredData = filteredData.filter(item => 
@@ -118,13 +108,17 @@ export const useItemPricing = (params?: UseItemPricingParams) => {
 export const useUpdateItemPrice = () => {
   const [isPending, setIsPending] = useState(false);
 
-  const mutate = async (params: { itemId: string; newPrice: number; reason: string }) => {
+  const mutate = async (params: { itemCode: string; newPrice: number; reason: string }) => {
     setIsPending(true);
     try {
-      // Mock implementation - replace with actual Supabase update
-      console.log('Updating item price:', params);
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use the database function we created
+      const { data, error } = await supabase.rpc('update_item_price', {
+        p_item_code: params.itemCode,
+        p_new_price: params.newPrice,
+        p_reason: params.reason
+      });
+
+      if (error) throw error;
       return { success: true };
     } catch (error) {
       throw error;
@@ -133,12 +127,12 @@ export const useUpdateItemPrice = () => {
     }
   };
 
-  const mutateAsync = async (params: { itemId: string; newPrice: number; reason: string }) => {
+  const mutateAsync = async (params: { itemCode: string; newPrice: number; reason: string }) => {
     return mutate(params);
   };
 
   return {
-    mutate: (params: { itemId: string; newPrice: number; reason: string }, options?: any) => {
+    mutate: (params: { itemCode: string; newPrice: number; reason: string }, options?: any) => {
       mutate(params).then(options?.onSuccess).catch(options?.onError);
     },
     mutateAsync,

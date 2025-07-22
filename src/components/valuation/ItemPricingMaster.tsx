@@ -40,7 +40,7 @@ export function ItemPricingMaster() {
   const updatePriceMutation = useUpdateItemPrice();
   const addPriceMutation = useAddItemPrice();
 
-  const handlePriceUpdate = (itemId: string) => {
+  const handlePriceUpdate = (itemCode: string) => {
     if (!newPrice || parseFloat(newPrice) <= 0) {
       toast({
         title: "Invalid Price",
@@ -51,7 +51,7 @@ export function ItemPricingMaster() {
     }
 
     updatePriceMutation.mutate({
-      itemId,
+      itemCode,
       newPrice: parseFloat(newPrice),
       reason: "Manual price update"
     }, {
@@ -322,12 +322,12 @@ export function ItemPricingMaster() {
                             className="w-24"
                             placeholder={entry.current_price.toString()}
                           />
-                          <Button
-                            size="sm"
-                            onClick={() => handlePriceUpdate(entry.id)}
-                            disabled={updatePriceMutation.isPending}
-                            className="gap-1"
-                          >
+                           <Button
+                             size="sm"
+                             onClick={() => handlePriceUpdate(entry.item_code)}
+                             disabled={updatePriceMutation.isPending}
+                             className="gap-1"
+                           >
                             {updatePriceMutation.isPending ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (

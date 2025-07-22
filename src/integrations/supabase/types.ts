@@ -3160,6 +3160,117 @@ export type Database = {
           },
         ]
       }
+      item_price_history: {
+        Row: {
+          approved_by: string | null
+          change_reason: string | null
+          change_type: string | null
+          changed_by: string | null
+          created_at: string | null
+          effective_date: string | null
+          id: string
+          item_code: string
+          new_price: number
+          old_price: number | null
+          price_change_percentage: number | null
+        }
+        Insert: {
+          approved_by?: string | null
+          change_reason?: string | null
+          change_type?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          id?: string
+          item_code: string
+          new_price: number
+          old_price?: number | null
+          price_change_percentage?: number | null
+        }
+        Update: {
+          approved_by?: string | null
+          change_reason?: string | null
+          change_type?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          effective_date?: string | null
+          id?: string
+          item_code?: string
+          new_price?: number
+          old_price?: number | null
+          price_change_percentage?: number | null
+        }
+        Relationships: []
+      }
+      item_pricing_master: {
+        Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
+          category: string | null
+          cost_category: string | null
+          created_at: string | null
+          created_by: string | null
+          current_price: number
+          effective_date: string | null
+          id: string
+          is_active: boolean | null
+          item_code: string
+          item_name: string | null
+          previous_price: number | null
+          price_change_reason: string | null
+          price_source: string | null
+          supplier: string | null
+          uom: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          category?: string | null
+          cost_category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_price?: number
+          effective_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          item_code: string
+          item_name?: string | null
+          previous_price?: number | null
+          price_change_reason?: string | null
+          price_source?: string | null
+          supplier?: string | null
+          uom?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          category?: string | null
+          cost_category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_price?: number
+          effective_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          item_code?: string
+          item_name?: string | null
+          previous_price?: number | null
+          price_change_reason?: string | null
+          price_source?: string | null
+          supplier?: string | null
+          uom?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           colour_target_id: string | null
@@ -8637,6 +8748,10 @@ export type Database = {
           p_success?: boolean
         }
         Returns: undefined
+      }
+      update_item_price: {
+        Args: { p_item_code: string; p_new_price: number; p_reason?: string }
+        Returns: boolean
       }
       update_job_status: {
         Args: {

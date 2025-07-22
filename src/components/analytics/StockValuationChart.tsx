@@ -1,13 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { IndianRupee, TrendingUp, Package, Clock } from "lucide-react";
+import { IndianRupee, TrendingUp, Package, Clock, Edit2, Save, X } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, Legend } from "recharts";
 import { useStockValuation, StockValuationFilters } from "@/hooks/useStockValuation";
+import { useUpdateItemPrice } from "@/hooks/useItemPricing";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 const COLORS = {
   high: 'hsl(var(--destructive))',
@@ -22,6 +26,43 @@ interface StockValuationChartProps {
 
 export function StockValuationChart({ filters, onFiltersChange }: StockValuationChartProps) {
   const { stockValuation, valuationSummary } = useStockValuation(filters);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [newPrice, setNewPrice] = useState("");
+  const updatePriceMutation = useUpdateItemPrice();
+
+  const handlePriceUpdate = (itemCode: string) => {
+    if (!newPrice || parseFloat(newPrice) <= 0) {
+      toast({
+        title: "Invalid Price",
+        description: "Please enter a valid price greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updatePriceMutation.mutate({
+      itemCode,
+      newPrice: parseFloat(newPrice),
+      reason: "Manual price update from valuation screen"
+    }, {
+      onSuccess: () => {
+        setEditingItem(null);
+        setNewPrice("");
+        stockValuation.refetch();
+        toast({
+          title: "Price Updated",
+          description: `Price updated for ${itemCode}`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: "Update Failed",
+          description: "Failed to update price. Please try again.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
 
   if (stockValuation.isLoading || valuationSummary.isLoading) {
     return (
@@ -215,7 +256,48 @@ export function StockValuationChart({ filters, onFiltersChange }: StockValuation
                     <TableCell>{item.category_name}</TableCell>
                     <TableCell className="text-right">{item.current_qty}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(item.unit_price || 0)}
+                      {editingItem === item.item_code ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={newPrice}
+                            onChange={(e) => setNewPrice(e.target.value)}
+                            className="w-24"
+                            placeholder={item.unit_price?.toString() || "0"}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handlePriceUpdate(item.item_code)}
+                            disabled={updatePriceMutation.isPending}
+                          >
+                            <Save className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingItem(null);
+                              setNewPrice("");
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{formatCurrency(item.unit_price || 0)}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingItem(item.item_code);
+                              setNewPrice(item.unit_price?.toString() || "0");
+                            }}
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.total_value)}
