@@ -17,6 +17,14 @@ export interface ExportOptions {
 export interface ExportData {
   filename: string;
   data: any[];
+  summary?: {
+    totalItems: number;
+    totalValue: number;
+    itemsWithoutPrices?: number;
+    highPriceAlerts?: number;
+    exportTimestamp: string;
+    filters: any;
+  };
 }
 
 // Export GRN data to Excel with pagination
@@ -628,23 +636,25 @@ export function useStockValuationExport() {
       XLSX.utils.book_append_sheet(wb, ws, 'Stock Valuation');
       
       // Summary sheet
-      const summaryData = [
-        { Metric: 'Total Items', Value: summary.totalItems },
-        { Metric: 'Total Value (INR)', Value: summary.totalValue },
-        { Metric: 'Items Without Prices', Value: summary.itemsWithoutPrices },
-        { Metric: 'High Price Alerts', Value: summary.highPriceAlerts },
-        { Metric: 'Export Timestamp', Value: summary.exportTimestamp },
-        { Metric: 'Category Filter', Value: summary.filters.category || 'All Categories' }
-      ];
-      
-      const summaryWs = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+      if (summary) {
+        const summaryData = [
+          { Metric: 'Total Items', Value: summary.totalItems },
+          { Metric: 'Total Value (INR)', Value: summary.totalValue },
+          { Metric: 'Items Without Prices', Value: summary.itemsWithoutPrices },
+          { Metric: 'High Price Alerts', Value: summary.highPriceAlerts },
+          { Metric: 'Export Timestamp', Value: summary.exportTimestamp },
+          { Metric: 'Category Filter', Value: summary.filters.category || 'All Categories' }
+        ];
+        
+        const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+      }
       
       XLSX.writeFile(wb, filename);
       
       toast({
         title: "Export Successful",
-        description: `Stock valuation exported to ${filename} (${data.length} items, Total Value: ₹${summary.totalValue.toLocaleString()})`
+        description: `Stock valuation exported to ${filename} (${data.length} items, Total Value: ₹${summary?.totalValue.toLocaleString()})`
       });
       
       resetProgress();
