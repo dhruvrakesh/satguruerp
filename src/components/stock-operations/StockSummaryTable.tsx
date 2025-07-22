@@ -299,16 +299,30 @@ export function StockSummaryTable() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {item.metrics_period === 'OPERATIONAL_PERIOD' 
-                      ? formatNumber(item.received_30_days)
-                      : formatNumber(item.legacy_received_indicator || 0)
-                    }
+                    <div className="flex flex-col items-end">
+                      <span className="font-medium">
+                        {item.metrics_period === 'OPERATIONAL_PERIOD' 
+                          ? formatNumber(item.received_30_days)
+                          : formatNumber(item.legacy_received_indicator)
+                        }
+                      </span>
+                      {item.metrics_period === 'LEGACY_PERIOD' && item.legacy_received_indicator > 0 && (
+                        <span className="text-xs text-muted-foreground">Legacy Total</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    {item.metrics_period === 'OPERATIONAL_PERIOD'
-                      ? formatNumber(item.consumption_30_days)
-                      : formatNumber(item.legacy_consumed_indicator || 0)
-                    }
+                    <div className="flex flex-col items-end">
+                      <span className="font-medium">
+                        {item.metrics_period === 'OPERATIONAL_PERIOD'
+                          ? formatNumber(item.consumption_30_days)
+                          : formatNumber(item.legacy_consumed_indicator)
+                        }
+                      </span>
+                      {item.metrics_period === 'LEGACY_PERIOD' && item.legacy_consumed_indicator > 0 && (
+                        <span className="text-xs text-muted-foreground">Legacy Total</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right font-semibold text-green-600">
                     {formatNumber(item.current_qty)}

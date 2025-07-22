@@ -18,15 +18,15 @@ export interface StockSummaryRecord {
   total_grns: number;
   total_issues: number;
   uom: string;
-  // New fields from enhanced view
-  legacy_baseline?: number;
-  operational_grns?: number;
-  operational_issues?: number;
-  data_quality?: string;
-  net_operational_movement?: number;
-  legacy_received_indicator?: number;
-  legacy_consumed_indicator?: number;
-  metrics_period?: string;
+  // Enhanced view fields for ERP operationalization
+  legacy_baseline: number;
+  operational_grns: number;
+  operational_issues: number;
+  data_quality: string;
+  net_operational_movement: number;
+  legacy_received_indicator: number;
+  legacy_consumed_indicator: number;
+  metrics_period: 'LEGACY_PERIOD' | 'OPERATIONAL_PERIOD';
 }
 
 export interface StockSummaryFilters {
