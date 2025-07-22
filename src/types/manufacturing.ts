@@ -1,4 +1,6 @@
 
+import type { ProcessStage, ProcessStatus, ProductType, OrderStatus } from '@/config/manufacturing';
+
 export interface Customer {
   id: string;
   name: string;
@@ -35,7 +37,7 @@ export interface ManufacturingOrder {
   product_description: string;
   special_instructions?: string;
   priority_level?: string;
-  status: 'PENDING' | 'STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+  status: OrderStatus;
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -43,9 +45,9 @@ export interface ManufacturingOrder {
 }
 
 // Enhanced process stages for flexible packaging
-export interface ProcessStage {
-  stage: 'artwork_upload' | 'gravure_printing' | 'lamination' | 'adhesive_coating' | 'slitting' | 'packaging';
-  status: 'pending' | 'in_progress' | 'completed' | 'on_hold';
+export interface ProcessStageData {
+  stage: ProcessStage;
+  status: ProcessStatus;
   started_at?: string;
   completed_at?: string;
   operator_id?: string;
@@ -232,7 +234,7 @@ export interface OrderProgress {
 
 // New interfaces for flexible packaging specific features
 export interface PackagingProduct {
-  type: 'SOAP_WRAPPER' | 'STIFFENER' | 'LAMINATE' | 'TAPE' | 'POUCH' | 'LABEL';
+  type: ProductType;
   specifications: {
     dimensions: {
       length_mm: number;

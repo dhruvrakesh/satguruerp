@@ -3,11 +3,10 @@ import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { MANUFACTURING_CONFIG } from "@/config/manufacturing";
+import { MANUFACTURING_CONFIG, mapUIStatusToDatabase } from "@/config/manufacturing";
 
 export function InteractiveWorkflowKanban() {
   const { data: orders, isLoading, refetch } = useManufacturingOrders();
@@ -47,19 +46,13 @@ export function InteractiveWorkflowKanban() {
     const order = orders?.find(o => o.id === draggableId);
     if (!order) return;
 
-    // Map column IDs to proper status values
-    const statusMapping = {
-      'pending': MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING,
-      'in_progress': MANUFACTURING_CONFIG.PROCESS_STATUS.IN_PROGRESS,
-      'completed': MANUFACTURING_CONFIG.PROCESS_STATUS.COMPLETED
-    };
-
-    const newStatus = statusMapping[destination.droppableId as keyof typeof statusMapping];
+    // Map UI status to database status
+    const newStatus = mapUIStatusToDatabase(destination.droppableId);
     
     try {
       const { error } = await supabase
         .from('order_punching')
-        .update({ status: newStatus.toUpperCase() })
+        .update({ status: newStatus })
         .eq('id', order.id);
 
       if (error) throw error;

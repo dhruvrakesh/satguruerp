@@ -11,16 +11,23 @@ import {
   AlertTriangle, 
   CheckCircle,
   Clock,
-  Layers,
-  Palette,
-  Scissors,
-  Droplets,
   Activity
 } from "lucide-react";
-import { EnhancedProcessStageCard } from "./EnhancedProcessStageCard";
-import { SubstrateSpecificationPanel } from "./SubstrateSpecificationPanel";
-import { QualityControlPanel } from "./QualityControlPanel";
-import { CostTrackingPanel } from "./CostTrackingPanel";
+import { MANUFACTURING_CONFIG } from "@/config/manufacturing";
+import type { ProcessStage, ProcessStatus, ProductType } from "@/config/manufacturing";
+
+interface ProcessStageData {
+  stage: ProcessStage;
+  status: ProcessStatus;
+  started_at?: string;
+  completed_at?: string;
+  operator_id?: string;
+  machine_id?: string;
+  process_parameters?: any;
+  quality_metrics?: any;
+  substrate_specifications?: any;
+  quality_checks?: any[];
+}
 
 interface FlexiblePackagingDashboardProps {
   uiorn: string;
@@ -28,7 +35,7 @@ interface FlexiblePackagingDashboardProps {
 }
 
 export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagingDashboardProps) {
-  const [activeStages, setActiveStages] = useState([]);
+  const [activeStages, setActiveStages] = useState<ProcessStageData[]>([]);
   const [qualityAlerts, setQualityAlerts] = useState([]);
   const [productionMetrics, setProductionMetrics] = useState({
     efficiency: 87,
@@ -37,19 +44,19 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
     on_time_delivery: 92
   });
 
-  // Mock process stages for flexible packaging
-  const processStages = [
+  // Mock process stages for flexible packaging using proper types
+  const processStages: ProcessStageData[] = [
     {
-      stage: 'artwork_upload',
-      status: 'completed',
+      stage: MANUFACTURING_CONFIG.PROCESS_STAGES.ARTWORK_UPLOAD,
+      status: MANUFACTURING_CONFIG.PROCESS_STATUS.COMPLETED,
       started_at: '2024-01-15T08:00:00Z',
       completed_at: '2024-01-15T09:30:00Z',
       operator_id: 'OP001',
       quality_checks: []
     },
     {
-      stage: 'gravure_printing',
-      status: 'in_progress',
+      stage: MANUFACTURING_CONFIG.PROCESS_STAGES.GRAVURE_PRINTING,
+      status: MANUFACTURING_CONFIG.PROCESS_STATUS.IN_PROGRESS,
       started_at: '2024-01-15T10:00:00Z',
       operator_id: 'OP002',
       machine_id: 'GP001',
@@ -89,8 +96,8 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
       }
     },
     {
-      stage: 'lamination',
-      status: 'pending',
+      stage: MANUFACTURING_CONFIG.PROCESS_STAGES.LAMINATION,
+      status: MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING,
       process_parameters: {
         lamination: {
           nip_pressure_n_cm: 300,
@@ -103,8 +110,8 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
       }
     },
     {
-      stage: 'slitting',
-      status: 'pending',
+      stage: MANUFACTURING_CONFIG.PROCESS_STAGES.SLITTING,
+      status: MANUFACTURING_CONFIG.PROCESS_STATUS.PENDING,
       process_parameters: {
         slitting: {
           slitting_speed_mpm: 200,
@@ -223,9 +230,8 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
 
       {/* Main Production Workflow */}
       <Tabs defaultValue="process-flow" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="process-flow">Process Flow</TabsTrigger>
-          <TabsTrigger value="substrate-specs">Substrate Specs</TabsTrigger>
           <TabsTrigger value="quality-control">Quality Control</TabsTrigger>
           <TabsTrigger value="cost-tracking">Cost Tracking</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -234,32 +240,89 @@ export function FlexiblePackagingDashboard({ uiorn, orderData }: FlexiblePackagi
         <TabsContent value="process-flow" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {processStages.map((stage, index) => (
-              <EnhancedProcessStageCard
-                key={index}
-                stage={stage}
-                orderData={{
-                  uiorn,
-                  customer_name: orderData?.customer_name || 'Customer',
-                  product_type: orderData?.product_type || 'SOAP_WRAPPER',
-                  substrate_type: orderData?.substrate_type || 'BOPP Film'
-                }}
-                onStatusUpdate={handleStatusUpdate}
-                onParametersEdit={handleParametersEdit}
-              />
+              <Card key={index} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium">
+                      {stage.stage.replace('_', ' ').toUpperCase()}
+                    </CardTitle>
+                    <Badge variant={stage.status === 'completed' ? 'default' : 'secondary'}>
+                      {stage.status.replace('_', ' ').toUpperCase()}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  {stage.process_parameters && (
+                    <div className="text-xs space-y-1">
+                      <div className="font-medium">Parameters:</div>
+                      {Object.entries(stage.process_parameters).map(([key, params]: [string, any]) => (
+                        <div key={key} className="pl-2">
+                          {Object.entries(params || {}).slice(0, 2).map(([param, value]) => (
+                            <div key={param} className="flex justify-between">
+                              <span className="text-muted-foreground">{param}:</span>
+                              <span>{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => handleStatusUpdate(stage.stage, 'in_progress')}
+                    >
+                      Update Status
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => handleParametersEdit(stage.stage)}
+                    >
+                      Setup
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </TabsContent>
 
-        <TabsContent value="substrate-specs">
-          <SubstrateSpecificationPanel uiorn={uiorn} />
-        </TabsContent>
-
         <TabsContent value="quality-control">
-          <QualityControlPanel uiorn={uiorn} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Quality Control Dashboard</CardTitle>
+              <CardDescription>
+                Real-time quality monitoring for flexible packaging production
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-muted-foreground py-8">
+                Quality control dashboard coming soon...
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="cost-tracking">
-          <CostTrackingPanel uiorn={uiorn} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Cost Tracking</CardTitle>
+              <CardDescription>
+                Material costs and production efficiency tracking
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-muted-foreground py-8">
+                Cost tracking dashboard coming soon...
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="analytics">

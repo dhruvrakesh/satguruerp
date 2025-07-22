@@ -1,17 +1,27 @@
 
 // Manufacturing Configuration - Single Source of Truth
 export const MANUFACTURING_CONFIG = {
-  // Process Stage Mappings
+  // Process Stage Mappings - Aligned with database enums
   PROCESS_STAGES: {
-    ARTWORK_UPLOAD: 'artwork_upload',
-    GRAVURE_PRINTING: 'gravure_printing', 
-    LAMINATION: 'lamination',
-    ADHESIVE_COATING: 'adhesive_coating',
-    SLITTING: 'slitting',
-    PACKAGING: 'packaging'
+    ARTWORK_UPLOAD: 'ARTWORK_UPLOAD',
+    GRAVURE_PRINTING: 'GRAVURE_PRINTING', 
+    LAMINATION: 'LAMINATION_COATING',
+    ADHESIVE_COATING: 'ADHESIVE_COATING',
+    SLITTING: 'SLITTING_PACKING',
+    PACKAGING: 'PACKAGING'
   } as const,
 
-  // Status Enums aligned with database
+  // Status Enums aligned with database order_punching table
+  ORDER_STATUS: {
+    PENDING: 'PENDING',
+    STARTED: 'STARTED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    COMPLETED: 'COMPLETED',
+    ON_HOLD: 'ON_HOLD',
+    CANCELLED: 'CANCELLED'
+  } as const,
+
+  // Process Status for individual stages
   PROCESS_STATUS: {
     PENDING: 'pending',
     IN_PROGRESS: 'in_progress',
@@ -88,6 +98,23 @@ export const MANUFACTURING_CONFIG = {
 
 // Type definitions derived from config
 export type ProcessStage = typeof MANUFACTURING_CONFIG.PROCESS_STAGES[keyof typeof MANUFACTURING_CONFIG.PROCESS_STAGES];
+export type OrderStatus = typeof MANUFACTURING_CONFIG.ORDER_STATUS[keyof typeof MANUFACTURING_CONFIG.ORDER_STATUS];
 export type ProcessStatus = typeof MANUFACTURING_CONFIG.PROCESS_STATUS[keyof typeof MANUFACTURING_CONFIG.PROCESS_STATUS];
 export type ProductType = typeof MANUFACTURING_CONFIG.PRODUCT_TYPES[keyof typeof MANUFACTURING_CONFIG.PRODUCT_TYPES];
 export type SubstrateMaterial = typeof MANUFACTURING_CONFIG.SUBSTRATE_MATERIALS[keyof typeof MANUFACTURING_CONFIG.SUBSTRATE_MATERIALS];
+
+// Status mapping utilities
+export const mapUIStatusToDatabase = (uiStatus: string): string => {
+  const statusMap: Record<string, string> = {
+    'pending': MANUFACTURING_CONFIG.ORDER_STATUS.PENDING,
+    'in_progress': MANUFACTURING_CONFIG.ORDER_STATUS.IN_PROGRESS,
+    'completed': MANUFACTURING_CONFIG.ORDER_STATUS.COMPLETED,
+    'on_hold': MANUFACTURING_CONFIG.ORDER_STATUS.ON_HOLD,
+    'cancelled': MANUFACTURING_CONFIG.ORDER_STATUS.CANCELLED
+  };
+  return statusMap[uiStatus] || uiStatus.toUpperCase();
+};
+
+export const mapDatabaseStatusToUI = (dbStatus: string): string => {
+  return dbStatus?.toLowerCase() || 'pending';
+};
