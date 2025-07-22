@@ -1,5 +1,3 @@
-
-
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -13,6 +11,7 @@ export interface ExportOptions {
   supplier?: string;
   purpose?: string;
   search?: string;
+  category?: string;
 }
 
 export interface ExportData {
@@ -480,3 +479,190 @@ export function useStockMovementExport() {
   };
 }
 
+// Export Stock Valuation data to Excel with detailed pricing information
+export function useStockValuationExport() {
+  const { progress, startExport, updateProgress, finishExport, resetProgress } = useExportProgress();
+
+  const mutation = useMutation({
+    mutationFn: async (options: ExportOptions = {}): Promise<ExportData> => {
+      console.log('Starting stock valuation export with options:', options);
+
+      // Reset progress
+      resetProgress();
+      startExport(1, 1);
+
+      try {
+        // Get stock valuation data using the same source as the UI
+        let query = supabase
+          .from("satguru_stock_summary_view")
+          .select("*");
+
+        // Apply filters
+        if (options.category) {
+          query = query.eq("category_name", options.category);
+        }
+
+        const { data: stockData, error: stockError } = await query;
+        if (stockError) throw stockError;
+
+        // Get pricing data from both pricing master and GRN logs
+        const [pricingMasterData, grnData] = await Promise.all([
+          supabase
+            .from("item_pricing_master")
+            .select("item_code, current_price, effective_date")
+            .eq("is_active", true)
+            .eq("approval_status", "APPROVED"),
+          supabase
+            .from("satguru_grn_log")
+            .select("item_code, amount_inr, qty_received, date")
+            .gte("date", "2024-01-01") // Filter out corrupt future dates
+            .lte("date", "2025-12-31")
+            .order("date", { ascending: false })
+        ]);
+
+        // Create pricing lookup map
+        const pricingMap = new Map<string, { unitPrice: number; source: string; lastDate: string; isReasonable: boolean }>();
+        
+        // Prioritize pricing master data
+        if (pricingMasterData.data) {
+          pricingMasterData.data.forEach(price => {
+            pricingMap.set(price.item_code, {
+              unitPrice: price.current_price,
+              source: 'Manual (Pricing Master)',
+              lastDate: price.effective_date,
+              isReasonable: price.current_price <= 10000 // Flag unreasonable prices
+            });
+          });
+        }
+
+        // Fill gaps with GRN data for items not in pricing master
+        if (grnData.data) {
+          grnData.data.forEach(grn => {
+            if (!pricingMap.has(grn.item_code) && grn.qty_received > 0) {
+              const unitPrice = (grn.amount_inr || 0) / grn.qty_received;
+              if (unitPrice > 0) {
+                pricingMap.set(grn.item_code, {
+                  unitPrice,
+                  source: 'GRN Calculated',
+                  lastDate: grn.date,
+                  isReasonable: unitPrice <= 10000
+                });
+              }
+            }
+          });
+        }
+
+        // Transform data to match the valuation table
+        const exportData = (stockData || []).map(item => {
+          const pricing = pricingMap.get(item.item_code);
+          const unitPrice = pricing?.unitPrice || 0;
+          const currentQty = Number(item.current_qty) || 0;
+          const totalValue = currentQty * unitPrice;
+          
+          // Calculate stock age
+          const stockAgeDays = pricing?.lastDate 
+            ? Math.floor((new Date().getTime() - new Date(pricing.lastDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 999;
+
+          return {
+            'Item Code': item.item_code || '',
+            'Item Name': item.item_name || '',
+            'Category': item.category_name || '',
+            'Current Quantity': currentQty,
+            'UOM': item.uom || '',
+            'Unit Price (INR)': unitPrice,
+            'Price Source': pricing?.source || 'No Price Data',
+            'Total Value (INR)': totalValue,
+            'Stock Age (Days)': stockAgeDays,
+            'Price Quality': pricing?.isReasonable === false ? 'HIGH PRICE ALERT' : 
+                           unitPrice === 0 ? 'NO PRICE DATA' : 'NORMAL',
+            'Last Price Date': pricing?.lastDate || 'N/A'
+          };
+        });
+
+        // Sort by total value descending (same as UI)
+        exportData.sort((a, b) => b['Total Value (INR)'] - a['Total Value (INR)']);
+
+        // Calculate summary metrics
+        const totalItems = exportData.length;
+        const totalValue = exportData.reduce((sum, item) => sum + item['Total Value (INR)'], 0);
+        const itemsWithoutPrices = exportData.filter(item => item['Unit Price (INR)'] === 0).length;
+        const highPriceAlerts = exportData.filter(item => item['Price Quality'] === 'HIGH PRICE ALERT').length;
+
+        const filename = `Stock_Valuation_Export_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
+        
+        finishExport();
+        
+        return { 
+          filename, 
+          data: exportData,
+          summary: {
+            totalItems,
+            totalValue,
+            itemsWithoutPrices,
+            highPriceAlerts,
+            exportTimestamp: new Date().toISOString(),
+            filters: options
+          }
+        };
+      } catch (error) {
+        console.error('Stock valuation export error:', error);
+        throw error;
+      }
+    },
+    onSuccess: ({ filename, data, summary }) => {
+      console.log(`Stock valuation export successful: ${data.length} records exported to ${filename}`);
+      
+      // Create workbook with main data and summary sheet
+      const wb = XLSX.utils.book_new();
+      
+      // Main data sheet
+      const ws = XLSX.utils.json_to_sheet(data);
+      
+      // Auto-fit column widths
+      const colWidths = Object.keys(data[0] || {}).map(key => ({
+        wch: Math.max(key.length, ...data.slice(0, 100).map(row => String(row[key] || '').length))
+      }));
+      ws['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Stock Valuation');
+      
+      // Summary sheet
+      const summaryData = [
+        { Metric: 'Total Items', Value: summary.totalItems },
+        { Metric: 'Total Value (INR)', Value: summary.totalValue },
+        { Metric: 'Items Without Prices', Value: summary.itemsWithoutPrices },
+        { Metric: 'High Price Alerts', Value: summary.highPriceAlerts },
+        { Metric: 'Export Timestamp', Value: summary.exportTimestamp },
+        { Metric: 'Category Filter', Value: summary.filters.category || 'All Categories' }
+      ];
+      
+      const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+      
+      XLSX.writeFile(wb, filename);
+      
+      toast({
+        title: "Export Successful",
+        description: `Stock valuation exported to ${filename} (${data.length} items, Total Value: ₹${summary.totalValue.toLocaleString()})`
+      });
+      
+      resetProgress();
+    },
+    onError: (error: any) => {
+      console.error('Stock valuation export failed:', error);
+      toast({
+        title: "Export Failed",
+        description: error.message || "Failed to export stock valuation data",
+        variant: "destructive"
+      });
+      resetProgress();
+    }
+  });
+
+  return {
+    ...mutation,
+    progress,
+    resetProgress
+  };
+}

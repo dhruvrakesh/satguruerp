@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, PieChart, LineChart, Download, RefreshCw, FileText, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,7 @@ import { InventoryOptimizationPanel } from "@/components/analytics/InventoryOpti
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { ValuationDashboard } from "@/components/valuation/ValuationDashboard";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
-import { useStockMovementExport } from "@/hooks/useDataExport";
+import { useStockMovementExport, useStockValuationExport } from "@/hooks/useDataExport";
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
 import { useStockValuation } from "@/hooks/useStockValuation";
 import { useDeadStockAnalysis } from "@/hooks/useDeadStockAnalysis";
@@ -31,8 +30,10 @@ export default function StockAnalytics() {
     valuationMethod: 'WEIGHTED_AVG'
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState("overview");
 
-  const exportMutation = useStockMovementExport();
+  const movementExportMutation = useStockMovementExport();
+  const valuationExportMutation = useStockValuationExport();
   const pdfMutation = usePDFReportGeneration();
   const { stockValuation, valuationSummary } = useStockValuation(filters);
   const { deadStockAnalysis, deadStockSummary } = useDeadStockAnalysis({
@@ -42,14 +43,41 @@ export default function StockAnalytics() {
 
   const handleExport = async () => {
     try {
-      await exportMutation.mutateAsync({
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        supplier: filters.supplier,
-      });
+      let exportLabel = "Export";
+      
+      switch (activeTab) {
+        case "valuation":
+          await valuationExportMutation.mutateAsync({
+            category: filters.category,
+            supplier: filters.supplier,
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo
+          });
+          exportLabel = "Stock valuation export";
+          break;
+        case "trends":
+        case "movement":
+          await movementExportMutation.mutateAsync({
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            supplier: filters.supplier,
+          });
+          exportLabel = "Stock movement export";
+          break;
+        default:
+          // Default to movement export for other tabs
+          await movementExportMutation.mutateAsync({
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            supplier: filters.supplier,
+          });
+          exportLabel = "Stock analytics export";
+          break;
+      }
+      
       toast({
         title: "Export successful",
-        description: "Stock analytics report has been downloaded",
+        description: `${exportLabel} has been downloaded`,
       });
     } catch (error) {
       toast({
@@ -101,6 +129,32 @@ export default function StockAnalytics() {
     });
   };
 
+  const getExportButtonLabel = () => {
+    switch (activeTab) {
+      case "valuation":
+        return "Export Valuation";
+      case "trends":
+      case "movement":
+        return "Export Movement";
+      case "dead-stock":
+        return "Export Dead Stock";
+      default:
+        return "Export Excel";
+    }
+  };
+
+  const isExporting = () => {
+    switch (activeTab) {
+      case "valuation":
+        return valuationExportMutation.isPending;
+      case "trends":
+      case "movement":
+        return movementExportMutation.isPending;
+      default:
+        return movementExportMutation.isPending;
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -126,11 +180,11 @@ export default function StockAnalytics() {
           <Button 
             variant="outline" 
             onClick={handleExport}
-            disabled={exportMutation.isPending}
+            disabled={isExporting()}
             className="gap-2"
           >
             <Download className="w-4 h-4" />
-            {exportMutation.isPending ? "Exporting..." : "Export Excel"}
+            {isExporting() ? "Exporting..." : getExportButtonLabel()}
           </Button>
           <Button 
             variant="outline" 
@@ -144,7 +198,7 @@ export default function StockAnalytics() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="valuation-mgmt">Valuation Management</TabsTrigger>
