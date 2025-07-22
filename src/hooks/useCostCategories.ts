@@ -29,85 +29,37 @@ export const useCostCategories = (filters: CategoryFilters = {}) => {
   return useQuery({
     queryKey: ["cost-categories", filters],
     queryFn: async (): Promise<CostCategory[]> => {
-      console.log("Fetching cost categories with filters:", filters);
-      
-      // Mock data - replace with actual Supabase query once tables are created
-      const mockData: CostCategory[] = [
-        {
-          id: "1",
-          category_code: "RM",
-          category_name: "Raw Materials",
-          description: "Primary raw materials used in production",
-          level: 1,
-          display_order: 1,
-          default_percentage: 60,
-          allocation_method: "percentage",
-          is_active: true,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          applicable_item_count: 250
-        },
-        {
-          id: "2",
-          category_code: "SUB",
-          category_name: "Substrates",
-          description: "Base substrates for printing",
-          parent_category_id: "1",
-          level: 2,
-          display_order: 2,
-          default_percentage: 25,
-          allocation_method: "percentage",
-          is_active: true,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          applicable_item_count: 150
-        },
-        {
-          id: "3",
-          category_code: "LAB",
-          category_name: "Labor",
-          description: "Direct and indirect labor costs",
-          level: 1,
-          display_order: 3,
-          default_percentage: 15,
-          allocation_method: "activity",
-          is_active: true,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          applicable_item_count: 0
-        },
-        {
-          id: "4",
-          category_code: "OH",
-          category_name: "Overhead",
-          description: "Manufacturing and administrative overhead",
-          level: 1,
-          display_order: 4,
-          default_percentage: 10,
-          allocation_method: "weighted",
-          is_active: true,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-          applicable_item_count: 0
-        }
-      ];
+      let query = supabase
+        .from("cost_categories")
+        .select(`
+          *,
+          item_pricing_master!item_pricing_master_cost_category_id_fkey(id)
+        `);
 
       // Apply filters
-      let filteredData = mockData;
-
-      if (filters.level !== undefined) {
-        filteredData = filteredData.filter(cat => cat.level === filters.level);
-      }
-
-      if (filters.parentCategory) {
-        filteredData = filteredData.filter(cat => cat.parent_category_id === filters.parentCategory);
-      }
-
       if (filters.isActive !== undefined) {
-        filteredData = filteredData.filter(cat => cat.is_active === filters.isActive);
+        query = query.eq("is_active", filters.isActive);
       }
 
-      return filteredData.sort((a, b) => a.display_order - b.display_order);
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Transform data to match interface
+      const transformedData = data?.map(category => ({
+        id: category.id,
+        category_code: category.category_code,
+        category_name: category.category_name,
+        description: category.description || '',
+        level: 1, // Since we don't have hierarchical levels in our schema
+        display_order: 1, // Default ordering
+        allocation_method: category.allocation_method as 'percentage' | 'fixed' | 'weighted' | 'activity',
+        is_active: category.is_active,
+        created_at: category.created_at,
+        updated_at: category.updated_at,
+        applicable_item_count: category.item_pricing_master?.length || 0
+      })) || [];
+
+      return transformedData.sort((a, b) => a.category_name.localeCompare(b.category_name));
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -118,17 +70,26 @@ export const useAddCostCategory = () => {
 
   return useMutation({
     mutationFn: async (newCategory: Omit<CostCategory, 'id' | 'created_at' | 'updated_at' | 'applicable_item_count'>) => {
-      console.log("Adding new cost category:", newCategory);
-      
-      // Mock implementation - replace with actual Supabase insert
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const { data, error } = await supabase
+        .from("cost_categories")
+        .insert({
+          category_code: newCategory.category_code,
+          category_name: newCategory.category_name,
+          description: newCategory.description,
+          allocation_method: newCategory.allocation_method.toUpperCase(),
+          is_active: newCategory.is_active
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       return {
         success: true,
-        id: `cat_${Date.now()}`,
+        id: data.id,
         ...newCategory,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: data.created_at,
+        updated_at: data.updated_at,
         applicable_item_count: 0
       };
     },
@@ -162,16 +123,26 @@ export const useUpdateCostCategory = () => {
       categoryId: string; 
       updates: Partial<CostCategory>;
     }) => {
-      console.log(`Updating cost category ${categoryId}:`, updates);
-      
-      // Mock implementation - replace with actual Supabase update
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const { data, error } = await supabase
+        .from("cost_categories")
+        .update({
+          category_code: updates.category_code,
+          category_name: updates.category_name,
+          description: updates.description,
+          allocation_method: updates.allocation_method?.toUpperCase(),
+          is_active: updates.is_active
+        })
+        .eq("id", categoryId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
       return {
         success: true,
         categoryId,
         updates,
-        updated_at: new Date().toISOString()
+        updated_at: data.updated_at
       };
     },
     onSuccess: () => {
@@ -198,11 +169,23 @@ export const useDeleteCostCategory = () => {
 
   return useMutation({
     mutationFn: async (categoryId: string) => {
-      console.log(`Deleting cost category ${categoryId}`);
-      
-      // Mock implementation - replace with actual Supabase delete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Check if category is in use
+      const { data: usageCheck } = await supabase
+        .from("item_pricing_master")
+        .select("id", { count: 'exact' })
+        .eq("cost_category_id", categoryId);
+
+      if (usageCheck && usageCheck.length > 0) {
+        throw new Error("Cannot delete category that is in use by pricing entries");
+      }
+
+      const { error } = await supabase
+        .from("cost_categories")
+        .delete()
+        .eq("id", categoryId);
+
+      if (error) throw error;
+
       return {
         success: true,
         categoryId
@@ -220,7 +203,7 @@ export const useDeleteCostCategory = () => {
       console.error("Failed to delete cost category:", error);
       toast({
         title: "Delete Failed",
-        description: "Could not delete cost category. Please try again.",
+        description: error.message || "Could not delete cost category. Please try again.",
         variant: "destructive",
       });
     },
@@ -231,13 +214,35 @@ export const useCategoryStatistics = () => {
   return useQuery({
     queryKey: ["category-statistics"],
     queryFn: async () => {
-      // Mock implementation - replace with actual calculations
+      // Get total categories
+      const { data: totalCategories } = await supabase
+        .from("cost_categories")
+        .select("id", { count: 'exact' });
+
+      // Get active categories
+      const { data: activeCategories } = await supabase
+        .from("cost_categories")
+        .select("id", { count: 'exact' })
+        .eq("is_active", true);
+
+      // Get allocation methods distribution
+      const { data: allocationData } = await supabase
+        .from("cost_categories")
+        .select("allocation_method")
+        .eq("is_active", true);
+
+      const allocationCounts = allocationData?.reduce((acc, cat) => {
+        acc[cat.allocation_method] = (acc[cat.allocation_method] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
       return {
-        totalCategories: 8,
-        activeCategories: 6,
-        hierarchyLevels: 3,
-        averageAllocation: 25,
-        lastUpdated: "2024-01-15"
+        totalCategories: totalCategories?.length || 0,
+        activeCategories: activeCategories?.length || 0,
+        hierarchyLevels: 1, // Currently flat structure
+        averageAllocation: 25, // Placeholder
+        allocationMethods: allocationCounts,
+        lastUpdated: new Date().toISOString().split('T')[0]
       };
     },
     staleTime: 10 * 60 * 1000, // 10 minutes

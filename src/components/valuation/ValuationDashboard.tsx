@@ -6,20 +6,30 @@ import { CostCategoryManager } from "./CostCategoryManager";
 import { StockValuationChart } from "../analytics/StockValuationChart";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, Package } from "lucide-react";
+import { usePricingStatistics } from "@/hooks/useItemPricing";
+import { useStockValuation } from "@/hooks/useStockValuation";
+import { useState } from "react";
 
 export function ValuationDashboard() {
-  // Mock summary data - replace with actual hooks
+  const [filters, setFilters] = useState({ valuationMethod: 'WEIGHTED_AVG' as const });
+  
+  // Use real data from hooks
+  const { data: pricingStats, isLoading: pricingLoading } = usePricingStatistics();
+  const { valuationSummary: stockSummary, stockValuation } = useStockValuation(filters);
+  
   const valuationSummary = {
-    totalValue: 2450000,
-    itemsWithPricing: 1250,
-    totalItems: 1500,
-    lastUpdated: "2024-01-15",
-    averagePrice: 1960,
-    priceVariance: 12.5,
-    pendingApprovals: 25
+    totalValue: pricingStats?.totalValue || 0,
+    itemsWithPricing: pricingStats?.itemsWithPricing || 0,
+    totalItems: pricingStats?.totalItems || 0,
+    lastUpdated: pricingStats?.lastUpdated || new Date().toISOString().split('T')[0],
+    averagePrice: pricingStats?.averagePrice || 0,
+    priceVariance: pricingStats?.priceVariance || 0,
+    pendingApprovals: pricingStats?.pendingApprovals || 0
   };
 
-  const pricingCoverage = ((valuationSummary.itemsWithPricing / valuationSummary.totalItems) * 100).toFixed(1);
+  const pricingCoverage = valuationSummary.totalItems > 0 
+    ? ((valuationSummary.itemsWithPricing / valuationSummary.totalItems) * 100).toFixed(1)
+    : "0.0";
 
   return (
     <div className="space-y-6">
@@ -106,8 +116,8 @@ export function ValuationDashboard() {
 
         <TabsContent value="valuation" className="space-y-6">
           <StockValuationChart 
-            filters={{ valuationMethod: 'WEIGHTED_AVG' }}
-            onFiltersChange={() => {}}
+            filters={filters}
+            onFiltersChange={setFilters}
           />
         </TabsContent>
 

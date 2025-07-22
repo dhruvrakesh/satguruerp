@@ -35,137 +35,44 @@ export interface StockValuationFilters {
 }
 
 export const useStockValuation = (filters: StockValuationFilters = {}) => {
-  const { valuationMethod = 'WEIGHTED_AVG' } = filters;
-
   const stockValuation = useQuery({
     queryKey: ["stock-valuation", filters],
     queryFn: async (): Promise<StockValuationData[]> => {
-      // Get stock summary with pricing data
+      // Use the enhanced stock valuation view
       let query = supabase
-        .from("satguru_stock_summary_view")
-        .select(`
-          item_code,
-          item_name,
-          category_name,
-          current_qty,
-          reorder_level,
-          stock_status
-        `);
+        .from("stock_valuation_enhanced")
+        .select("*");
 
-      // Apply category filter
+      // Apply filters
       if (filters.category) {
         query = query.eq("category_name", filters.category);
       }
-
-      const { data: stockData, error: stockError } = await query;
-      if (stockError) throw stockError;
-
-      // Get recent GRN data for pricing
-      let grnQuery = supabase
-        .from("satguru_grn_log")
-        .select("item_code, amount_inr, qty_received, date, vendor")
-        .order("date", { ascending: false });
-
-      if (filters.dateFrom) {
-        grnQuery = grnQuery.gte("date", filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        grnQuery = grnQuery.lte("date", filters.dateTo);
-      }
       if (filters.supplier) {
-        grnQuery = grnQuery.eq("vendor", filters.supplier);
+        query = query.eq("supplier_code", filters.supplier);
+      }
+      if (filters.minValue) {
+        query = query.gte("total_value", filters.minValue);
+      }
+      if (filters.maxValue) {
+        query = query.lte("total_value", filters.maxValue);
       }
 
-      const { data: grnData, error: grnError } = await grnQuery;
-      if (grnError) throw grnError;
+      const { data, error } = await query;
+      if (error) throw error;
 
-      // Calculate valuations based on method
-      const valuationData: StockValuationData[] = [];
-
-      stockData?.forEach(stock => {
-        const itemGrnData = grnData?.filter(grn => grn.item_code === stock.item_code) || [];
-        
-        if (itemGrnData.length === 0) {
-          // No pricing data available, use default values
-          valuationData.push({
-            item_code: stock.item_code,
-            item_name: stock.item_name || '',
-            category_name: stock.category_name || '',
-            current_qty: stock.current_qty || 0,
-            total_value: 0,
-            avg_price: 0,
-            stock_age_days: 0,
-            valuation_method: valuationMethod
-          });
-          return;
-        }
-
-        let calculatedPrice = 0;
-        let stockAgeDays = 0;
-
-        // Calculate price based on valuation method
-        switch (valuationMethod) {
-          case 'FIFO':
-            // First In, First Out - use oldest prices first
-            const sortedOldest = itemGrnData.sort((a, b) => 
-              new Date(a.date || '').getTime() - new Date(b.date || '').getTime()
-            );
-            const oldestEntry = sortedOldest[0];
-            calculatedPrice = oldestEntry ? (oldestEntry.amount_inr || 0) / (oldestEntry.qty_received || 1) : 0;
-            break;
-
-          case 'LIFO':
-            // Last In, First Out - use newest prices first
-            const sortedNewest = itemGrnData.sort((a, b) => 
-              new Date(b.date || '').getTime() - new Date(a.date || '').getTime()
-            );
-            const newestEntry = sortedNewest[0];
-            calculatedPrice = newestEntry ? (newestEntry.amount_inr || 0) / (newestEntry.qty_received || 1) : 0;
-            break;
-
-          case 'WEIGHTED_AVG':
-          default:
-            // Weighted Average - calculate based on quantities
-            const totalValue = itemGrnData.reduce((sum, grn) => 
-              sum + (grn.amount_inr || 0), 0
-            );
-            const totalQty = itemGrnData.reduce((sum, grn) => 
-              sum + (grn.qty_received || 0), 0
-            );
-            calculatedPrice = totalQty > 0 ? totalValue / totalQty : 0;
-            break;
-        }
-
-        // Calculate stock age (days since last GRN)
-        const latestGrn = itemGrnData.sort((a, b) => 
-          new Date(b.date || '').getTime() - new Date(a.date || '').getTime()
-        )[0];
-        
-        if (latestGrn?.date) {
-          stockAgeDays = Math.floor(
-            (new Date().getTime() - new Date(latestGrn.date).getTime()) / (1000 * 60 * 60 * 24)
-          );
-        }
-
-        const totalValue = calculatedPrice * (stock.current_qty || 0);
-
-        // Apply value filters
-        if (filters.minValue && totalValue < filters.minValue) return;
-        if (filters.maxValue && totalValue > filters.maxValue) return;
-
-        valuationData.push({
-          item_code: stock.item_code,
-          item_name: stock.item_name || '',
-          category_name: stock.category_name || '',
-          current_qty: stock.current_qty || 0,
-          unit_price: calculatedPrice,
-          total_value: totalValue,
-          last_grn_price: latestGrn ? (latestGrn.amount_inr || 0) / (latestGrn.qty_received || 1) : undefined,
-          avg_price: calculatedPrice,
-          stock_age_days: stockAgeDays,
-          valuation_method: valuationMethod
-        });
-      });
+      // Transform data to match interface
+      const valuationData: StockValuationData[] = data?.map(item => ({
+        item_code: item.item_code,
+        item_name: item.item_name || '',
+        category_name: item.category_name || '',
+        current_qty: item.current_qty || 0,
+        unit_price: item.unit_price || 0,
+        total_value: item.total_value || 0,
+        last_grn_price: item.grn_average_price,
+        avg_price: item.unit_price || 0,
+        stock_age_days: item.stock_age_days || 0,
+        valuation_method: filters.valuationMethod || 'WEIGHTED_AVG'
+      })) || [];
 
       return valuationData.sort((a, b) => b.total_value - a.total_value);
     },

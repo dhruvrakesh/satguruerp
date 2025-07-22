@@ -33,71 +33,65 @@ export const useItemPricing = (filters: PricingFilters = {}) => {
   return useQuery({
     queryKey: ["item-pricing", filters],
     queryFn: async (): Promise<ItemPricingEntry[]> => {
-      console.log("Fetching item pricing data with filters:", filters);
-      
-      // For now, return mock data since the table doesn't exist yet
-      // This will be replaced with actual Supabase query once tables are created
-      const mockData: ItemPricingEntry[] = [
-        {
-          id: "1",
-          item_code: "CHE_001",
-          item_name: "Printing Ink - Cyan",
-          category: "Chemicals",
-          uom: "KG",
-          current_price: 450.00,
-          previous_price: 430.00,
-          cost_category: "Raw Materials",
-          supplier: "Supplier A",
-          effective_date: "2024-01-15",
-          created_by: "user1",
-          updated_at: "2024-01-15T10:00:00Z",
-          is_active: true,
-          approval_status: "APPROVED",
-          price_change_reason: "Market price increase"
-        },
-        {
-          id: "2",
-          item_code: "PAC_002",
-          item_name: "BOPP Film 20 micron",
-          category: "Packaging",
-          uom: "KG",
-          current_price: 125.00,
-          previous_price: 120.00,
-          cost_category: "Substrates",
-          supplier: "Supplier B",
-          effective_date: "2024-01-14",
-          created_by: "user2",
-          updated_at: "2024-01-14T15:30:00Z",
-          is_active: true,
-          approval_status: "APPROVED",
-          price_change_reason: "Supplier rate update"
-        }
-      ];
+      let query = supabase
+        .from("item_pricing_master")
+        .select(`
+          *,
+          cost_categories!item_pricing_master_cost_category_id_fkey(category_name),
+          satguru_item_master!inner(item_name, category_name, unit_of_measure)
+        `)
+        .eq("is_active", true);
 
       // Apply filters
-      let filteredData = mockData;
-
-      if (filters.category && filters.category !== "all") {
-        filteredData = filteredData.filter(item => item.category === filters.category);
-      }
-
       if (filters.costCategory && filters.costCategory !== "all") {
-        filteredData = filteredData.filter(item => item.cost_category === filters.costCategory);
+        query = query.eq("cost_categories.category_code", filters.costCategory);
       }
 
       if (filters.supplier && filters.supplier !== "all") {
-        filteredData = filteredData.filter(item => item.supplier === filters.supplier);
+        query = query.eq("supplier_code", filters.supplier);
       }
 
+      if (filters.approvalStatus && filters.approvalStatus !== "all") {
+        query = query.eq("approval_status", filters.approvalStatus);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Transform data to match interface
+      let transformedData = data?.map(item => ({
+        id: item.id,
+        item_code: item.item_code,
+        item_name: item.satguru_item_master?.item_name || '',
+        category: item.satguru_item_master?.category_name || '',
+        uom: item.unit_of_measure || item.satguru_item_master?.unit_of_measure || 'KG',
+        current_price: Number(item.current_price) || 0,
+        previous_price: Number(item.previous_price),
+        cost_category: item.cost_categories?.category_name || '',
+        supplier: item.supplier_code,
+        effective_date: item.effective_date,
+        created_by: item.created_by || '',
+        updated_at: item.updated_at,
+        is_active: item.is_active,
+        approval_status: item.approval_status as 'PENDING' | 'APPROVED' | 'REJECTED',
+        price_change_reason: item.price_change_reason
+      })) || [];
+
+      // Apply search filter after transformation
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        filteredData = filteredData.filter(item => 
+        transformedData = transformedData.filter(item => 
           item.item_code.toLowerCase().includes(searchLower) ||
           item.item_name.toLowerCase().includes(searchLower)
         );
       }
 
-      return filteredData;
+      // Apply category filter after transformation
+      if (filters.category && filters.category !== "all") {
+        transformedData = transformedData.filter(item => item.category === filters.category);
+      }
+
+      return transformedData;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -116,22 +110,59 @@ export const useUpdateItemPrice = () => {
       newPrice: number; 
       reason?: string;
     }) => {
-      console.log(`Updating price for item ${itemId} to ${newPrice}`, { reason });
-      
-      // Mock implementation - replace with actual Supabase update
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Get current price for history
+      const { data: currentItem, error: fetchError } = await supabase
+        .from("item_pricing_master")
+        .select("current_price, item_code")
+        .eq("id", itemId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const oldPrice = Number(currentItem.current_price);
+      const priceChangePercentage = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
+
+      // Update the price
+      const { data, error } = await supabase
+        .from("item_pricing_master")
+        .update({
+          previous_price: oldPrice,
+          current_price: newPrice,
+          price_change_reason: reason,
+          updated_by: (await supabase.auth.getUser()).data.user?.id,
+          approval_status: 'PENDING', // Reset approval for new price
+          effective_date: new Date().toISOString().split('T')[0]
+        })
+        .eq("id", itemId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to price history
+      await supabase
+        .from("item_price_history")
+        .insert({
+          item_code: currentItem.item_code,
+          old_price: oldPrice,
+          new_price: newPrice,
+          price_change_percentage: priceChangePercentage,
+          change_reason: reason,
+          change_type: 'UPDATE',
+          changed_by: (await supabase.auth.getUser()).data.user?.id
+        });
+
       return {
         success: true,
         itemId,
         newPrice,
-        previousPrice: 0, // Would come from database
-        updatedAt: new Date().toISOString()
+        previousPrice: oldPrice,
+        updatedAt: data.updated_at
       };
     },
     onSuccess: (data) => {
-      // Invalidate and refetch item pricing data
       queryClient.invalidateQueries({ queryKey: ["item-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-valuation"] });
       
       toast({
         title: "Price Updated Successfully",
@@ -154,21 +185,53 @@ export const useAddItemPrice = () => {
 
   return useMutation({
     mutationFn: async (newPricing: Omit<ItemPricingEntry, 'id' | 'created_by' | 'updated_at'>) => {
-      console.log("Adding new item pricing:", newPricing);
-      
-      // Mock implementation - replace with actual Supabase insert
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Get cost category ID from category name
+      const { data: costCategory } = await supabase
+        .from("cost_categories")
+        .select("id")
+        .eq("category_name", newPricing.cost_category)
+        .single();
+
+      const { data, error } = await supabase
+        .from("item_pricing_master")
+        .insert({
+          item_code: newPricing.item_code,
+          cost_category_id: costCategory?.id,
+          current_price: newPricing.current_price,
+          supplier_code: newPricing.supplier,
+          unit_of_measure: newPricing.uom,
+          effective_date: newPricing.effective_date,
+          price_change_reason: newPricing.price_change_reason,
+          created_by: (await supabase.auth.getUser()).data.user?.id,
+          approval_status: 'PENDING'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to price history
+      await supabase
+        .from("item_price_history")
+        .insert({
+          item_code: newPricing.item_code,
+          new_price: newPricing.current_price,
+          change_reason: newPricing.price_change_reason || 'Initial price entry',
+          change_type: 'UPDATE',
+          changed_by: (await supabase.auth.getUser()).data.user?.id
+        });
+
       return {
         success: true,
-        id: `new_${Date.now()}`,
+        id: data.id,
         ...newPricing,
-        created_by: "current_user",
-        updated_at: new Date().toISOString()
+        created_by: data.created_by,
+        updated_at: data.updated_at
       };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["item-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-valuation"] });
       
       toast({
         title: "Pricing Added Successfully",
@@ -190,15 +253,49 @@ export const usePricingStatistics = () => {
   return useQuery({
     queryKey: ["pricing-statistics"],
     queryFn: async () => {
-      // Mock implementation - replace with actual calculations
+      // Get total items from stock
+      const { data: totalItemsData } = await supabase
+        .from("satguru_stock_summary_view")
+        .select("item_code", { count: 'exact' });
+
+      // Get items with pricing
+      const { data: pricedItemsData } = await supabase
+        .from("item_pricing_master")
+        .select("item_code", { count: 'exact' })
+        .eq("is_active", true);
+
+      // Get pending approvals
+      const { data: pendingData } = await supabase
+        .from("item_pricing_master")
+        .select("id", { count: 'exact' })
+        .eq("approval_status", "PENDING")
+        .eq("is_active", true);
+
+      // Get total value from stock valuation view
+      const { data: valuationData } = await supabase
+        .from("stock_valuation_enhanced")
+        .select("total_value, unit_price");
+
+      const totalValue = valuationData?.reduce((sum, item) => sum + (item.total_value || 0), 0) || 0;
+      const averagePrice = valuationData?.length > 0 
+        ? valuationData.reduce((sum, item) => sum + (item.unit_price || 0), 0) / valuationData.length 
+        : 0;
+
+      // Calculate price variance (standard deviation)
+      const prices = valuationData?.map(item => item.unit_price || 0) || [];
+      const variance = prices.length > 0 
+        ? Math.sqrt(prices.reduce((sum, price) => sum + Math.pow(price - averagePrice, 2), 0) / prices.length)
+        : 0;
+      const priceVariance = averagePrice > 0 ? (variance / averagePrice) * 100 : 0;
+
       return {
-        totalItems: 1500,
-        itemsWithPricing: 1250,
-        pendingApprovals: 25,
-        totalValue: 2450000,
-        averagePrice: 1960,
-        priceVariance: 12.5,
-        lastUpdated: "2024-01-15"
+        totalItems: totalItemsData?.length || 0,
+        itemsWithPricing: pricedItemsData?.length || 0,
+        pendingApprovals: pendingData?.length || 0,
+        totalValue: Math.round(totalValue),
+        averagePrice: Math.round(averagePrice * 100) / 100,
+        priceVariance: Math.round(priceVariance * 100) / 100,
+        lastUpdated: new Date().toISOString().split('T')[0]
       };
     },
     staleTime: 10 * 60 * 1000, // 10 minutes

@@ -7,24 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit2, Save, X, Upload, Download } from "lucide-react";
+import { Plus, Edit2, Save, X, Upload, Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
-
-interface PricingEntry {
-  id: string;
-  itemCode: string;
-  itemName: string;
-  category: string;
-  uom: string;
-  currentPrice: number;
-  lastUpdatedPrice: number;
-  priceDate: string;
-  costCategory: string;
-  supplier: string;
-  isActive: boolean;
-}
+import { useItemPricing, useUpdateItemPrice, useAddItemPrice } from "@/hooks/useItemPricing";
+import { useCostCategories } from "@/hooks/useCostCategories";
+import { useCategories } from "@/hooks/useCategories";
 
 export function ItemPricingMaster() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -32,36 +20,25 @@ export function ItemPricingMaster() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [newItemData, setNewItemData] = useState({
+    item_code: "",
+    current_price: "",
+    cost_category: "",
+    supplier: "",
+    price_change_reason: ""
+  });
 
-  // Mock data - replace with actual data from hooks
-  const pricingEntries: PricingEntry[] = [
-    {
-      id: "1",
-      itemCode: "CHE_001",
-      itemName: "Printing Ink - Cyan",
-      category: "Chemicals",
-      uom: "KG",
-      currentPrice: 450.00,
-      lastUpdatedPrice: 430.00,
-      priceDate: "2024-01-15",
-      costCategory: "Raw Materials",
-      supplier: "Supplier A",
-      isActive: true
-    },
-    {
-      id: "2",
-      itemCode: "PAC_002",
-      itemName: "BOPP Film 20 micron",
-      category: "Packaging",
-      uom: "KG",
-      currentPrice: 125.00,
-      lastUpdatedPrice: 120.00,
-      priceDate: "2024-01-14",
-      costCategory: "Substrates",
-      supplier: "Supplier B",
-      isActive: true
-    }
-  ];
+  // Use real data from hooks
+  const { data: pricingEntries = [], isLoading, error } = useItemPricing({
+    category: selectedCategory,
+    costCategory: selectedCostCategory,
+    search: searchTerm
+  });
+  
+  const { data: costCategories = [] } = useCostCategories();
+  const { data: categories = [] } = useCategories();
+  const updatePriceMutation = useUpdateItemPrice();
+  const addPriceMutation = useAddItemPrice();
 
   const handlePriceUpdate = (itemId: string) => {
     if (!newPrice || parseFloat(newPrice) <= 0) {
@@ -73,27 +50,68 @@ export function ItemPricingMaster() {
       return;
     }
 
-    // Update price logic here
-    console.log(`Updating item ${itemId} with new price: ${newPrice}`);
-    
-    toast({
-      title: "Price Updated",
-      description: "Item price has been successfully updated",
+    updatePriceMutation.mutate({
+      itemId,
+      newPrice: parseFloat(newPrice),
+      reason: "Manual price update"
+    }, {
+      onSuccess: () => {
+        setEditingItem(null);
+        setNewPrice("");
+      }
     });
-    
-    setEditingItem(null);
-    setNewPrice("");
   };
 
-  const filteredEntries = pricingEntries.filter(entry => {
-    const matchesCategory = selectedCategory === "all" || entry.category === selectedCategory;
-    const matchesCostCategory = selectedCostCategory === "all" || entry.costCategory === selectedCostCategory;
-    const matchesSearch = searchTerm === "" || 
-      entry.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.itemName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesCategory && matchesCostCategory && matchesSearch;
-  });
+  const handleAddPrice = () => {
+    if (!newItemData.item_code || !newItemData.current_price || !newItemData.cost_category) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addPriceMutation.mutate({
+      item_code: newItemData.item_code,
+      item_name: "", // Will be populated from item master
+      category: "",
+      uom: "KG",
+      current_price: parseFloat(newItemData.current_price),
+      cost_category: newItemData.cost_category,
+      supplier: newItemData.supplier,
+      effective_date: new Date().toISOString().split('T')[0],
+      is_active: true,
+      approval_status: "PENDING" as const,
+      price_change_reason: newItemData.price_change_reason
+    }, {
+      onSuccess: () => {
+        setNewItemData({
+          item_code: "",
+          current_price: "",
+          cost_category: "",
+          supplier: "",
+          price_change_reason: ""
+        });
+      }
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Error loading pricing data</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -129,27 +147,73 @@ export function ItemPricingMaster() {
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="itemCode">Item Code</Label>
-                  <Input id="itemCode" placeholder="Enter item code" />
+                  <Input 
+                    id="itemCode" 
+                    placeholder="Enter item code"
+                    value={newItemData.item_code}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, item_code: e.target.value }))}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="price">Price</Label>
-                  <Input id="price" type="number" placeholder="Enter price" />
+                  <Input 
+                    id="price" 
+                    type="number" 
+                    placeholder="Enter price"
+                    value={newItemData.current_price}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, current_price: e.target.value }))}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="costCategory">Cost Category</Label>
-                  <Select>
+                  <Select 
+                    value={newItemData.cost_category}
+                    onValueChange={(value) => setNewItemData(prev => ({ ...prev, cost_category: value }))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select cost category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="raw_materials">Raw Materials</SelectItem>
-                      <SelectItem value="substrates">Substrates</SelectItem>
-                      <SelectItem value="chemicals">Chemicals</SelectItem>
-                      <SelectItem value="packaging">Packaging</SelectItem>
+                      {costCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.category_name}>
+                          {category.category_name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full">Add Price Entry</Button>
+                <div className="grid gap-2">
+                  <Label htmlFor="supplier">Supplier (Optional)</Label>
+                  <Input 
+                    id="supplier" 
+                    placeholder="Enter supplier code"
+                    value={newItemData.supplier}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, supplier: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="reason">Reason</Label>
+                  <Input 
+                    id="reason" 
+                    placeholder="Reason for pricing"
+                    value={newItemData.price_change_reason}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, price_change_reason: e.target.value }))}
+                  />
+                </div>
+                <Button 
+                  className="w-full" 
+                  onClick={handleAddPrice}
+                  disabled={addPriceMutation.isPending}
+                >
+                  {addPriceMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    "Add Price Entry"
+                  )}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -179,9 +243,11 @@ export function ItemPricingMaster() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="Chemicals">Chemicals</SelectItem>
-                  <SelectItem value="Packaging">Packaging</SelectItem>
-                  <SelectItem value="Raw Materials">Raw Materials</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.category_name}>
+                      {category.category_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -193,10 +259,11 @@ export function ItemPricingMaster() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Cost Categories</SelectItem>
-                  <SelectItem value="Raw Materials">Raw Materials</SelectItem>
-                  <SelectItem value="Substrates">Substrates</SelectItem>
-                  <SelectItem value="Chemicals">Chemicals</SelectItem>
-                  <SelectItem value="Packaging">Packaging</SelectItem>
+                  {costCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.category_name}>
+                      {category.category_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -225,76 +292,94 @@ export function ItemPricingMaster() {
                 <TableHead>UOM</TableHead>
                 <TableHead>Current Price</TableHead>
                 <TableHead>Previous Price</TableHead>
-                <TableHead>Last Updated</TableHead>
+                <TableHead>Effective Date</TableHead>
                 <TableHead>Cost Category</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Approval Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEntries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="font-medium">{entry.itemCode}</TableCell>
-                  <TableCell>{entry.itemName}</TableCell>
-                  <TableCell>{entry.category}</TableCell>
-                  <TableCell>{entry.uom}</TableCell>
-                  <TableCell>
-                    {editingItem === entry.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          value={newPrice}
-                          onChange={(e) => setNewPrice(e.target.value)}
-                          className="w-20"
-                          placeholder={entry.currentPrice.toString()}
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handlePriceUpdate(entry.id)}
-                          className="gap-1"
-                        >
-                          <Save className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingItem(null);
-                            setNewPrice("");
-                          }}
-                          className="gap-1"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span>₹{entry.currentPrice.toFixed(2)}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>₹{entry.lastUpdatedPrice.toFixed(2)}</TableCell>
-                  <TableCell>{entry.priceDate}</TableCell>
-                  <TableCell>{entry.costCategory}</TableCell>
-                  <TableCell>
-                    <Badge variant={entry.isActive ? "default" : "secondary"}>
-                      {entry.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingItem(entry.id);
-                        setNewPrice(entry.currentPrice.toString());
-                      }}
-                      className="gap-1"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      Edit
-                    </Button>
+              {pricingEntries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    No pricing data available. Add some items to get started.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                pricingEntries.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">{entry.item_code}</TableCell>
+                    <TableCell>{entry.item_name}</TableCell>
+                    <TableCell>{entry.category}</TableCell>
+                    <TableCell>{entry.uom}</TableCell>
+                    <TableCell>
+                      {editingItem === entry.id ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={newPrice}
+                            onChange={(e) => setNewPrice(e.target.value)}
+                            className="w-24"
+                            placeholder={entry.current_price.toString()}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handlePriceUpdate(entry.id)}
+                            disabled={updatePriceMutation.isPending}
+                            className="gap-1"
+                          >
+                            {updatePriceMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Save className="w-3 h-3" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingItem(null);
+                              setNewPrice("");
+                            }}
+                            className="gap-1"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span>₹{entry.current_price.toFixed(2)}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>₹{(entry.previous_price || 0).toFixed(2)}</TableCell>
+                    <TableCell>{entry.effective_date}</TableCell>
+                    <TableCell>{entry.cost_category}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        entry.approval_status === 'APPROVED' ? "default" : 
+                        entry.approval_status === 'PENDING' ? "secondary" : 
+                        "destructive"
+                      }>
+                        {entry.approval_status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingItem(entry.id);
+                          setNewPrice(entry.current_price.toString());
+                        }}
+                        disabled={updatePriceMutation.isPending}
+                        className="gap-1"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
