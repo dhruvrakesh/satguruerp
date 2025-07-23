@@ -15,7 +15,8 @@ import {
   MapPin,
   Star,
   TrendingUp,
-  Package
+  Package,
+  Download
 } from "lucide-react";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,12 +24,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { VendorCreationForm } from "@/components/procurement/VendorCreationForm";
+import { SupplierBulkUpload } from "@/components/procurement/SupplierBulkUpload";
 
 const VendorManagement = () => {
   const { suppliers, loading } = usePurchaseOrders();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showCreateVendor, setShowCreateVendor] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
 
   const filteredSuppliers = suppliers.filter(supplier => {
@@ -95,23 +98,30 @@ const VendorManagement = () => {
           <h1 className="text-2xl font-bold text-gray-900">Vendor Management</h1>
           <p className="text-gray-600">Manage your supplier relationships and performance</p>
         </div>
-        <Dialog open={showCreateVendor} onOpenChange={setShowCreateVendor}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Vendor
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New Vendor</DialogTitle>
-            </DialogHeader>
-            <VendorCreationForm 
-              onSuccess={handleVendorCreated}
-              onCancel={() => setShowCreateVendor(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Dialog open={showCreateVendor} onOpenChange={setShowCreateVendor}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Vendor
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New Vendor</DialogTitle>
+              </DialogHeader>
+              <VendorCreationForm 
+                onSuccess={handleVendorCreated}
+                onCancel={() => setShowCreateVendor(false)}
+              />
+            </DialogContent>
+          </Dialog>
+          
+          <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
+            <Download className="w-4 h-4 mr-2" />
+            Import from CSV
+          </Button>
+        </div>
       </div>
 
       {/* Vendor Statistics */}
@@ -318,6 +328,12 @@ const VendorManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Upload Dialog */}
+      <SupplierBulkUpload 
+        open={showBulkUpload} 
+        onOpenChange={setShowBulkUpload} 
+      />
     </div>
   );
 };

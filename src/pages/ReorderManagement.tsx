@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ReorderRulesBulkUpload } from "@/components/procurement/ReorderRulesBulkUpload";
 import { toast } from "sonner";
 
 const ReorderManagement = () => {
@@ -38,6 +39,7 @@ const ReorderManagement = () => {
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const filteredSuggestions = reorderSuggestions.filter(suggestion => {
     const matchesSearch = suggestion.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -136,6 +138,10 @@ const ReorderManagement = () => {
           <Button onClick={handleCalculateReorders} variant="outline">
             <RefreshCw className="w-4 h-4 mr-2" />
             Calculate Reorders
+          </Button>
+          <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Import Rules
           </Button>
           {selectedSuggestions.length > 0 && (
             <Button onClick={handleBulkApprove}>
@@ -423,6 +429,12 @@ const ReorderManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Bulk Upload Dialog */}
+      <ReorderRulesBulkUpload 
+        open={showBulkUpload} 
+        onOpenChange={setShowBulkUpload} 
+      />
     </div>
   );
 };

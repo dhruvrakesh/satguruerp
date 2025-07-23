@@ -17,6 +17,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { PurchaseOrderCreation } from "@/components/procurement/PurchaseOrderCreation";
+import { PurchaseOrderBulkUpload } from "@/components/procurement/PurchaseOrderBulkUpload";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,7 @@ const PurchaseOrders = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
 
   const filteredOrders = purchaseOrders.filter(po => {
@@ -92,20 +94,27 @@ const PurchaseOrders = () => {
           <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
           <p className="text-gray-600">Manage and track your purchase orders</p>
         </div>
-        <Dialog open={showCreatePO} onOpenChange={setShowCreatePO}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Purchase Order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New Purchase Order</DialogTitle>
-            </DialogHeader>
-            <PurchaseOrderCreation onSuccess={handlePOCreated} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Dialog open={showCreatePO} onOpenChange={setShowCreatePO}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Purchase Order
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New Purchase Order</DialogTitle>
+              </DialogHeader>
+              <PurchaseOrderCreation onSuccess={handlePOCreated} />
+            </DialogContent>
+          </Dialog>
+          
+          <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
+            <Download className="w-4 h-4 mr-2" />
+            Import from CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -232,6 +241,12 @@ const PurchaseOrders = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Upload Dialog */}
+      <PurchaseOrderBulkUpload 
+        open={showBulkUpload} 
+        onOpenChange={setShowBulkUpload} 
+      />
     </div>
   );
 };
