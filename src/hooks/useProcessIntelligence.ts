@@ -178,11 +178,26 @@ export const useProcessParameters = (process: string) => {
   return useQuery<ProcessParameter[]>({
     queryKey: ['process-parameters', process],
     queryFn: async () => {
+      // Map process string to valid process_stage enum value
+      const validProcessStages = ['GRAVURE_PRINTING', 'ADHESIVE_COATING', 'PRINTING', 'LAMINATION', 'SLITTING', 'DISPATCH'];
+      let mappedProcess = process;
+      
+      // Handle common mapping cases
+      if (process === 'PACKAGING') {
+        mappedProcess = 'DISPATCH';
+      }
+      
+      // Only proceed if we have a valid process stage
+      if (!validProcessStages.includes(mappedProcess)) {
+        console.warn(`Invalid process stage: ${process}, mapping to DISPATCH`);
+        mappedProcess = 'DISPATCH';
+      }
+
       // Query process_logs_se for process-specific metrics and transform to ProcessParameter format
       const { data, error } = await supabase
         .from('process_logs_se')
         .select('*')
-        .eq('stage', process)
+        .eq('stage', mappedProcess)
         .eq('metric', 'parameter_optimization')
         .order('captured_at', { ascending: false })
         .limit(10);
@@ -213,7 +228,7 @@ export const useProcessQualityAlerts = (process: string) => {
       const { data, error } = await supabase
         .from('quality_checkpoints')
         .select('*')
-        .eq('uiorn', process) // Using process as a filter - this might need adjustment based on actual schema
+        .eq('stage', process) // Using process as stage filter
         .order('created_at', { ascending: false })
         .limit(10);
       
@@ -223,10 +238,10 @@ export const useProcessQualityAlerts = (process: string) => {
       const transformedData: QualityAlert[] = data?.map(checkpoint => ({
         alert_id: checkpoint.id,
         process: process,
-        severity: checkpoint.status === 'PASSED' ? 'LOW' : 'HIGH' as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
-        message: checkpoint.notes || 'Quality checkpoint alert',
+        severity: checkpoint.passed ? 'LOW' : 'HIGH' as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+        message: checkpoint.remarks || 'Quality checkpoint alert',
         created_at: checkpoint.created_at,
-        status: checkpoint.status === 'PASSED' ? 'RESOLVED' : 'ACTIVE' as 'ACTIVE' | 'RESOLVED'
+        status: checkpoint.passed ? 'RESOLVED' : 'ACTIVE' as 'ACTIVE' | 'RESOLVED'
       })) || [];
       
       return transformedData;

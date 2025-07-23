@@ -30,12 +30,13 @@ interface ProcessIntelligencePanelProps {
   onApplyRecommendations?: (params: any) => void;
 }
 
+// Updated process sequence to use DISPATCH instead of PACKAGING
 const PROCESS_SEQUENCE = [
   'GRAVURE_PRINTING',
   'LAMINATION', 
   'ADHESIVE_COATING',
   'SLITTING',
-  'PACKAGING'
+  'DISPATCH'
 ];
 
 export function ProcessIntelligencePanel({ uiorn, currentProcess, onApplyRecommendations }: ProcessIntelligencePanelProps) {
@@ -428,7 +429,7 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess, onApplyRecomme
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      SLITTING → PACKAGING: SLIT_MATERIAL
+                      SLITTING → DISPATCH: SLIT_MATERIAL
                     </div>
                   </div>
                 </div>
