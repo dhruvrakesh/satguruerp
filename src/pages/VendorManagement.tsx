@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { VendorCreationForm } from "@/components/procurement/VendorCreationForm";
 
 const VendorManagement = () => {
   const { suppliers, loading } = usePurchaseOrders();
@@ -71,6 +72,11 @@ const VendorManagement = () => {
     return stars;
   };
 
+  const handleVendorCreated = () => {
+    setShowCreateVendor(false);
+    // The form will handle query invalidation
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -96,13 +102,14 @@ const VendorManagement = () => {
               Add New Vendor
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Vendor</DialogTitle>
+              <DialogTitle>Create New Vendor</DialogTitle>
             </DialogHeader>
-            <div className="p-4">
-              <p className="text-gray-600">Vendor creation form will be implemented here.</p>
-            </div>
+            <VendorCreationForm 
+              onSuccess={handleVendorCreated}
+              onCancel={() => setShowCreateVendor(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>

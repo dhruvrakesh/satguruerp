@@ -1,469 +1,447 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Minus, ShoppingCart, AlertCircle } from 'lucide-react';
-import { usePurchaseOrders, type Supplier } from '@/hooks/usePurchaseOrders';
-import { useStockSummary } from '@/hooks/useStockSummary';
-import { toast } from 'sonner';
 
-interface POItem {
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Plus, Minus, Package, Calendar, AlertCircle } from "lucide-react";
+import { ItemCodeSelector } from "./ItemCodeSelector";
+import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { toast } from "sonner";
+
+interface ItemData {
   item_code: string;
   item_name: string;
+  uom: string;
+  category_name?: string;
+  current_stock?: number;
+  last_purchase?: {
+    price: number;
+    date: string;
+    vendor: string;
+  };
+}
+
+interface POItem {
+  id: string;
+  item_code: string;
+  item_name: string;
+  uom: string;
   quantity: number;
   unit_price: number;
-  uom: string;
   line_total: number;
-  description?: string;
+  current_stock?: number;
+  last_purchase?: {
+    price: number;
+    date: string;
+    vendor: string;
+  };
 }
+
+const poSchema = z.object({
+  supplier_id: z.string().min(1, "Please select a supplier"),
+  po_date: z.string().min(1, "PO date is required"),
+  required_date: z.string().optional(),
+  delivery_date: z.string().optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT", "EMERGENCY"]),
+  department: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type POFormData = z.infer<typeof poSchema>;
 
 interface PurchaseOrderCreationProps {
   onSuccess?: () => void;
   onCancel?: () => void;
-  prefilledData?: {
-    supplier_id?: string;
-    items?: POItem[];
-  };
 }
 
-export const PurchaseOrderCreation: React.FC<PurchaseOrderCreationProps> = ({
-  onSuccess,
-  onCancel,
-  prefilledData
-}) => {
-  const { suppliers, createPurchaseOrder, addPOItems, loading } = usePurchaseOrders();
-  const stockSummaryQuery = useStockSummary();
-  
-  const [formData, setFormData] = useState({
-    supplier_id: prefilledData?.supplier_id || '',
-    required_date: '',
-    delivery_date: '',
-    priority: 'MEDIUM' as const,
-    department: 'PRODUCTION',
-    notes: '',
-  });
-  
-  const [items, setItems] = useState<POItem[]>(prefilledData?.items || []);
-  const [newItem, setNewItem] = useState<Partial<POItem>>({
-    item_code: '',
-    item_name: '',
-    quantity: 1,
-    unit_price: 0,
-    uom: 'KG',
+export function PurchaseOrderCreation({ onSuccess, onCancel }: PurchaseOrderCreationProps) {
+  const [items, setItems] = useState<POItem[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+  const { suppliers, createPurchaseOrder, addPOItems } = usePurchaseOrders();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm<POFormData>({
+    resolver: zodResolver(poSchema),
+    defaultValues: {
+      po_date: new Date().toISOString().split('T')[0],
+      priority: "MEDIUM",
+    },
   });
 
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    if (formData.supplier_id) {
-      const supplier = suppliers.find(s => s.id === formData.supplier_id);
-      setSelectedSupplier(supplier || null);
-    }
-  }, [formData.supplier_id, suppliers]);
-
-  const handleAddItem = () => {
-    if (!newItem.item_code || !newItem.item_name || !newItem.quantity || !newItem.unit_price) {
-      toast.error('Please fill all required item fields');
-      return;
-    }
-
-    const lineTotal = (newItem.quantity || 0) * (newItem.unit_price || 0);
-    const item: POItem = {
-      item_code: newItem.item_code,
-      item_name: newItem.item_name,
-      quantity: newItem.quantity || 1,
-      unit_price: newItem.unit_price || 0,
-      uom: newItem.uom || 'KG',
-      line_total: lineTotal,
-      description: newItem.description,
-    };
-
-    setItems([...items, item]);
-    setNewItem({
-      item_code: '',
-      item_name: '',
+  const addItem = () => {
+    setItems([...items, {
+      id: Date.now().toString(),
+      item_code: "",
+      item_name: "",
+      uom: "",
       quantity: 1,
       unit_price: 0,
-      uom: 'KG',
-    });
+      line_total: 0,
+    }]);
   };
 
-  const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+  const removeItem = (id: string) => {
+    setItems(items.filter(item => item.id !== id));
+  };
+
+  const updateItem = (id: string, field: keyof POItem, value: any) => {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+        if (field === 'quantity' || field === 'unit_price') {
+          updated.line_total = updated.quantity * updated.unit_price;
+        }
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  const handleItemCodeSelect = (id: string, itemCode: string, itemData: ItemData) => {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          item_code: itemCode,
+          item_name: itemData.item_name,
+          uom: itemData.uom,
+          current_stock: itemData.current_stock,
+          last_purchase: itemData.last_purchase,
+          line_total: item.quantity * item.unit_price,
+        };
+      }
+      return item;
+    }));
   };
 
   const calculateTotal = () => {
     return items.reduce((sum, item) => sum + item.line_total, 0);
   };
 
-  const getItemStockInfo = (itemCode: string) => {
-    return stockSummaryQuery.data?.data.find(item => item.item_code === itemCode);
-  };
-
-  const handleCreatePO = async () => {
-    if (!formData.supplier_id) {
-      toast.error('Please select a supplier');
+  const onSubmit = async (data: POFormData) => {
+    if (items.length === 0) {
+      toast.error("Please add at least one item");
       return;
     }
 
-    if (items.length === 0) {
-      toast.error('Please add at least one item');
+    if (items.some(item => !item.item_code || item.quantity <= 0 || item.unit_price <= 0)) {
+      toast.error("Please ensure all items have valid codes, quantities, and prices");
       return;
     }
 
     try {
-      setCreating(true);
-      
-      const totalAmount = calculateTotal();
-      
-      // Create the purchase order
-      const po = await createPurchaseOrder({
-        supplier_id: formData.supplier_id,
-        required_date: formData.required_date,
-        delivery_date: formData.delivery_date,
-        priority: formData.priority,
-        department: formData.department,
-        notes: formData.notes,
-        total_amount: totalAmount,
-        status: 'DRAFT',
-      });
+      const poData = {
+        ...data,
+        supplier_id: selectedSupplierId,
+        total_amount: calculateTotal(),
+        status: 'DRAFT' as const,
+      };
 
-      // Add items to the purchase order
-      await addPOItems(po.id, items);
-
-      toast.success('Purchase order created successfully');
-      onSuccess?.();
+      const po = await createPurchaseOrder(poData);
+      
+      if (po) {
+        await addPOItems(po.id, items.map(item => ({
+          item_code: item.item_code,
+          item_name: item.item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          line_total: item.line_total,
+          uom: item.uom,
+        })));
+        
+        toast.success("Purchase order created successfully");
+        onSuccess?.();
+      }
     } catch (error) {
-      console.error('Error creating purchase order:', error);
-    } finally {
-      setCreating(false);
+      toast.error("Failed to create purchase order");
     }
   };
-
-  const getSupplierMaterials = (supplier: Supplier) => {
-    return supplier.material_categories?.join(', ') || 'All materials';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'EMERGENCY': return 'destructive';
-      case 'URGENT': return 'destructive';
-      case 'HIGH': return 'secondary';
-      case 'MEDIUM': return 'outline';
-      case 'LOW': return 'outline';
-      default: return 'outline';
-    }
-  };
-
-  if (loading) {
-    return <div>Loading suppliers...</div>;
-  }
 
   return (
-    <Card className="w-full max-w-6xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShoppingCart className="h-5 w-5" />
-          Create Purchase Order
-        </CardTitle>
-        <CardDescription>
-          Create a new purchase order for raw materials and supplies
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
-        {/* Basic Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="supplier">Supplier *</Label>
-            <Select 
-              value={formData.supplier_id} 
-              onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{supplier.supplier_name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {getSupplierMaterials(supplier)}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Header Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Purchase Order Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="supplier">Supplier *</Label>
+              <Select value={selectedSupplierId} onValueChange={(value) => {
+                setSelectedSupplierId(value);
+                setValue("supplier_id", value);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      <div className="flex flex-col">
+                        <span>{supplier.supplier_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {supplier.supplier_code} • {supplier.category}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.supplier_id && (
+                <p className="text-sm text-destructive mt-1">{errors.supplier_id.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="priority">Priority</Label>
+              <Select onValueChange={(value) => setValue("priority", value as any)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LOW">Low</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
+                  <SelectItem value="EMERGENCY">Emergency</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="priority">Priority</Label>
-            <Select 
-              value={formData.priority} 
-              onValueChange={(value: any) => setFormData({ ...formData, priority: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="LOW">Low</SelectItem>
-                <SelectItem value="MEDIUM">Medium</SelectItem>
-                <SelectItem value="HIGH">High</SelectItem>
-                <SelectItem value="URGENT">Urgent</SelectItem>
-                <SelectItem value="EMERGENCY">Emergency</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="po_date">PO Date *</Label>
+              <Input
+                id="po_date"
+                type="date"
+                {...register("po_date")}
+              />
+              {errors.po_date && (
+                <p className="text-sm text-destructive mt-1">{errors.po_date.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="required_date">Required Date</Label>
+              <Input
+                id="required_date"
+                type="date"
+                {...register("required_date")}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="delivery_date">Delivery Date</Label>
+              <Input
+                id="delivery_date"
+                type="date"
+                {...register("delivery_date")}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
+          <div>
             <Label htmlFor="department">Department</Label>
-            <Select 
-              value={formData.department} 
-              onValueChange={(value) => setFormData({ ...formData, department: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PRODUCTION">Production</SelectItem>
-                <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                <SelectItem value="ADMIN">Administration</SelectItem>
-                <SelectItem value="QUALITY">Quality Control</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="required_date">Required Date</Label>
             <Input
-              type="date"
-              value={formData.required_date}
-              onChange={(e) => setFormData({ ...formData, required_date: e.target.value })}
+              id="department"
+              {...register("department")}
+              placeholder="e.g., Production, Maintenance"
             />
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="space-y-2">
-            <Label htmlFor="delivery_date">Expected Delivery</Label>
-            <Input
-              type="date"
-              value={formData.delivery_date}
-              onChange={(e) => setFormData({ ...formData, delivery_date: e.target.value })}
-            />
+      {/* Items Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Items</CardTitle>
+            <Button type="button" onClick={addItem} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Item
+            </Button>
           </div>
-        </div>
+        </CardHeader>
+        <CardContent>
+          {items.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No items added yet</p>
+              <p className="text-sm">Click "Add Item" to start building your purchase order</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {items.map((item, index) => (
+                <Card key={item.id} className="p-4">
+                  <div className="flex items-start justify-between mb-4">
+                    <h4 className="font-medium">Item {index + 1}</h4>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeItem(item.id)}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                  </div>
 
-        {/* Supplier Information */}
-        {selectedSupplier && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Supplier Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Contact:</span>
-                  <p>{selectedSupplier.contact_person || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Phone:</span>
-                  <p>{selectedSupplier.phone || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Lead Time:</span>
-                  <p>{selectedSupplier.lead_time_days} days</p>
-                </div>
-                <div>
-                  <span className="font-medium">Rating:</span>
-                  <Badge variant="outline">{selectedSupplier.performance_rating}%</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Item Code *</Label>
+                      <ItemCodeSelector
+                        value={item.item_code}
+                        onChange={(itemCode, itemData) => handleItemCodeSelect(item.id, itemCode, itemData)}
+                        vendorId={selectedSupplierId}
+                      />
+                    </div>
 
-        {/* Add Items Section */}
+                    {item.item_code && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label>Item Name</Label>
+                          <Input
+                            value={item.item_name}
+                            disabled
+                            className="bg-muted"
+                          />
+                        </div>
+                        <div>
+                          <Label>UOM</Label>
+                          <Input
+                            value={item.uom}
+                            disabled
+                            className="bg-muted"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Quantity *</Label>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <Label>Unit Price (₹) *</Label>
+                        <Input
+                          type="number"
+                          value={item.unit_price}
+                          onChange={(e) => updateItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <Label>Line Total (₹)</Label>
+                        <Input
+                          value={item.line_total.toFixed(2)}
+                          disabled
+                          className="bg-muted"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Purchase History Display */}
+                    {item.last_purchase && (
+                      <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Last Purchase Info</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+                          <div>Price: ₹{item.last_purchase.price.toFixed(2)}</div>
+                          <div>Date: {new Date(item.last_purchase.date).toLocaleDateString()}</div>
+                          <div>Vendor: {item.last_purchase.vendor}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stock Status */}
+                    {item.current_stock !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          Current Stock: {item.current_stock} {item.uom}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Summary */}
+      {items.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Add Items</CardTitle>
+            <CardTitle>Order Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label>Item Code *</Label>
-                <Input
-                  value={newItem.item_code || ''}
-                  onChange={(e) => setNewItem({ ...newItem, item_code: e.target.value })}
-                  placeholder="Enter item code"
-                />
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Total Items:</span>
+                <span>{items.length}</span>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Item Name *</Label>
-                <Input
-                  value={newItem.item_name || ''}
-                  onChange={(e) => setNewItem({ ...newItem, item_name: e.target.value })}
-                  placeholder="Enter item name"
-                />
+              <div className="flex justify-between">
+                <span>Total Quantity:</span>
+                <span>{items.reduce((sum, item) => sum + item.quantity, 0)}</span>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Quantity *</Label>
-                <Input
-                  type="number"
-                  value={newItem.quantity || ''}
-                  onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                />
+              <Separator />
+              <div className="flex justify-between text-lg font-semibold">
+                <span>Total Amount:</span>
+                <span>₹{calculateTotal().toFixed(2)}</span>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Unit Price *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newItem.unit_price || ''}
-                  onChange={(e) => setNewItem({ ...newItem, unit_price: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>UOM</Label>
-                <Select 
-                  value={newItem.uom || 'KG'} 
-                  onValueChange={(value) => setNewItem({ ...newItem, uom: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="KG">KG</SelectItem>
-                    <SelectItem value="PCS">PCS</SelectItem>
-                    <SelectItem value="MTR">MTR</SelectItem>
-                    <SelectItem value="LTR">LTR</SelectItem>
-                    <SelectItem value="BOX">BOX</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="mt-4 flex gap-2">
-              <Button onClick={handleAddItem} size="sm" className="flex items-center gap-1">
-                <Plus className="h-4 w-4" />
-                Add Item
-              </Button>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Items Table */}
-        {items.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Order Items ({items.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Code</TableHead>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Current Stock</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Unit Price</TableHead>
-                    <TableHead>UOM</TableHead>
-                    <TableHead>Line Total</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item, index) => {
-                    const stockInfo = getItemStockInfo(item.item_code);
-                    return (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono text-sm">{item.item_code}</TableCell>
-                        <TableCell>{item.item_name}</TableCell>
-                        <TableCell>
-                          {stockInfo ? (
-                            <div className="flex items-center gap-2">
-                              <span>{stockInfo.current_qty}</span>
-                              {stockInfo.stock_status === 'low_stock' && (
-                                <AlertCircle className="h-4 w-4 text-warning" />
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
-                        <TableCell>{item.uom}</TableCell>
-                        <TableCell className="font-medium">₹{item.line_total.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRemoveItem(index)}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              
-              <div className="mt-4 flex justify-end">
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold">₹{calculateTotal().toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Notes */}
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes & Special Instructions</Label>
+      {/* Notes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Additional Notes</CardTitle>
+        </CardHeader>
+        <CardContent>
           <Textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Enter any special instructions or notes for this purchase order..."
+            {...register("notes")}
+            placeholder="Any special instructions or notes for this purchase order..."
             rows={3}
           />
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Actions */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          
-          <div className="flex gap-2">
-            <Badge variant={getPriorityColor(formData.priority)}>
-              {formData.priority} Priority
-            </Badge>
-            
-            <Button
-              onClick={handleCreatePO}
-              disabled={creating || !formData.supplier_id || items.length === 0}
-              className="flex items-center gap-2"
-            >
-              {creating ? 'Creating...' : 'Create Purchase Order'}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Form Actions */}
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">
+          Create Purchase Order
+        </Button>
+      </div>
+    </form>
   );
-};
+}
