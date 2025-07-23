@@ -1512,6 +1512,76 @@ export type Database = {
         }
         Relationships: []
       }
+      category_approvals: {
+        Row: {
+          approval_notes: string | null
+          approval_status: string
+          approved_by: string | null
+          business_justification: string | null
+          category_id: string | null
+          change_data: Json
+          change_type: string
+          created_at: string | null
+          id: string
+          processed_at: string | null
+          requested_at: string | null
+          requested_by: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approval_notes?: string | null
+          approval_status?: string
+          approved_by?: string | null
+          business_justification?: string | null
+          category_id?: string | null
+          change_data: Json
+          change_type: string
+          created_at?: string | null
+          id?: string
+          processed_at?: string | null
+          requested_at?: string | null
+          requested_by?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approval_notes?: string | null
+          approval_status?: string
+          approved_by?: string | null
+          business_justification?: string | null
+          category_id?: string | null
+          change_data?: Json
+          change_type?: string
+          created_at?: string | null
+          id?: string
+          processed_at?: string | null
+          requested_at?: string | null
+          requested_by?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_approvals_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "category_stats_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_approvals_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_approvals_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_audit_log: {
         Row: {
           action: string
@@ -1569,6 +1639,97 @@ export type Database = {
           },
           {
             foreignKeyName: "category_audit_log_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      category_recommendations: {
+        Row: {
+          based_on_items: string[] | null
+          confidence_score: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          processed_at: string | null
+          processed_by: string | null
+          reasoning: string | null
+          status: string | null
+          suggested_category_code: string | null
+          suggested_category_name: string
+        }
+        Insert: {
+          based_on_items?: string[] | null
+          confidence_score?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reasoning?: string | null
+          status?: string | null
+          suggested_category_code?: string | null
+          suggested_category_name: string
+        }
+        Update: {
+          based_on_items?: string[] | null
+          confidence_score?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reasoning?: string | null
+          status?: string | null
+          suggested_category_code?: string | null
+          suggested_category_name?: string
+        }
+        Relationships: []
+      }
+      category_usage_tracking: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          usage_type: string
+          user_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          usage_type: string
+          user_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          usage_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_usage_tracking_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "category_stats_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_usage_tracking_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_usage_tracking_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "satguru_category_stats"
@@ -9265,6 +9426,10 @@ export type Database = {
         Args: { p_location_code: string; p_category_code: string }
         Returns: string
       }
+      generate_category_recommendations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       generate_employee_code: {
         Args: { p_unit_id: string }
         Returns: string
@@ -9305,6 +9470,18 @@ export type Database = {
           usage_type: string
           uom: string
           status: string
+        }[]
+      }
+      get_category_performance_metrics: {
+        Args: { p_days?: number }
+        Returns: {
+          category_id: string
+          category_name: string
+          view_count: number
+          item_additions: number
+          search_frequency: number
+          last_activity: string
+          utilization_score: number
         }[]
       }
       get_current_user_role: {
@@ -9518,6 +9695,14 @@ export type Database = {
       is_sunday: {
         Args: { input_date: string }
         Returns: boolean
+      }
+      manage_category_lifecycle: {
+        Args: {
+          p_category_id: string
+          p_action: string
+          p_justification?: string
+        }
+        Returns: Json
       }
       map_documents_to_smeta: {
         Args: Record<PropertyKey, never>
@@ -9806,6 +9991,10 @@ export type Database = {
       text_to_bytea: {
         Args: { data: string }
         Returns: string
+      }
+      track_category_usage: {
+        Args: { p_category_id: string; p_usage_type: string; p_metadata?: Json }
+        Returns: undefined
       }
       update_attendance_from_csv: {
         Args: { rows: Json; update_reason: string }
