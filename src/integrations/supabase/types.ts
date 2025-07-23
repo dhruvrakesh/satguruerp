@@ -8868,8 +8868,11 @@ export type Database = {
           item_name: string | null
           last_updated: string | null
           legacy_baseline: number | null
+          legacy_consumed_indicator: number | null
           legacy_grns: number | null
           legacy_issues: number | null
+          legacy_received_indicator: number | null
+          metrics_period: string | null
           net_operational_movement: number | null
           opening_stock: number | null
           operational_grns: number | null
