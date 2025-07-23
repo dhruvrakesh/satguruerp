@@ -24,12 +24,18 @@ import {
   FileText,
   Merge
 } from "lucide-react";
-import { useEnhancedCategories, useEnhancedCategoryMutations } from "@/hooks/useEnhancedCategories";
+import { useEnhancedCategories, useEnhancedCategoryMutations, EnhancedCategory } from "@/hooks/useEnhancedCategories";
 import { toast } from "@/hooks/use-toast";
+
+interface BulkOperationResult {
+  success: number;
+  failed: number;
+  errors?: any[];
+}
 
 interface BulkOperationsPanelProps {
   selectedCategories: string[];
-  categories: any[];
+  categories: EnhancedCategory[];
   onClearSelection: () => void;
   onRefresh: () => void;
 }
@@ -50,11 +56,11 @@ export function BulkOperationsPanel({
   });
   const [mergeData, setMergeData] = useState({
     target_category_id: '',
-    merge_strategy: 'move_items' // 'move_items', 'copy_items', 'merge_properties'
+    merge_strategy: 'move_items'
   });
   const [operationProgress, setOperationProgress] = useState(0);
   const [operationStatus, setOperationStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
-  const [operationResult, setOperationResult] = useState<any>(null);
+  const [operationResult, setOperationResult] = useState<BulkOperationResult | null>(null);
 
   const { bulkUpdateCategories } = useEnhancedCategoryMutations();
 
@@ -77,20 +83,21 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
+      const typedResult = result as BulkOperationResult;
       
       setOperationProgress(100);
       setOperationStatus('success');
-      setOperationResult(result);
+      setOperationResult(typedResult);
       
       toast({
         title: "Bulk Update Successful",
-        description: `Updated ${result.success} categories successfully`,
+        description: `Updated ${typedResult.success} categories successfully`,
       });
 
       onRefresh();
     } catch (error: any) {
       setOperationStatus('error');
-      setOperationResult({ error: error.message });
+      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
       
       toast({
         title: "Bulk Update Failed",
@@ -115,21 +122,22 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
+      const typedResult = result as BulkOperationResult;
       
       setOperationProgress(100);
       setOperationStatus('success');
-      setOperationResult(result);
+      setOperationResult(typedResult);
       
       toast({
         title: "Bulk Archive Successful",
-        description: `Archived ${result.success} categories successfully`,
+        description: `Archived ${typedResult.success} categories successfully`,
       });
 
       onRefresh();
       onClearSelection();
     } catch (error: any) {
       setOperationStatus('error');
-      setOperationResult({ error: error.message });
+      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
       
       toast({
         title: "Bulk Archive Failed",
@@ -155,21 +163,22 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
+      const typedResult = result as BulkOperationResult;
       
       setOperationProgress(100);
       setOperationStatus('success');
-      setOperationResult(result);
+      setOperationResult(typedResult);
       
       toast({
         title: "Merge Successful",
-        description: `Merged ${result.success} categories successfully`,
+        description: `Merged ${typedResult.success} categories successfully`,
       });
 
       onRefresh();
       onClearSelection();
     } catch (error: any) {
       setOperationStatus('error');
-      setOperationResult({ error: error.message });
+      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
       
       toast({
         title: "Merge Failed",
@@ -275,7 +284,7 @@ export function BulkOperationsPanel({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Operation failed: {operationResult.error}
+                    Operation failed: {operationResult.errors?.[0] || 'Unknown error'}
                   </AlertDescription>
                 </Alert>
               )}

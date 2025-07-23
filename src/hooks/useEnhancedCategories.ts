@@ -92,23 +92,43 @@ export function useEnhancedCategories(filters: CategoryFilters = {}, sort: Categ
       }
 
       // Get enhanced pricing data from valuation system
-      const { data: pricingData } = await supabase
+      const { data: pricingData, error: pricingError } = await supabase
         .from('item_pricing_master')
         .select(`
           item_code, 
           current_price, 
-          effective_date,
-          satguru_item_master!inner(category_id, category_name:satguru_categories!inner(category_name))
+          effective_date
         `)
         .eq('is_active', true)
         .eq('approval_status', 'APPROVED');
 
+      if (pricingError) {
+        console.error('Error fetching pricing data:', pricingError);
+        // Don't throw error, just log it and continue with basic functionality
+      }
+
+      // Get item master data to link pricing with categories
+      const { data: itemMasterData, error: itemMasterError } = await supabase
+        .from('satguru_item_master')
+        .select(`
+          item_code,
+          category_id
+        `);
+
+      if (itemMasterError) {
+        console.error('Error fetching item master data:', itemMasterError);
+        // Don't throw error, just log it and continue with basic functionality
+      }
+
       // Create enhanced pricing map by category
       const categoryPricingMap = new Map<string, { totalValue: number; avgPrice: number; itemCount: number }>();
       
-      if (pricingData) {
+      if (pricingData && itemMasterData) {
+        // Create a map of item_code to category_id
+        const itemToCategoryMap = new Map(itemMasterData.map(item => [item.item_code, item.category_id]));
+        
         pricingData.forEach(item => {
-          const categoryId = item.satguru_item_master?.category_id;
+          const categoryId = itemToCategoryMap.get(item.item_code);
           if (categoryId) {
             const existing = categoryPricingMap.get(categoryId) || { totalValue: 0, avgPrice: 0, itemCount: 0 };
             existing.totalValue += item.current_price || 0;
