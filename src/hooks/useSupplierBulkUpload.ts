@@ -27,6 +27,7 @@ interface BulkUploadResult {
     reason: string;
     data: any;
   }>;
+  uploadId?: string;
 }
 
 export function useSupplierBulkUpload() {
@@ -81,6 +82,20 @@ export function useSupplierBulkUpload() {
       const { data: existingSuppliers } = await supabase
         .from('suppliers')
         .select('supplier_name, email, supplier_code');
+
+      // Log upload start
+      const { data: uploadLog } = await supabase
+        .from('procurement_csv_uploads')
+        .insert({
+          upload_type: 'supplier',
+          file_name: file.name,
+          file_size_bytes: file.size,
+          status: 'processing'
+        })
+        .select()
+        .single();
+
+      const uploadId = uploadLog?.id || '';
 
       const existingNames = new Set(existingSuppliers?.map(s => s.supplier_name.toLowerCase()) || []);
       const existingEmails = new Set(existingSuppliers?.map(s => s.email.toLowerCase()) || []);
@@ -194,17 +209,20 @@ export function useSupplierBulkUpload() {
         }
       }
 
-      // Log upload activity
-      console.log('Upload completed:', {
-        type: 'supplier',
-        file_name: file.name,
-        total_rows: lines.length - 1,
-        successful_rows: results.successCount,
-        failed_rows: results.errorCount
-      });
+      // Update upload log
+      await supabase
+        .from('procurement_csv_uploads')
+        .update({
+          total_rows: lines.length - 1,
+          successful_rows: results.successCount,
+          failed_rows: results.errorCount,
+          error_details: results.errors.length > 0 ? { errors: results.errors.map(e => ({ ...e, data: JSON.stringify(e.data) })) } : null,
+          status: results.errorCount === (lines.length - 1) ? 'failed' : 'completed'
+        })
+        .eq('id', uploadId);
 
       setProgress(100);
-      return results;
+      return { ...results, uploadId };
 
     } catch (error: any) {
       console.error('Fatal error during supplier CSV processing:', error);

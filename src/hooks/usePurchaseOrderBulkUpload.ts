@@ -22,6 +22,7 @@ interface BulkUploadResult {
     data: any;
   }>;
   createdPOs: string[];
+  uploadId?: string;
 }
 
 export function usePurchaseOrderBulkUpload() {
@@ -219,17 +220,34 @@ export function usePurchaseOrderBulkUpload() {
         processedGroups++;
       }
 
-      // Log upload activity
-      console.log('Upload completed:', {
-        type: 'purchase_order',
-        file_name: file.name,
-        total_rows: lines.length - 1,
-        successful_rows: results.successCount,
-        failed_rows: results.errorCount
-      });
+      // Log upload start
+      const { data: uploadLog } = await supabase
+        .from('procurement_csv_uploads')
+        .insert({
+          upload_type: 'purchase_order',
+          file_name: file.name,
+          file_size_bytes: file.size,
+          status: 'processing'
+        })
+        .select()
+        .single();
+
+      const uploadId = uploadLog?.id || '';
+
+      // Update upload log
+      await supabase
+        .from('procurement_csv_uploads')
+        .update({
+          total_rows: lines.length - 1,
+          successful_rows: results.successCount,
+          failed_rows: results.errorCount,
+          error_details: results.errors.length > 0 ? { errors: results.errors.map(e => ({ ...e, data: JSON.stringify(e.data) })) } : null,
+          status: results.errorCount === (lines.length - 1) ? 'failed' : 'completed'
+        })
+        .eq('id', uploadId);
 
       setProgress(100);
-      return results;
+      return { ...results, uploadId };
 
     } catch (error: any) {
       console.error('Fatal error during PO CSV processing:', error);

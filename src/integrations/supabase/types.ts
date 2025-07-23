@@ -6127,6 +6127,60 @@ export type Database = {
         }
         Relationships: []
       }
+      procurement_csv_uploads: {
+        Row: {
+          batch_id: string | null
+          created_at: string | null
+          error_details: Json | null
+          failed_rows: number | null
+          file_name: string
+          file_size_bytes: number | null
+          id: string
+          processing_time_ms: number | null
+          status: string | null
+          successful_rows: number | null
+          total_rows: number | null
+          updated_at: string | null
+          upload_date: string | null
+          upload_type: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          failed_rows?: number | null
+          file_name: string
+          file_size_bytes?: number | null
+          id?: string
+          processing_time_ms?: number | null
+          status?: string | null
+          successful_rows?: number | null
+          total_rows?: number | null
+          updated_at?: string | null
+          upload_date?: string | null
+          upload_type: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          failed_rows?: number | null
+          file_name?: string
+          file_size_bytes?: number | null
+          id?: string
+          processing_time_ms?: number | null
+          status?: string | null
+          successful_rows?: number | null
+          total_rows?: number | null
+          updated_at?: string | null
+          upload_date?: string | null
+          upload_type?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -8543,6 +8597,74 @@ export type Database = {
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_price_lists: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          discount_percentage: number | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_active: boolean | null
+          item_code: string
+          lead_time_days: number | null
+          minimum_order_quantity: number | null
+          payment_terms: string | null
+          supplier_id: string
+          unit_price: number
+          updated_at: string | null
+          updated_by: string | null
+          validity_days: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          discount_percentage?: number | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          item_code: string
+          lead_time_days?: number | null
+          minimum_order_quantity?: number | null
+          payment_terms?: string | null
+          supplier_id: string
+          unit_price: number
+          updated_at?: string | null
+          updated_by?: string | null
+          validity_days?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          discount_percentage?: number | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          item_code?: string
+          lead_time_days?: number | null
+          minimum_order_quantity?: number | null
+          payment_terms?: string | null
+          supplier_id?: string
+          unit_price?: number
+          updated_at?: string | null
+          updated_by?: string | null
+          validity_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_price_lists_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
