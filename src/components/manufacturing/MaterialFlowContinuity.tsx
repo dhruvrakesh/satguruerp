@@ -8,13 +8,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useMaterialAvailability } from "@/hooks/useMaterialAvailability";
+import { useAutomatedMaterialFlow } from "@/hooks/useAutomatedMaterialFlow";
 import { 
   ArrowRight, 
   Package, 
   CheckCircle,
   AlertTriangle,
   Clock,
-  Zap
+  Zap,
+  RefreshCw,
+  Workflow
 } from "lucide-react";
 
 interface MaterialFlowContinuityProps {
@@ -55,7 +58,21 @@ export function MaterialFlowContinuity({
   const currentProcessIndex = PROCESS_SEQUENCE.indexOf(currentProcess);
   const previousProcess = currentProcessIndex > 0 ? PROCESS_SEQUENCE[currentProcessIndex - 1] : null;
 
-  // Use the new material availability hook for real-time data
+  // Enhanced automated material flow
+  const { 
+    getUpstreamMaterials, 
+    autoTransferMutation, 
+    validateMaterialFlowQuery, 
+    materialFlowContinuityQuery 
+  } = useAutomatedMaterialFlow(uiorn);
+
+  // Get upstream materials using new automated system
+  const { data: upstreamMaterials = [], isLoading: isLoadingUpstream } = getUpstreamMaterials(currentProcess);
+  
+  // Material flow validation
+  const { data: flowValidation } = validateMaterialFlowQuery;
+
+  // Use the new material availability hook for real-time data (fallback)
   const { data: materialAvailabilityData, isLoading } = useMaterialAvailability(
     uiorn, 
     previousProcess || undefined
@@ -224,25 +241,26 @@ export function MaterialFlowContinuity({
 
   return (
     <div className="space-y-6">
-      {/* Material Flow Status */}
+      {/* Enhanced Material Flow Status with Validation */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-primary" />
-            Material Flow Continuity: {previousProcess} → {currentProcess}
+            <Workflow className="h-5 w-5 text-primary" />
+            Enhanced Material Flow Continuity: {previousProcess} → {currentProcess}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {availableMaterials.length}
+                {upstreamMaterials.length || availableMaterials.length}
               </div>
               <div className="text-sm text-muted-foreground">Available Materials</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">
-                {availableMaterials.reduce((sum, m) => sum + m.quantity, 0).toFixed(1)} KG
+                {(upstreamMaterials.reduce((sum, m) => sum + m.available_quantity, 0) || 
+                  availableMaterials.reduce((sum, m) => sum + m.quantity, 0)).toFixed(1)} KG
               </div>
               <div className="text-sm text-muted-foreground">Total Quantity</div>
             </div>
@@ -252,19 +270,104 @@ export function MaterialFlowContinuity({
               </div>
               <div className="text-sm text-muted-foreground">Pending Transfers</div>
             </div>
+            <div className="text-center p-4 bg-purple-50 rounded-lg">
+              <div className="text-2xl font-bold text-purple-600">
+                {flowValidation?.is_valid ? '✓' : flowValidation?.gaps_found || '?'}
+              </div>
+              <div className="text-sm text-muted-foreground">Flow Validation</div>
+            </div>
           </div>
+
+          {/* Flow validation status */}
+          {flowValidation && !flowValidation.is_valid && (
+            <Alert className="mt-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Material flow validation found {flowValidation.gaps_found} issue(s). 
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="p-0 h-auto ml-2"
+                  onClick={() => console.log('Flow gaps:', flowValidation.process_gaps)}
+                >
+                  View Details
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Auto-transfer all materials button */}
+          {upstreamMaterials.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-primary">🚀 Smart Material Flow Active</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {upstreamMaterials.length} upstream materials detected with automated transfer capability
+                  </p>
+                </div>
+                <Button
+                  onClick={() => autoTransferMutation.mutate({
+                    fromProcess: previousProcess!,
+                    toProcess: currentProcess,
+                  })}
+                  disabled={autoTransferMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <Zap className="h-4 w-4" />
+                  {autoTransferMutation.isPending ? 'Transferring...' : 'Auto-Transfer All'}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Available Materials for Transfer */}
-      {availableMaterials.length > 0 && (
+      {/* Enhanced Available Materials for Transfer */}
+      {(upstreamMaterials.length > 0 || availableMaterials.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle>Available Materials from {previousProcess}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Enhanced Materials from {previousProcess}
+              <Badge variant="secondary">{upstreamMaterials.length || availableMaterials.length} available</Badge>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {availableMaterials.map((material) => (
+              {/* Render upstream materials first (enhanced) */}
+              {upstreamMaterials.map((material, index) => (
+                <div
+                  key={`upstream-${index}`}
+                  className="p-4 border-2 border-primary/20 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-4 h-4 rounded border-2 border-primary bg-primary/20">
+                        <Zap className="w-3 h-3 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-primary">{material.material_type}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Auto-detected • Recorded: {new Date(material.recorded_at).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-green-100 text-green-800 border-green-200">
+                        Grade {material.quality_grade}
+                      </Badge>
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-primary">{material.available_quantity.toFixed(1)} KG</div>
+                        <div className="text-sm text-muted-foreground">Auto-transferable</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Fallback to legacy materials if no upstream detected */}
+              {upstreamMaterials.length === 0 && availableMaterials.map((material) => (
                 <div
                   key={material.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -306,28 +409,42 @@ export function MaterialFlowContinuity({
               ))}
             </div>
             
-            {selectedMaterials.length > 0 && (
-              <div className="mt-4 p-4 bg-primary/5 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">Selected: {selectedMaterials.length} materials</div>
-                    <div className="text-sm text-muted-foreground">
-                      Total: {availableMaterials
-                        .filter(m => selectedMaterials.includes(m.id))
-                        .reduce((sum, m) => sum + m.quantity, 0).toFixed(1)} KG
+              {selectedMaterials.length > 0 && upstreamMaterials.length === 0 && (
+                <div className="mt-4 p-4 bg-primary/5 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">Selected: {selectedMaterials.length} materials</div>
+                      <div className="text-sm text-muted-foreground">
+                        Total: {availableMaterials
+                          .filter(m => selectedMaterials.includes(m.id))
+                          .reduce((sum, m) => sum + m.quantity, 0).toFixed(1)} KG
+                      </div>
                     </div>
+                    <Button 
+                      onClick={handleTransferMaterials}
+                      disabled={createTransferMutation.isPending}
+                      className="flex items-center gap-2"
+                    >
+                      <Zap className="h-4 w-4" />
+                      {createTransferMutation.isPending ? 'Transferring...' : 'Transfer Materials'}
+                    </Button>
                   </div>
-                  <Button 
-                    onClick={handleTransferMaterials}
-                    disabled={createTransferMutation.isPending}
-                    className="flex items-center gap-2"
-                  >
-                    <Zap className="h-4 w-4" />
-                    {createTransferMutation.isPending ? 'Transferring...' : 'Transfer Materials'}
-                  </Button>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Enhanced info for automated materials */}
+              {upstreamMaterials.length > 0 && (
+                <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 text-green-800 mb-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="font-medium">Enhanced Material Flow Active</span>
+                  </div>
+                  <div className="text-sm text-green-700">
+                    Materials are automatically validated and ready for seamless transfer. 
+                    Use the "Auto-Transfer All" button above for instant processing.
+                  </div>
+                </div>
+              )}
           </CardContent>
         </Card>
       )}
@@ -377,13 +494,25 @@ export function MaterialFlowContinuity({
         </Card>
       )}
 
-      {/* No Materials Available */}
-      {!isLoading && availableMaterials.length === 0 && !existingTransfers?.some(t => t.transfer_status === 'SENT') && (
+      {/* No Materials Available - Enhanced */}
+      {!isLoading && !isLoadingUpstream && upstreamMaterials.length === 0 && availableMaterials.length === 0 && !existingTransfers?.some(t => t.transfer_status === 'SENT') && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             No materials available from {previousProcess} for UIORN {uiorn}. 
-            Ensure the previous process has been completed and materials are recorded.
+            <br />
+            • Ensure the previous process ({previousProcess}) has been completed
+            • Verify materials are recorded with good output quantity greater than 0
+            • Check that quality grade is GRADE_A or GRADE_B
+            <Button 
+              variant="link" 
+              size="sm" 
+              className="p-0 h-auto ml-2"
+              onClick={() => window.location.reload()}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Refresh
+            </Button>
           </AlertDescription>
         </Alert>
       )}

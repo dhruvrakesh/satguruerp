@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRawMaterials, RawMaterial } from "@/hooks/useRawMaterials";
+import { useAutomatedMaterialFlow } from "@/hooks/useAutomatedMaterialFlow";
 import { 
   ArrowRight, 
   Package, 
@@ -18,7 +20,9 @@ import {
   TrendingUp, 
   AlertTriangle,
   CheckCircle,
-  Clock
+  Clock,
+  Zap,
+  RefreshCw
 } from "lucide-react";
 
 interface MaterialFlowData {
@@ -81,6 +85,20 @@ export function MaterialFlowTracker({
   
   // Fetch raw materials for dropdown
   const { data: rawMaterials = [], isLoading: isLoadingMaterials, error: rawMaterialsError } = useRawMaterials();
+  
+  // Enhanced automated material flow
+  const { 
+    getUpstreamMaterials, 
+    autoTransferMutation, 
+    validateMaterialFlowQuery, 
+    materialFlowContinuityQuery 
+  } = useAutomatedMaterialFlow(uiorn);
+  
+  // Get upstream materials using new automated system
+  const { data: upstreamMaterials = [], isLoading: isLoadingUpstream } = getUpstreamMaterials(processStage);
+  
+  // Material flow validation
+  const { data: flowValidation } = validateMaterialFlowQuery;
 
   useEffect(() => {
     if (uiorn && processStage) {
@@ -130,6 +148,42 @@ export function MaterialFlowTracker({
       setAvailableInputs(data || []);
     } catch (error) {
       console.error('Error loading available inputs:', error);
+    }
+  };
+
+  // Auto-populate from upstream materials
+  const handleAutoPopulateFromUpstream = (upstreamMaterial: any) => {
+    setCurrentFlow(prev => ({
+      ...prev,
+      input_material_type: upstreamMaterial.material_type,
+      input_quantity: upstreamMaterial.available_quantity,
+      input_unit: 'KG',
+      input_source_process: upstreamMaterial.process_stage,
+      material_cost_per_unit: 0 // Will be calculated based on BOM if available
+    }));
+    
+    toast({
+      title: "Auto-populated from upstream",
+      description: `Material from ${upstreamMaterial.process_stage} has been loaded automatically.`,
+    });
+  };
+
+  // Auto-transfer materials function
+  const handleAutoTransfer = async () => {
+    if (!previousProcessStage) return;
+    
+    try {
+      const result = await autoTransferMutation.mutateAsync({
+        fromProcess: previousProcessStage,
+        toProcess: processStage,
+      });
+      
+      toast({
+        title: "Auto-transfer completed",
+        description: `Transferred ${result.transferred_count} materials (${result.total_quantity.toFixed(1)} KG)`,
+      });
+    } catch (error) {
+      console.error('Auto-transfer failed:', error);
     }
   };
 
@@ -359,7 +413,63 @@ export function MaterialFlowTracker({
                 </div>
               )}
 
-              {previousProcessStage && availableInputs.length > 0 && (
+              {/* Enhanced Upstream Material Detection */}
+              {upstreamMaterials.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">🚀 Available from Upstream Processes</label>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleAutoTransfer}
+                        disabled={autoTransferMutation.isPending}
+                        className="flex items-center gap-1"
+                      >
+                        <Zap className="h-3 w-3" />
+                        {autoTransferMutation.isPending ? 'Transferring...' : 'Auto-Transfer All'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => window.location.reload()}
+                        className="flex items-center gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {upstreamMaterials.map((material, index) => (
+                      <div 
+                        key={index} 
+                        className="p-4 border-2 border-primary/20 rounded-lg cursor-pointer hover:border-primary/40 bg-gradient-to-r from-primary/5 to-primary/10"
+                        onClick={() => handleAutoPopulateFromUpstream(material)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-medium text-primary">{material.material_type}</div>
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                            Grade {material.quality_grade}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          <div>Available: {material.available_quantity.toFixed(1)} KG</div>
+                          <div>From: {material.process_stage}</div>
+                          <div>Recorded: {new Date(material.recorded_at).toLocaleString()}</div>
+                        </div>
+                        <div className="mt-2 text-xs text-primary font-medium">
+                          👆 Click to auto-populate input fields
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy available inputs (fallback) */}
+              {previousProcessStage && availableInputs.length > 0 && upstreamMaterials.length === 0 && (
                 <div>
                   <label className="text-sm font-medium">Available from {previousProcessStage}</label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
@@ -379,6 +489,16 @@ export function MaterialFlowTracker({
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* No upstream materials available message */}
+              {previousProcessStage && upstreamMaterials.length === 0 && availableInputs.length === 0 && !isLoadingUpstream && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No materials available from {previousProcessStage}. Ensure the previous process has been completed and materials are recorded with good output quantity greater than 0.
+                  </AlertDescription>
+                </Alert>
               )}
 
               <div>
