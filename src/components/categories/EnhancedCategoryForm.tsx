@@ -1,8 +1,4 @@
-
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,300 +6,242 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { AlertCircle, Save, X, Loader2 } from "lucide-react";
-import { useEnhancedCategoryMutations, EnhancedCategory } from "@/hooks/useEnhancedCategories";
-import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const categorySchema = z.object({
-  category_name: z.string().min(2, "Category name must be at least 2 characters").max(100, "Category name must be less than 100 characters"),
-  description: z.string().optional(),
-  category_code: z.string().optional().refine((val) => !val || /^[A-Z0-9_-]+$/.test(val), "Category code must contain only uppercase letters, numbers, underscores, and hyphens"),
-  parent_category_id: z.string().optional(),
-  category_type: z.enum(["STANDARD", "SYSTEM", "TEMPORARY"]).default("STANDARD"),
-  is_active: z.boolean().default(true),
-  sort_order: z.number().default(0),
-  business_rules: z.record(z.any()).default({}),
-  metadata: z.record(z.any()).default({})
-});
-
-type CategoryFormData = z.infer<typeof categorySchema>;
+import { useEnhancedCategoryMutations, type EnhancedCategory } from "@/hooks/useEnhancedCategories";
+import { AlertCircle, Save, X } from "lucide-react";
 
 interface EnhancedCategoryFormProps {
   category?: EnhancedCategory;
-  parentCategories?: EnhancedCategory[];
+  parentCategories: EnhancedCategory[];
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess: () => void;
 }
 
-export function EnhancedCategoryForm({ 
-  category, 
-  parentCategories = [], 
-  onClose, 
-  onSuccess 
-}: EnhancedCategoryFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+export function EnhancedCategoryForm({ category, parentCategories, onClose, onSuccess }: EnhancedCategoryFormProps) {
   const { createCategory, updateCategory } = useEnhancedCategoryMutations();
   
-  const form = useForm<CategoryFormData>({
-    resolver: zodResolver(categorySchema),
-    defaultValues: {
-      category_name: category?.category_name || "",
-      description: category?.description || "",
-      category_code: category?.category_code || "",
-      parent_category_id: category?.parent_category_id || "",
-      category_type: category?.category_type || "STANDARD",
-      is_active: category?.is_active ?? true,
-      sort_order: category?.sort_order || 0,
-      business_rules: category?.business_rules || {},
-      metadata: category?.metadata || {}
-    }
+  const [formData, setFormData] = useState({
+    category_name: '',
+    description: '',
+    category_code: '',
+    parent_category_id: '',
+    category_type: 'STANDARD' as 'STANDARD' | 'SYSTEM' | 'TEMPORARY',
+    sort_order: 0,
+    is_active: true
   });
+  
+  const [errors, setErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isEditing = !!category;
+  useEffect(() => {
+    if (category) {
+      setFormData({
+        category_name: category.category_name || '',
+        description: category.description || '',
+        category_code: category.category_code || '',
+        parent_category_id: category.parent_category_id || '',
+        category_type: category.category_type || 'STANDARD',
+        sort_order: category.sort_order || 0,
+        is_active: category.is_active ?? true
+      });
+    }
+  }, [category]);
 
-  const onSubmit = async (data: CategoryFormData) => {
+  const validateForm = () => {
+    const newErrors: string[] = [];
+    
+    if (!formData.category_name.trim()) {
+      newErrors.push('Category name is required');
+    }
+    
+    if (formData.category_name.length > 100) {
+      newErrors.push('Category name must be less than 100 characters');
+    }
+    
+    if (formData.category_code && formData.category_code.length > 20) {
+      newErrors.push('Category code must be less than 20 characters');
+    }
+    
+    if (formData.sort_order < 0) {
+      newErrors.push('Sort order cannot be negative');
+    }
+    
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
     setIsSubmitting(true);
-    setValidationErrors([]);
-
+    
     try {
-      if (isEditing) {
+      if (category) {
         await updateCategory.mutateAsync({
           id: category.id,
-          updates: {
-            ...data,
-            parent_category_id: data.parent_category_id || null
-          }
+          updates: formData
         });
       } else {
-        await createCategory.mutateAsync({
-          ...data,
-          parent_category_id: data.parent_category_id || null
-        });
+        await createCategory.mutateAsync(formData);
       }
-
-      toast({
-        title: "Success",
-        description: `Category ${isEditing ? 'updated' : 'created'} successfully`,
-      });
-
-      onSuccess?.();
-      onClose();
-    } catch (error: any) {
-      console.error("Category form error:", error);
       
-      // Handle validation errors from backend
-      if (error.message?.includes('validation')) {
-        setValidationErrors([error.message]);
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || `Failed to ${isEditing ? 'update' : 'create'} category`,
-          variant: "destructive",
-        });
-      }
+      onSuccess();
+    } catch (error) {
+      console.error('Form submission error:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Filter parent categories to prevent circular references
-  const availableParentCategories = parentCategories.filter(cat => 
-    cat.id !== category?.id && cat.parent_category_id !== category?.id
+  const availableParents = parentCategories.filter(p => 
+    !category || p.id !== category.id
   );
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          {isEditing ? 'Edit Category' : 'Create New Category'}
+          {category ? 'Edit Category' : 'Create New Category'}
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </CardTitle>
       </CardHeader>
+
       <CardContent>
-        {validationErrors.length > 0 && (
-          <Alert className="mb-4">
+        {errors.length > 0 && (
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {validationErrors.map((error, index) => (
-                <div key={index}>{error}</div>
-              ))}
+              <ul className="list-disc list-inside">
+                {errors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
             </AlertDescription>
           </Alert>
         )}
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="category_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter category name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="category_code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category Code</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="AUTO_GENERATED" 
-                        {...field}
-                        style={{ textTransform: 'uppercase' }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Leave empty for auto-generation
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category_name">Category Name *</Label>
+              <Input
+                id="category_name"
+                value={formData.category_name}
+                onChange={(e) => setFormData(prev => ({ ...prev, category_name: e.target.value }))}
+                placeholder="Enter category name"
+                required
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Enter category description" 
-                      {...field}
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <div className="space-y-2">
+              <Label htmlFor="category_code">Category Code</Label>
+              <Input
+                id="category_code"
+                value={formData.category_code}
+                onChange={(e) => setFormData(prev => ({ ...prev, category_code: e.target.value }))}
+                placeholder="Optional short code"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Category description"
+              rows={3}
             />
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="parent_category_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Parent Category</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select parent" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="">No Parent</SelectItem>
-                        {availableParentCategories.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.category_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="parent_category">Parent Category</Label>
+              <Select
+                value={formData.parent_category_id}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, parent_category_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select parent category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Parent (Root Level)</SelectItem>
+                  {availableParents.map((parent) => (
+                    <SelectItem key={parent.id} value={parent.id}>
+                      {parent.category_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <FormField
-                control={form.control}
-                name="category_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category Type</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="STANDARD">Standard</SelectItem>
-                        <SelectItem value="SYSTEM">System</SelectItem>
-                        <SelectItem value="TEMPORARY">Temporary</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="space-y-2">
+              <Label htmlFor="category_type">Category Type</Label>
+              <Select
+                value={formData.category_type}
+                onValueChange={(value: any) => setFormData(prev => ({ ...prev, category_type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STANDARD">Standard</SelectItem>
+                  <SelectItem value="SYSTEM">System</SelectItem>
+                  <SelectItem value="TEMPORARY">Temporary</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-              <FormField
-                control={form.control}
-                name="sort_order"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sort Order</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sort_order">Sort Order</Label>
+              <Input
+                id="sort_order"
+                type="number"
+                value={formData.sort_order}
+                onChange={(e) => setFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                placeholder="0"
+                min={0}
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Active Status</FormLabel>
-                    <FormDescription>
-                      Inactive categories won't appear in new item creation
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isEditing ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    {isEditing ? 'Update' : 'Create'}
-                  </>
-                )}
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="is_active" className="flex items-center gap-2">
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
+                />
+                Active Category
+              </Label>
             </div>
-          </form>
-        </Form>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="min-w-[120px]"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSubmitting ? 'Saving...' : category ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );

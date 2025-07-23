@@ -1,438 +1,358 @@
-
-import { useState, useRef } from "react";
+import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { useEnhancedCategoryMutations, type EnhancedCategory } from "@/hooks/useEnhancedCategories";
 import { 
-  Upload, 
-  Download, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle, 
-  Loader2,
-  FileSpreadsheet,
-  Database
+  Upload, Download, FileText, AlertCircle, 
+  CheckCircle, XCircle, Loader2 
 } from "lucide-react";
-import { useEnhancedCategories, useEnhancedCategoryMutations, EnhancedCategory } from "@/hooks/useEnhancedCategories";
-import { toast } from "@/hooks/use-toast";
+import Papa from 'papaparse';
 
 interface CategoryImportExportProps {
   categories: EnhancedCategory[];
   onRefresh: () => void;
 }
 
-type ExportType = 'template' | 'basic' | 'full';
-type ExportFormat = 'csv' | 'json';
+interface ImportResult {
+  success: number;
+  failed: number;
+  errors: Array<{ row: number; message: string; data?: any }>;
+}
 
 export function CategoryImportExport({ categories, onRefresh }: CategoryImportExportProps) {
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importStatus, setImportStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-  const [importResult, setImportResult] = useState<any>(null);
-  const [exportType, setExportType] = useState<ExportType>('template');
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const { createCategory } = useEnhancedCategoryMutations();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  const generateTemplate = () => {
+    const template = [
+      {
+        category_name: 'Sample Category',
+        description: 'Sample category description',
+        category_code: 'SAMPLE',
+        category_type: 'STANDARD',
+        sort_order: 1,
+        is_active: true
+      }
+    ];
+
+    const csv = Papa.unparse(template);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `category_template_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  const exportCategories = async () => {
+    if (!categories || categories.length === 0) return;
+
+    setIsExporting(true);
+    
+    try {
+      const exportData = categories.map(category => ({
+        category_name: category.category_name,
+        description: category.description || '',
+        category_code: category.category_code || '',
+        category_type: category.category_type,
+        sort_order: category.sort_order,
+        is_active: category.is_active,
+        total_items: category.total_items,
+        avg_item_value: category.avg_item_value,
+        created_at: category.created_at,
+        updated_at: category.updated_at
+      }));
+
+      const csv = Papa.unparse(exportData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `categories_export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const validateCategoryData = (data: any[], rowIndex: number): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const row = data[rowIndex];
+
+    if (!row.category_name || row.category_name.trim() === '') {
+      errors.push('Category name is required');
+    }
+
+    if (row.category_name && row.category_name.length > 100) {
+      errors.push('Category name must be less than 100 characters');
+    }
+
+    if (row.category_code && row.category_code.length > 20) {
+      errors.push('Category code must be less than 20 characters');
+    }
+
+    if (row.category_type && !['STANDARD', 'SYSTEM', 'TEMPORARY'].includes(row.category_type)) {
+      errors.push('Category type must be STANDARD, SYSTEM, or TEMPORARY');
+    }
+
+    if (row.sort_order && (isNaN(row.sort_order) || row.sort_order < 0)) {
+      errors.push('Sort order must be a non-negative number');
+    }
+
+    if (row.is_active && !['true', 'false', true, false].includes(row.is_active)) {
+      errors.push('is_active must be true or false');
+    }
+
+    return { valid: errors.length === 0, errors };
+  };
+
+  const importCategories = async (file: File) => {
+    setIsImporting(true);
+    setImportProgress(0);
+    setImportResult(null);
+
+    try {
+      const results = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: resolve,
+          error: reject
+        });
+      });
+
+      const data = results.data;
+      const total = data.length;
+      let success = 0;
+      let failed = 0;
+      const errors: ImportResult['errors'] = [];
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const validation = validateCategoryData(data, i);
+
+        if (!validation.valid) {
+          failed++;
+          errors.push({
+            row: i + 2, // +2 because CSV has header and is 1-indexed
+            message: validation.errors.join(', '),
+            data: row
+          });
+          setImportProgress(((i + 1) / total) * 100);
+          continue;
+        }
+
+        try {
+          await createCategory.mutateAsync({
+            category_name: row.category_name.trim(),
+            description: row.description || null,
+            category_code: row.category_code || null,
+            category_type: row.category_type || 'STANDARD',
+            sort_order: parseInt(row.sort_order) || 0,
+            is_active: row.is_active === 'true' || row.is_active === true,
+            business_rules: {},
+            metadata: {}
+          });
+          success++;
+        } catch (error: any) {
+          failed++;
+          errors.push({
+            row: i + 2,
+            message: error.message || 'Failed to create category',
+            data: row
+          });
+        }
+
+        setImportProgress(((i + 1) / total) * 100);
+      }
+
+      setImportResult({ success, failed, errors });
+      if (success > 0) {
+        onRefresh();
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      setImportResult({
+        success: 0,
+        failed: 1,
+        errors: [{ row: 0, message: 'Failed to parse CSV file' }]
+      });
+    } finally {
+      setIsImporting(false);
+      setImportProgress(0);
+    }
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setImportFile(file);
-      setValidationErrors([]);
-    }
-  };
-
-  const validateImportData = (data: any[]): string[] => {
-    const errors: string[] = [];
-    
-    data.forEach((row, index) => {
-      if (!row.category_name || row.category_name.trim() === '') {
-        errors.push(`Row ${index + 1}: Category name is required`);
-      }
-      
-      if (row.category_code && !/^[A-Z0-9_-]+$/.test(row.category_code)) {
-        errors.push(`Row ${index + 1}: Category code must contain only uppercase letters, numbers, underscores, and hyphens`);
-      }
-      
-      if (row.category_type && !['STANDARD', 'SYSTEM', 'TEMPORARY'].includes(row.category_type)) {
-        errors.push(`Row ${index + 1}: Invalid category type`);
-      }
-    });
-    
-    return errors;
-  };
-
-  const processImport = async () => {
-    if (!importFile) return;
-
-    setImportStatus('processing');
-    setImportProgress(0);
-    setValidationErrors([]);
-
-    try {
-      const text = await importFile.text();
-      let data: any[] = [];
-
-      if (importFile.name.endsWith('.csv')) {
-        // Simple CSV parsing
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
-        
-        data = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim());
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            obj[header] = values[index] || '';
-          });
-          return obj;
-        }).filter(row => row.category_name); // Filter out empty rows
-      } else if (importFile.name.endsWith('.json')) {
-        data = JSON.parse(text);
-      } else {
-        throw new Error('Unsupported file format. Please use CSV or JSON files.');
-      }
-
-      // Validate data
-      const errors = validateImportData(data);
-      if (errors.length > 0) {
-        setValidationErrors(errors);
-        setImportStatus('error');
-        return;
-      }
-
-      // Process import
-      let successCount = 0;
-      let errorCount = 0;
-      const importErrors: string[] = [];
-
-      for (let i = 0; i < data.length; i++) {
-        try {
-          const row = data[i];
-          await createCategory.mutateAsync({
-            category_name: row.category_name,
-            description: row.description || '',
-            category_code: row.category_code || '',
-            parent_category_id: row.parent_category_id || null,
-            category_type: row.category_type || 'STANDARD',
-            is_active: row.is_active !== 'false',
-            sort_order: parseInt(row.sort_order) || 0,
-            business_rules: row.business_rules ? JSON.parse(row.business_rules) : {},
-            metadata: row.metadata ? JSON.parse(row.metadata) : {}
-          });
-          
-          successCount++;
-        } catch (error: any) {
-          errorCount++;
-          importErrors.push(`Row ${i + 1}: ${error.message}`);
-        }
-        
-        setImportProgress(((i + 1) / data.length) * 100);
-      }
-
-      setImportResult({
-        total: data.length,
-        success: successCount,
-        errors: errorCount,
-        errorDetails: importErrors
-      });
-
-      setImportStatus('success');
-      
-      toast({
-        title: "Import Completed",
-        description: `Successfully imported ${successCount} of ${data.length} categories`,
-      });
-
-      onRefresh();
-    } catch (error: any) {
-      setImportStatus('error');
-      setValidationErrors([error.message]);
-      
-      toast({
-        title: "Import Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const generateExportData = () => {
-    switch (exportType) {
-      case 'template':
-        return [{
-          category_name: 'Sample Category',
-          description: 'Sample description',
-          category_code: 'SAMPLE_CODE',
-          parent_category_id: '',
-          category_type: 'STANDARD',
-          is_active: 'true',
-          sort_order: '0',
-          business_rules: '{}',
-          metadata: '{}'
-        }];
-      
-      case 'basic':
-        return categories.map(cat => ({
-          category_name: cat.category_name,
-          description: cat.description || '',
-          category_code: cat.category_code || '',
-          category_type: cat.category_type,
-          is_active: cat.is_active.toString()
-        }));
-      
-      case 'full':
-        return categories.map(cat => ({
-          id: cat.id,
-          category_name: cat.category_name,
-          description: cat.description || '',
-          category_code: cat.category_code || '',
-          parent_category_id: cat.parent_category_id || '',
-          category_level: cat.category_level,
-          sort_order: cat.sort_order,
-          is_active: cat.is_active.toString(),
-          category_type: cat.category_type,
-          business_rules: JSON.stringify(cat.business_rules),
-          metadata: JSON.stringify(cat.metadata),
-          total_items: cat.total_items,
-          active_items: cat.active_items,
-          avg_item_value: cat.avg_item_value,
-          created_at: cat.created_at,
-          updated_at: cat.updated_at
-        }));
-      
-      default:
-        return [];
-    }
-  };
-
-  const handleExport = () => {
-    const data = generateExportData();
-    const timestamp = new Date().toISOString().split('T')[0];
-    
-    if (exportFormat === 'csv') {
-      const headers = Object.keys(data[0]).join(',');
-      const csv = [headers, ...data.map(row => Object.values(row).join(','))].join('\n');
-      
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `categories_${exportType}_${timestamp}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+    if (file && file.type === 'text/csv') {
+      importCategories(file);
     } else {
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `categories_${exportType}_${timestamp}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      alert('Please select a valid CSV file');
     }
-    
-    toast({
-      title: "Export Successful",
-      description: `Exported ${data.length} categories as ${exportFormat.toUpperCase()}`,
-    });
-  };
-
-  const resetImport = () => {
-    setImportFile(null);
-    setImportProgress(0);
-    setImportStatus('idle');
-    setImportResult(null);
-    setValidationErrors([]);
+    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Database className="w-5 h-5" />
-          Category Import/Export
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="import" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="import">Import</TabsTrigger>
-            <TabsTrigger value="export">Export</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="import" className="space-y-4">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="file-upload">Select File</Label>
-                <Input
-                  id="file-upload"
-                  type="file"
-                  accept=".csv,.json"
-                  onChange={handleFileSelect}
-                  ref={fileInputRef}
-                  disabled={importStatus === 'processing'}
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Supported formats: CSV, JSON
-                </p>
-              </div>
-
-              {importFile && (
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-sm">{importFile.name}</span>
-                  <Badge variant="secondary">{(importFile.size / 1024).toFixed(1)} KB</Badge>
-                </div>
-              )}
-
-              {validationErrors.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-1">
-                      <p className="font-semibold">Validation Errors:</p>
-                      {validationErrors.map((error, index) => (
-                        <p key={index} className="text-sm">{error}</p>
-                      ))}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {importStatus === 'processing' && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Processing import...</span>
-                  </div>
-                  <Progress value={importProgress} className="h-2" />
-                </div>
-              )}
-
-              {importStatus === 'success' && importResult && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-1">
-                      <p className="font-semibold">Import Completed</p>
-                      <p className="text-sm">
-                        Total: {importResult.total} | 
-                        Success: {importResult.success} | 
-                        Errors: {importResult.errors}
-                      </p>
-                      {importResult.errorDetails && importResult.errorDetails.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-sm font-medium">
-                            View Error Details
-                          </summary>
-                          <div className="mt-2 space-y-1">
-                            {importResult.errorDetails.map((error: string, index: number) => (
-                              <p key={index} className="text-xs text-destructive">{error}</p>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={processImport}
-                  disabled={!importFile || importStatus === 'processing'}
-                  className="flex-1"
-                >
-                  {importStatus === 'processing' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Import Categories
-                    </>
-                  )}
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={resetImport}
-                  disabled={importStatus === 'processing'}
-                >
-                  Reset
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="export" className="space-y-4">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="export-type">Export Type</Label>
-                  <Select 
-                    value={exportType} 
-                    onValueChange={(value: string) => setExportType(value as ExportType)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select export type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="template">Template (Sample)</SelectItem>
-                      <SelectItem value="basic">Basic Categories</SelectItem>
-                      <SelectItem value="full">Full Export</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="export-format">Format</Label>
-                  <Select 
-                    value={exportFormat} 
-                    onValueChange={(value: string) => setExportFormat(value as ExportFormat)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="csv">CSV</SelectItem>
-                      <SelectItem value="json">JSON</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-2">Export Details:</p>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p>• Type: {exportType === 'template' ? 'Sample template' : exportType === 'basic' ? 'Basic category data' : 'Complete category data with statistics'}</p>
-                  <p>• Format: {exportFormat.toUpperCase()}</p>
-                  <p>• Records: {exportType === 'template' ? '1 sample' : `${categories.length} categories`}</p>
-                </div>
-              </div>
-
-              <Button onClick={handleExport} className="w-full">
-                <Download className="w-4 h-4 mr-2" />
-                Export Categories
+    <div className="space-y-6">
+      {/* Import Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Import Categories
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Button
+              variant="outline"
+              onClick={generateTemplate}
+              className="w-full"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Download Template
+            </Button>
+            
+            <div>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileSelect}
+                ref={fileInputRef}
+                className="hidden"
+                id="csv-upload"
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className="w-full"
+              >
+                {isImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Select CSV File
+                  </>
+                )}
               </Button>
             </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+          </div>
+
+          {isImporting && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Import Progress</span>
+                <span>{Math.round(importProgress)}%</span>
+              </div>
+              <Progress value={importProgress} className="w-full" />
+            </div>
+          )}
+
+          {importResult && (
+            <Alert variant={importResult.failed > 0 ? "destructive" : "default"}>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <div className="flex gap-4">
+                    {importResult.success > 0 && (
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        {importResult.success} Success
+                      </Badge>
+                    )}
+                    {importResult.failed > 0 && (
+                      <Badge variant="destructive">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        {importResult.failed} Failed
+                      </Badge>
+                    )}
+                  </div>
+
+                  {importResult.errors.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-sm font-medium">
+                        View Import Errors ({importResult.errors.length})
+                      </summary>
+                      <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                        {importResult.errors.slice(0, 10).map((error, index) => (
+                          <p key={index} className="text-xs">
+                            Row {error.row}: {error.message}
+                          </p>
+                        ))}
+                        {importResult.errors.length > 10 && (
+                          <p className="text-xs text-muted-foreground">
+                            ... and {importResult.errors.length - 10} more errors
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Export Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Export Categories
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <h4 className="font-medium">Export All Categories</h4>
+              <p className="text-sm text-muted-foreground">
+                Download complete category data including stats and metrics
+              </p>
+            </div>
+            <Button
+              onClick={exportCategories}
+              disabled={isExporting || !categories || categories.length === 0}
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV ({categories?.length || 0})
+                </>
+              )}
+            </Button>
+          </div>
+
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Export includes:</strong> Category details, item counts, 
+              average values, and timestamps. Use this for backup or analysis purposes.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

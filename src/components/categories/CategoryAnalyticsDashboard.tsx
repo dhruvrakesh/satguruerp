@@ -1,261 +1,242 @@
-
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { TrendingUp, TrendingDown, Package, DollarSign, Activity, Target } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCategoryAnalytics } from "@/hooks/useEnhancedCategories";
-import { useStockValuation } from "@/hooks/useStockValuation";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
+import { 
+  Package, Package2, Layers, TrendingUp, 
+  DollarSign, Target, BarChart3 
+} from "lucide-react";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--muted))'];
 
 export function CategoryAnalyticsDashboard() {
-  const { data: analytics, isLoading } = useCategoryAnalytics();
-  const { stockValuation } = useStockValuation();
+  const { data: analytics, isLoading, error } = useCategoryAnalytics();
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 bg-muted animate-pulse rounded" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-muted animate-pulse rounded" />
-          ))}
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <Skeleton className="h-4 w-24 mb-2" />
+              <Skeleton className="h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
 
-  if (!analytics) return null;
+  if (error || !analytics) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            Failed to load analytics data
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const categoryValueData = analytics.topCategoriesByValue.map(cat => ({
-    name: cat.category_name,
-    value: cat.avg_item_value * cat.total_items,
-    items: cat.total_items
-  }));
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0 
+    }).format(value);
 
-  const categoryItemsData = analytics.topCategoriesByItems.map(cat => ({
-    name: cat.category_name,
-    items: cat.total_items,
-    fg_items: cat.fg_items,
-    rm_items: cat.rm_items,
-    packaging_items: cat.packaging_items,
-    consumable_items: cat.consumable_items
-  }));
-
-  const usageTypeData = [
-    { name: 'Finished Goods', value: analytics.totalFGItems, color: '#0088FE' },
-    { name: 'Raw Materials', value: analytics.totalRMItems, color: '#00C49F' },
-    { name: 'Packaging', value: analytics.topCategoriesByItems.reduce((sum, cat) => sum + cat.packaging_items, 0), color: '#FFBB28' },
-    { name: 'Consumables', value: analytics.topCategoriesByItems.reduce((sum, cat) => sum + cat.consumable_items, 0), color: '#FF8042' }
-  ];
+  const itemTypeData = [
+    { name: 'Finished Goods', value: analytics.totalFGItems, color: COLORS[0] },
+    { name: 'Raw Materials', value: analytics.totalRMItems, color: COLORS[1] },
+    { name: 'Others', value: analytics.totalItems - analytics.totalFGItems - analytics.totalRMItems, color: COLORS[2] }
+  ].filter(item => item.value > 0);
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Package className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Categories</p>
-                <p className="text-2xl font-bold">{analytics.totalCategories}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Categories</CardTitle>
+            <Layers className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.totalCategories}</div>
+            <p className="text-xs text-muted-foreground">
+              Active categories in system
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-secondary/10">
-                <Activity className="w-5 h-5 text-secondary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Items</p>
-                <p className="text-2xl font-bold">{analytics.totalItems}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.totalItems.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Across all categories
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-accent/10">
-                <Target className="w-5 h-5 text-accent" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Items/Category</p>
-                <p className="text-2xl font-bold">{analytics.avgItemsPerCategory}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(analytics.totalValue)}</div>
+            <p className="text-xs text-muted-foreground">
+              Estimated category value
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <DollarSign className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold">₹{analytics.totalValue.toLocaleString()}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Items/Category</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics.avgItemsPerCategory}</div>
+            <p className="text-xs text-muted-foreground">
+              Average distribution
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="usage">Usage Types</TabsTrigger>
-          <TabsTrigger value="value">Value Analysis</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-        </TabsList>
+      {/* Charts Section */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Top Categories by Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Top Categories by Item Count
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.topCategoriesByItems}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="category_name" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  fontSize={12}
+                />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="total_items" fill="hsl(var(--primary))" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Categories by Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={categoryItemsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="items" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+        {/* Item Type Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package2 className="h-5 w-5" />
+              Item Type Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={itemTypeData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {itemTypeData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Usage Type Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={usageTypeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {usageTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+      {/* Top Categories by Value */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Top Categories by Value
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {analytics.topCategoriesByValue.map((category, index) => {
+              const totalValue = category.avg_item_value * category.total_items;
+              return (
+                <div key={category.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary" className="min-w-[24px] h-6 flex items-center justify-center">
+                      {index + 1}
+                    </Badge>
+                    <div>
+                      <div className="font-medium">{category.category_name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {category.total_items} items • Avg: {formatCurrency(category.avg_item_value)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold">{formatCurrency(totalValue)}</div>
+                    <div className="text-sm text-muted-foreground">Total Value</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </TabsContent>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="usage" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Usage Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={categoryItemsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="fg_items" stackId="a" fill="#0088FE" name="Finished Goods" />
-                  <Bar dataKey="rm_items" stackId="a" fill="#00C49F" name="Raw Materials" />
-                  <Bar dataKey="packaging_items" stackId="a" fill="#FFBB28" name="Packaging" />
-                  <Bar dataKey="consumable_items" stackId="a" fill="#FF8042" name="Consumables" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="value" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Value Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={categoryValueData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [`₹${Number(value).toLocaleString()}`, 'Total Value']} />
-                  <Bar dataKey="value" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="performance" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Category Performance Metrics</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">FG/RM Ratio</span>
-                    <Badge variant="outline">{analytics.fgRmRatio.toFixed(2)}</Badge>
-                  </div>
-                  <Progress value={(analytics.fgRmRatio / 2) * 100} className="h-2" />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Category Utilization</span>
-                    <Badge variant="outline">{((analytics.totalItems / analytics.totalCategories) / 10 * 100).toFixed(0)}%</Badge>
-                  </div>
-                  <Progress value={(analytics.totalItems / analytics.totalCategories) / 10 * 100} className="h-2" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-green-600" />
-                    <span className="text-sm">Categories with growing inventory</span>
-                    <Badge variant="secondary">+{Math.floor(analytics.totalCategories * 0.3)}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="w-4 h-4 text-red-600" />
-                    <span className="text-sm">Categories with declining usage</span>
-                    <Badge variant="secondary">{Math.floor(analytics.totalCategories * 0.1)}</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Key Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Key Performance Indicators</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="text-center p-4 rounded-lg bg-muted/50">
+              <div className="text-2xl font-bold text-primary">{analytics.totalFGItems}</div>
+              <div className="text-sm text-muted-foreground">Finished Goods</div>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted/50">
+              <div className="text-2xl font-bold text-secondary">{analytics.totalRMItems}</div>
+              <div className="text-sm text-muted-foreground">Raw Materials</div>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted/50">
+              <div className="text-2xl font-bold text-accent">
+                {analytics.fgRmRatio > 0 ? analytics.fgRmRatio.toFixed(2) : 'N/A'}
+              </div>
+              <div className="text-sm text-muted-foreground">FG/RM Ratio</div>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

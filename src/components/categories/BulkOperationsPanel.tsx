@@ -1,405 +1,230 @@
-import { useState } from "react";
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
+import { useEnhancedCategoryMutations, type EnhancedCategory } from "@/hooks/useEnhancedCategories";
 import { 
-  Archive, 
-  Edit, 
-  Trash2, 
-  Download, 
-  Upload, 
-  Settings,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-  FileText,
-  Merge
+  Trash2, Power, PowerOff, CheckSquare, 
+  AlertTriangle, Loader2, RefreshCw 
 } from "lucide-react";
-import { useEnhancedCategories, useEnhancedCategoryMutations, EnhancedCategory } from "@/hooks/useEnhancedCategories";
-import { toast } from "@/hooks/use-toast";
-import { BulkOperationResult, safeParseBulkOperationResult } from "@/utils/typeGuards";
 
 interface BulkOperationsPanelProps {
-  selectedCategories: string[];
   categories: EnhancedCategory[];
+  selectedCategories: string[];
   onClearSelection: () => void;
   onRefresh: () => void;
 }
 
+type BulkAction = 'ACTIVATE' | 'DEACTIVATE' | 'DELETE';
+
 export function BulkOperationsPanel({ 
-  selectedCategories, 
   categories, 
+  selectedCategories, 
   onClearSelection,
   onRefresh 
 }: BulkOperationsPanelProps) {
-  const [activeOperation, setActiveOperation] = useState<string | null>(null);
-  const [bulkEditData, setBulkEditData] = useState({
-    category_type: '',
-    is_active: '',
-    parent_category_id: '',
-    business_rules: {},
-    sort_order: ''
-  });
-  const [mergeData, setMergeData] = useState({
-    target_category_id: '',
-    merge_strategy: 'move_items'
-  });
-  const [operationProgress, setOperationProgress] = useState(0);
-  const [operationStatus, setOperationStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
-  const [operationResult, setOperationResult] = useState<BulkOperationResult | null>(null);
-
   const { bulkUpdateCategories } = useEnhancedCategoryMutations();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastOperation, setLastOperation] = useState<{ action: string; result?: any } | null>(null);
 
   const selectedCategoryData = categories.filter(cat => selectedCategories.includes(cat.id));
+  const hasSelection = selectedCategories.length > 0;
 
-  const handleBulkUpdate = async () => {
-    if (selectedCategories.length === 0) return;
+  const handleBulkAction = async (action: BulkAction) => {
+    if (!hasSelection) return;
 
-    setActiveOperation('bulk_update');
-    setOperationStatus('running');
-    setOperationProgress(0);
+    setIsProcessing(true);
+    setLastOperation({ action });
 
     try {
-      const operations = selectedCategories.map(id => ({
-        action: 'update',
-        id,
-        ...Object.fromEntries(
-          Object.entries(bulkEditData).filter(([_, value]) => value !== '')
-        )
+      const operations = selectedCategories.map(categoryId => ({
+        id: categoryId,
+        action: action
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = safeParseBulkOperationResult(result);
+      setLastOperation({ action, result });
       
-      setOperationProgress(100);
-      setOperationStatus('success');
-      setOperationResult(typedResult);
-      
-      toast({
-        title: "Bulk Update Successful",
-        description: `Updated ${typedResult.success} categories successfully`,
-      });
-
-      onRefresh();
-    } catch (error: any) {
-      setOperationStatus('error');
-      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
-      
-      toast({
-        title: "Bulk Update Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      // Clear selection and refresh after successful operation
+      if ((result as any).success > 0) {
+        onClearSelection();
+        onRefresh();
+      }
+    } catch (error) {
+      console.error(`Bulk ${action} failed:`, error);
+      setLastOperation({ action, result: { success: 0, failed: selectedCategories.length } });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleBulkArchive = async () => {
-    if (selectedCategories.length === 0) return;
-
-    setActiveOperation('bulk_archive');
-    setOperationStatus('running');
-    setOperationProgress(0);
-
-    try {
-      const operations = selectedCategories.map(id => ({
-        action: 'update',
-        id,
-        is_active: false
-      }));
-
-      const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = safeParseBulkOperationResult(result);
-      
-      setOperationProgress(100);
-      setOperationStatus('success');
-      setOperationResult(typedResult);
-      
-      toast({
-        title: "Bulk Archive Successful",
-        description: `Archived ${typedResult.success} categories successfully`,
-      });
-
-      onRefresh();
-      onClearSelection();
-    } catch (error: any) {
-      setOperationStatus('error');
-      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
-      
-      toast({
-        title: "Bulk Archive Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+  const getActionButtonConfig = (action: BulkAction) => {
+    const configs = {
+      ACTIVATE: {
+        icon: Power,
+        label: 'Activate',
+        variant: 'default' as const,
+        description: 'Make selected categories active and available for use'
+      },
+      DEACTIVATE: {
+        icon: PowerOff,
+        label: 'Deactivate',
+        variant: 'secondary' as const,
+        description: 'Disable selected categories (soft delete)'
+      },
+      DELETE: {
+        icon: Trash2,
+        label: 'Delete',
+        variant: 'destructive' as const,
+        description: 'Permanently remove selected categories (use with caution)'
+      }
+    };
+    return configs[action];
   };
 
-  const handleMergeCategories = async () => {
-    if (selectedCategories.length < 2 || !mergeData.target_category_id) return;
+  const renderOperationResult = () => {
+    if (!lastOperation?.result) return null;
 
-    setActiveOperation('merge');
-    setOperationStatus('running');
-    setOperationProgress(0);
+    const { success, failed, errors } = lastOperation.result;
+    const isSuccess = success > 0;
+    const hasErrors = failed > 0;
 
-    try {
-      const sourceCategories = selectedCategories.filter(id => id !== mergeData.target_category_id);
-      const operations = sourceCategories.map(sourceId => ({
-        action: 'merge',
-        source_id: sourceId,
-        target_id: mergeData.target_category_id
-      }));
-
-      const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = safeParseBulkOperationResult(result);
-      
-      setOperationProgress(100);
-      setOperationStatus('success');
-      setOperationResult(typedResult);
-      
-      toast({
-        title: "Merge Successful",
-        description: `Merged ${typedResult.success} categories successfully`,
-      });
-
-      onRefresh();
-      onClearSelection();
-    } catch (error: any) {
-      setOperationStatus('error');
-      setOperationResult({ success: 0, failed: 1, errors: [error.message] });
-      
-      toast({
-        title: "Merge Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleExportSelected = () => {
-    const exportData = selectedCategoryData.map(cat => ({
-      category_name: cat.category_name,
-      category_code: cat.category_code,
-      description: cat.description,
-      category_type: cat.category_type,
-      is_active: cat.is_active,
-      total_items: cat.total_items,
-      total_value: cat.avg_item_value * cat.total_items
-    }));
-
-    const csv = [
-      Object.keys(exportData[0]).join(','),
-      ...exportData.map(row => Object.values(row).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `categories_export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    return (
+      <Alert variant={hasErrors ? "destructive" : "default"}>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          <div className="space-y-2">
+            <p>
+              <strong>Operation: {lastOperation.action}</strong>
+            </p>
+            {isSuccess && (
+              <p className="text-green-600">
+                ✅ Successfully processed {success} categories
+              </p>
+            )}
+            {hasErrors && (
+              <p className="text-red-600">
+                ❌ Failed to process {failed} categories
+              </p>
+            )}
+            {errors && errors.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-sm font-medium">
+                  View Error Details ({errors.length})
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {errors.slice(0, 5).map((error: any, index: number) => (
+                    <p key={index} className="text-xs text-muted-foreground">
+                      • {error.error_message || 'Unknown error'}
+                    </p>
+                  ))}
+                  {errors.length > 5 && (
+                    <p className="text-xs text-muted-foreground">
+                      ... and {errors.length - 5} more errors
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Bulk Operations</span>
-          <Badge variant="secondary">{selectedCategories.length} selected</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {selectedCategories.length === 0 ? (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Select categories from the table to perform bulk operations
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Tabs defaultValue="actions" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="actions">Quick Actions</TabsTrigger>
-              <TabsTrigger value="edit">Bulk Edit</TabsTrigger>
-              <TabsTrigger value="advanced">Advanced</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="actions" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Button 
-                  onClick={handleBulkArchive} 
-                  variant="outline" 
-                  className="gap-2"
-                  disabled={operationStatus === 'running'}
-                >
-                  <Archive className="w-4 h-4" />
-                  Archive Selected
-                </Button>
-                
-                <Button 
-                  onClick={handleExportSelected} 
-                  variant="outline" 
-                  className="gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Selected
-                </Button>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckSquare className="h-5 w-5" />
+            Bulk Operations
+            {hasSelection && (
+              <Badge variant="secondary">
+                {selectedCategories.length} selected
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!hasSelection ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Select categories from the main table to perform bulk operations.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {/* Selected Categories Summary */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Selected Categories:</h4>
+                <div className="max-h-32 overflow-y-auto space-y-1 p-2 border rounded">
+                  {selectedCategoryData.map(category => (
+                    <div key={category.id} className="flex items-center justify-between text-sm">
+                      <span>{category.category_name}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={category.is_active ? "default" : "secondary"} className="text-xs">
+                          {category.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {category.total_items} items
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {operationStatus === 'running' && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Processing {activeOperation}...</span>
-                  </div>
-                  <Progress value={operationProgress} className="h-2" />
+              {/* Bulk Action Buttons */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">Available Actions:</h4>
+                <div className="grid gap-2">
+                  {(['ACTIVATE', 'DEACTIVATE', 'DELETE'] as BulkAction[]).map(action => {
+                    const config = getActionButtonConfig(action);
+                    const Icon = config.icon;
+                    
+                    return (
+                      <div key={action} className="space-y-2">
+                        <Button
+                          variant={config.variant}
+                          onClick={() => handleBulkAction(action)}
+                          disabled={isProcessing}
+                          className="w-full justify-start"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Icon className="w-4 h-4 mr-2" />
+                          )}
+                          {config.label} ({selectedCategories.length})
+                        </Button>
+                        <p className="text-xs text-muted-foreground px-2">
+                          {config.description}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              {operationStatus === 'success' && operationResult && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Operation completed successfully! 
-                    Processed: {operationResult.success}, 
-                    Failed: {operationResult.failed}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {operationStatus === 'error' && operationResult && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Operation failed: {operationResult.errors?.[0] || 'Unknown error'}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </TabsContent>
-
-            <TabsContent value="edit" className="space-y-4">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="category_type">Category Type</Label>
-                    <Select 
-                      value={bulkEditData.category_type} 
-                      onValueChange={(value) => setBulkEditData(prev => ({ ...prev, category_type: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">No Change</SelectItem>
-                        <SelectItem value="STANDARD">Standard</SelectItem>
-                        <SelectItem value="SYSTEM">System</SelectItem>
-                        <SelectItem value="TEMPORARY">Temporary</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="is_active">Status</Label>
-                    <Select 
-                      value={bulkEditData.is_active} 
-                      onValueChange={(value) => setBulkEditData(prev => ({ ...prev, is_active: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">No Change</SelectItem>
-                        <SelectItem value="true">Active</SelectItem>
-                        <SelectItem value="false">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="sort_order">Sort Order</Label>
-                  <Input 
-                    type="number" 
-                    placeholder="Enter sort order" 
-                    value={bulkEditData.sort_order}
-                    onChange={(e) => setBulkEditData(prev => ({ ...prev, sort_order: e.target.value }))}
-                  />
-                </div>
-
-                <Button 
-                  onClick={handleBulkUpdate} 
-                  className="w-full"
-                  disabled={operationStatus === 'running'}
-                >
-                  {operationStatus === 'running' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Apply Changes
-                    </>
-                  )}
-                </Button>
               </div>
-            </TabsContent>
 
-            <TabsContent value="advanced" className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="merge_target">Merge Categories</Label>
-                  <Select 
-                    value={mergeData.target_category_id} 
-                    onValueChange={(value) => setMergeData(prev => ({ ...prev, target_category_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select target category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedCategoryData.map(cat => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.category_name} ({cat.total_items} items)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    All items from other selected categories will be moved to this category
-                  </p>
-                </div>
+              {/* Operation Results */}
+              {renderOperationResult()}
 
-                <Button 
-                  onClick={handleMergeCategories} 
-                  variant="outline" 
-                  className="w-full"
-                  disabled={selectedCategories.length < 2 || !mergeData.target_category_id || operationStatus === 'running'}
-                >
-                  {operationStatus === 'running' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Merging...
-                    </>
-                  ) : (
-                    <>
-                      <Merge className="w-4 h-4 mr-2" />
-                      Merge Categories
-                    </>
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        )}
-      </CardContent>
-    </Card>
+              {/* Warning for bulk operations */}
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Important:</strong> Bulk operations affect multiple categories at once. 
+                  Make sure you have selected the correct categories before proceeding.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
