@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
-import { useCategories } from "@/hooks/useCategories";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useFilterOptions } from "@/hooks/useFilterOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,18 @@ interface ItemMasterFiltersProps {
 export function ItemMasterFilters({ filters, onFiltersChange }: ItemMasterFiltersProps) {
   const [localFilters, setLocalFilters] = useState(filters);
 
-  const { data: categories } = useCategories();
+  const { data: categories } = useQuery({
+    queryKey: ['satguru-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('satguru_categories')
+        .select('id, category_name')
+        .eq('is_active', true)
+        .order('category_name');
+      if (error) throw error;
+      return data;
+    }
+  });
   const { usageTypes, uomOptions, statusOptions } = useFilterOptions();
 
   // Sync with external filters prop changes only when they actually change

@@ -51,9 +51,15 @@ export function useItemMaster(options: UseItemMasterOptions = {}) {
       console.log('Fetching satguru item master with options:', { page, pageSize, filters, sort });
       
       try {
-        // Build query step by step to avoid type issues
+        // Build query step by step to avoid type issues, joining with categories
         const query = supabase.from('satguru_item_master');
-        let selectQuery = query.select('*', { count: 'exact' });
+        let selectQuery = query.select(`
+          *,
+          satguru_categories!inner(
+            id,
+            category_name
+          )
+        `, { count: 'exact' });
 
         // Apply filters - skip if value is "all" or empty
         if (filters.search && filters.search.trim() !== '') {
