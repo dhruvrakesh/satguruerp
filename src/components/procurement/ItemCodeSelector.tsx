@@ -32,7 +32,7 @@ interface ItemData {
   };
 }
 
-interface PurchaseHistoryItem {
+interface ItemWithHistory {
   item_code: string;
   item_name: string;
   uom: string;
@@ -89,20 +89,27 @@ export function ItemCodeSelector({
             .eq('item_code', item.item_code)
             .maybeSingle();
 
-          // Get last purchase info
+          // Get last purchase info from GRN log
           const { data: lastPurchase } = await supabase
             .from('satguru_grn_log')
             .select(`
-              unit_price,
+              amount_inr,
+              qty_received,
               date,
-              supplier_name,
-              suppliers:supplier_id(supplier_name)
+              vendor
             `)
             .eq('item_code', item.item_code)
-            .not('unit_price', 'is', null)
+            .not('amount_inr', 'is', null)
+            .not('qty_received', 'is', null)
+            .gt('qty_received', 0)
             .order('date', { ascending: false })
             .limit(1)
             .maybeSingle();
+
+          // Calculate unit price from GRN data
+          const unitPrice = lastPurchase && lastPurchase.amount_inr && lastPurchase.qty_received 
+            ? lastPurchase.amount_inr / lastPurchase.qty_received 
+            : 0;
 
           return {
             item_code: item.item_code,
@@ -110,9 +117,9 @@ export function ItemCodeSelector({
             uom: item.uom,
             category_name: item.categories?.category_name || 'Unknown',
             current_stock: stockData?.current_qty || 0,
-            last_purchase_price: lastPurchase?.unit_price || 0,
+            last_purchase_price: unitPrice,
             last_purchase_date: lastPurchase?.date || '',
-            last_vendor_name: lastPurchase?.supplier_name || lastPurchase?.suppliers?.supplier_name || 'Unknown',
+            last_vendor_name: lastPurchase?.vendor || 'Unknown',
             stock_status: stockData?.stock_status || 'normal'
           };
         })
@@ -126,7 +133,7 @@ export function ItemCodeSelector({
 
   const selectedItem = itemsData?.find(item => item.item_code === value);
 
-  const handleSelect = (item: PurchaseHistoryItem) => {
+  const handleSelect = (item: ItemWithHistory) => {
     const itemData: ItemData = {
       item_code: item.item_code,
       item_name: item.item_name,

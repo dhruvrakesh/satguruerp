@@ -35,7 +35,7 @@ const vendorSchema = z.object({
   credit_limit: z.number().optional(),
   lead_time_days: z.number().min(0, "Lead time must be positive"),
   material_categories: z.array(z.string()).min(1, "Select at least one material category"),
-  quality_certifications: z.array(z.string()).optional(),
+  certifications: z.array(z.string()).optional(),
   performance_rating: z.number().min(0).max(100).default(75),
   notes: z.string().optional(),
 });
@@ -99,20 +99,45 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
       performance_rating: 75,
       lead_time_days: 7,
       material_categories: [],
-      quality_certifications: [],
+      certifications: [],
     },
   });
 
+  const generateSupplierCode = (supplierName: string) => {
+    const prefix = supplierName.substring(0, 3).toUpperCase();
+    const timestamp = Date.now().toString().slice(-6);
+    return `SUP-${prefix}-${timestamp}`;
+  };
+
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
+      const supplierCode = generateSupplierCode(data.supplier_name);
+      
       const { data: result, error } = await supabase
         .from('suppliers')
-        .insert([{
-          ...data,
+        .insert({
+          supplier_code: supplierCode,
+          supplier_name: data.supplier_name,
+          supplier_type: data.supplier_type,
+          category: data.category,
+          contact_person: data.contact_person,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          city: data.city,
+          state: data.state,
+          pincode: data.pincode,
+          gstin: data.gstin,
+          pan: data.pan,
+          payment_terms: data.payment_terms,
+          credit_limit: data.credit_limit,
+          lead_time_days: data.lead_time_days,
           material_categories: selectedMaterialCategories,
-          quality_certifications: selectedCertifications,
+          certifications: selectedCertifications,
+          performance_rating: data.performance_rating,
+          notes: data.notes,
           is_active: true,
-        }])
+        })
         .select()
         .single();
 
@@ -130,11 +155,7 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
   });
 
   const onSubmit = (data: VendorFormData) => {
-    createVendorMutation.mutate({
-      ...data,
-      material_categories: selectedMaterialCategories,
-      quality_certifications: selectedCertifications,
-    });
+    createVendorMutation.mutate(data);
   };
 
   const handleMaterialCategoryToggle = (category: string) => {
@@ -152,7 +173,7 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
         ? prev.filter(c => c !== certification)
         : [...prev, certification]
     );
-    setValue('quality_certifications', selectedCertifications);
+    setValue('certifications', selectedCertifications);
   };
 
   return (
@@ -187,7 +208,8 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
               <Input
                 id="supplier_code"
                 {...register("supplier_code")}
-                placeholder="SUP-001"
+                placeholder="Auto-generated on save"
+                disabled
               />
               {errors.supplier_code && (
                 <p className="text-sm text-destructive mt-1">{errors.supplier_code.message}</p>
