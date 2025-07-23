@@ -188,7 +188,6 @@ export function CategoryAnalyticsDashboard() {
         <CardContent>
           <div className="space-y-4">
             {analytics.topCategoriesByValue.map((category, index) => {
-              const totalValue = category.avg_item_value * category.total_items;
               return (
                 <div key={category.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div className="flex items-center gap-3">
@@ -203,7 +202,7 @@ export function CategoryAnalyticsDashboard() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold">{formatCurrency(totalValue)}</div>
+                    <div className="font-bold">{formatCurrency(category.total_value)}</div>
                     <div className="text-sm text-muted-foreground">Total Value</div>
                   </div>
                 </div>

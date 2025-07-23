@@ -376,31 +376,93 @@ export function useCategoryAnalytics() {
   return useQuery({
     queryKey: ['category-analytics'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('category_stats_mv')
-        .select('*');
-      
-      if (error) throw error;
+      // Get stock data from the source of truth (same as useStockValuation)
+      const { data: stockData, error: stockError } = await supabase
+        .from('satguru_stock_summary_view')
+        .select(`
+          item_code,
+          current_qty,
+          category_name,
+          satguru_item_master!inner(
+            item_code,
+            usage_type,
+            category_id,
+            satguru_categories!inner(
+              id,
+              category_name
+            )
+          )
+        `);
 
-      const categories = data || [];
-      
-      // Enhanced analytics with better value calculations
-      const totalCategories = categories.length;
-      const totalItems = categories.reduce((sum, cat) => sum + cat.total_items, 0);
-      const totalFGItems = categories.reduce((sum, cat) => sum + cat.fg_items, 0);
-      const totalRMItems = categories.reduce((sum, cat) => sum + cat.rm_items, 0);
-      const avgItemsPerCategory = totalCategories > 0 ? totalItems / totalCategories : 0;
-      
-      // Get enhanced pricing data for better value calculations
-      const { data: pricingData } = await supabase
+      if (stockError) throw stockError;
+
+      // Get pricing data for accurate valuations
+      const { data: pricingData, error: pricingError } = await supabase
         .from('item_pricing_master')
-        .select('current_price, satguru_item_master!inner(category_id)')
+        .select('item_code, current_price')
         .eq('is_active', true)
         .eq('approval_status', 'APPROVED');
 
-      // Calculate enhanced total value
-      const enhancedTotalValue = pricingData?.reduce((sum, item) => sum + (item.current_price || 0), 0) || 0;
-      const totalValue = enhancedTotalValue > 0 ? enhancedTotalValue : categories.reduce((sum, cat) => sum + (cat.avg_item_value * cat.total_items), 0);
+      if (pricingError) throw pricingError;
+
+      // Create pricing lookup for faster access
+      const pricingMap = new Map(
+        pricingData?.map(p => [p.item_code, p.current_price]) || []
+      );
+
+      // Process stock data to calculate category analytics
+      const categoryStats = new Map();
+      let totalValue = 0;
+      let totalFGItems = 0;
+      let totalRMItems = 0;
+
+      stockData?.forEach(item => {
+        const itemMaster = Array.isArray(item.satguru_item_master) ? item.satguru_item_master[0] : item.satguru_item_master;
+        const categories = itemMaster?.satguru_categories;
+        const categoryInfo = Array.isArray(categories) ? categories[0] : categories;
+        
+        const categoryName = item.category_name || categoryInfo?.category_name || 'Uncategorized';
+        const categoryId = itemMaster?.category_id || 'uncategorized';
+        const usageType = itemMaster?.usage_type || 'OTHERS';
+        const unitPrice = pricingMap.get(item.item_code) || 0;
+        const itemValue = (item.current_qty || 0) * unitPrice;
+
+        // Count by usage type
+        if (usageType === 'FINISHED_GOODS') totalFGItems++;
+        else if (usageType === 'RAW_MATERIALS') totalRMItems++;
+
+        // Update category statistics
+        if (!categoryStats.has(categoryId)) {
+          categoryStats.set(categoryId, {
+            id: categoryId,
+            category_name: categoryName,
+            total_items: 0,
+            total_value: 0,
+            fg_items: 0,
+            rm_items: 0,
+            avg_item_value: 0
+          });
+        }
+
+        const catStat = categoryStats.get(categoryId);
+        catStat.total_items++;
+        catStat.total_value += itemValue;
+        
+        if (usageType === 'FINISHED_GOODS') catStat.fg_items++;
+        else if (usageType === 'RAW_MATERIALS') catStat.rm_items++;
+
+        totalValue += itemValue;
+      });
+
+      // Calculate average item values for each category
+      categoryStats.forEach(catStat => {
+        catStat.avg_item_value = catStat.total_items > 0 ? catStat.total_value / catStat.total_items : 0;
+      });
+
+      const categories = Array.from(categoryStats.values());
+      const totalCategories = categories.length;
+      const totalItems = stockData?.length || 0;
+      const avgItemsPerCategory = totalCategories > 0 ? totalItems / totalCategories : 0;
       
       // Top categories by different metrics
       const topCategoriesByItems = [...categories]
@@ -408,7 +470,7 @@ export function useCategoryAnalytics() {
         .slice(0, 5);
         
       const topCategoriesByValue = [...categories]
-        .sort((a, b) => (b.avg_item_value * b.total_items) - (a.avg_item_value * a.total_items))
+        .sort((a, b) => b.total_value - a.total_value)
         .slice(0, 5);
 
       return {
