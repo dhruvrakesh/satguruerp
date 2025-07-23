@@ -119,8 +119,8 @@ export function EnhancedItemPricingMaster() {
       newPrice: parseFloat(newPrice),
       reason: "Manual price update"
     }, {
-      onSuccess: async () => {
-        await logPriceChange(itemCode, oldPrice, parseFloat(newPrice), "Manual price update");
+      onSuccess: () => {
+        logPriceChange(itemCode, oldPrice, parseFloat(newPrice), "Manual price update").catch(console.error);
         setEditingItem(null);
         setNewPrice("");
       }
