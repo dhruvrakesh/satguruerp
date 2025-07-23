@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ItemPricingMaster } from "./ItemPricingMaster";
+import { EnhancedItemPricingMaster } from "./EnhancedItemPricingMaster";
 import { CostCategoryManager } from "./CostCategoryManager";
-import { StockValuationChart } from "../analytics/StockValuationChart";
+import { RealStockValuationChart } from "../analytics/RealStockValuationChart";
 
 type ValuationMethod = "WEIGHTED_AVG" | "FIFO" | "LIFO";
 
@@ -45,7 +45,7 @@ export function ValuationDashboard() {
         </TabsList>
 
         <TabsContent value="pricing" className="space-y-6">
-          <ItemPricingMaster />
+          <EnhancedItemPricingMaster />
         </TabsContent>
 
         <TabsContent value="categories" className="space-y-6">
@@ -53,10 +53,7 @@ export function ValuationDashboard() {
         </TabsContent>
 
         <TabsContent value="valuation" className="space-y-6">
-          <StockValuationChart 
-            filters={filters} 
-            onFiltersChange={handleFiltersChange} 
-          />
+          <RealStockValuationChart />
         </TabsContent>
       </Tabs>
     </div>

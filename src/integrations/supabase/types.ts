@@ -9295,6 +9295,231 @@ export type Database = {
           },
         ]
       }
+      valuation_analytics_cache: {
+        Row: {
+          cache_key: string
+          cache_type: string
+          cached_data: Json
+          calculated_at: string
+          calculation_time_ms: number | null
+          expires_at: string
+          filters_hash: string
+          id: string
+          record_count: number | null
+        }
+        Insert: {
+          cache_key: string
+          cache_type: string
+          cached_data: Json
+          calculated_at?: string
+          calculation_time_ms?: number | null
+          expires_at?: string
+          filters_hash: string
+          id?: string
+          record_count?: number | null
+        }
+        Update: {
+          cache_key?: string
+          cache_type?: string
+          cached_data?: Json
+          calculated_at?: string
+          calculation_time_ms?: number | null
+          expires_at?: string
+          filters_hash?: string
+          id?: string
+          record_count?: number | null
+        }
+        Relationships: []
+      }
+      valuation_approvals: {
+        Row: {
+          approval_level: number
+          approver_id: string | null
+          created_at: string
+          decision_date: string | null
+          decision_notes: string | null
+          entity_id: string
+          id: string
+          request_amount: number | null
+          request_data: Json
+          request_type: string
+          requested_by: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_level?: number
+          approver_id?: string | null
+          created_at?: string
+          decision_date?: string | null
+          decision_notes?: string | null
+          entity_id: string
+          id?: string
+          request_amount?: number | null
+          request_data: Json
+          request_type: string
+          requested_by?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_level?: number
+          approver_id?: string | null
+          created_at?: string
+          decision_date?: string | null
+          decision_notes?: string | null
+          entity_id?: string
+          id?: string
+          request_amount?: number | null
+          request_data?: Json
+          request_type?: string
+          requested_by?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      valuation_bulk_operations: {
+        Row: {
+          completed_at: string | null
+          error_details: Json | null
+          failed_records: number | null
+          file_name: string | null
+          file_size_mb: number | null
+          id: string
+          operation_summary: Json | null
+          operation_type: string
+          processed_records: number | null
+          started_at: string
+          started_by: string | null
+          status: string | null
+          success_details: Json | null
+          success_records: number | null
+          total_records: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          error_details?: Json | null
+          failed_records?: number | null
+          file_name?: string | null
+          file_size_mb?: number | null
+          id?: string
+          operation_summary?: Json | null
+          operation_type: string
+          processed_records?: number | null
+          started_at?: string
+          started_by?: string | null
+          status?: string | null
+          success_details?: Json | null
+          success_records?: number | null
+          total_records?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          error_details?: Json | null
+          failed_records?: number | null
+          file_name?: string | null
+          file_size_mb?: number | null
+          id?: string
+          operation_summary?: Json | null
+          operation_type?: string
+          processed_records?: number | null
+          started_at?: string
+          started_by?: string | null
+          status?: string | null
+          success_details?: Json | null
+          success_records?: number | null
+          total_records?: number | null
+        }
+        Relationships: []
+      }
+      valuation_item_codes: {
+        Row: {
+          category_name: string
+          generated_at: string
+          generated_by: string | null
+          gsm: number | null
+          id: string
+          is_active: boolean | null
+          item_code: string
+          metadata: Json | null
+          qualifier: string | null
+          size_mm: number | null
+          usage_type: string
+        }
+        Insert: {
+          category_name: string
+          generated_at?: string
+          generated_by?: string | null
+          gsm?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code: string
+          metadata?: Json | null
+          qualifier?: string | null
+          size_mm?: number | null
+          usage_type: string
+        }
+        Update: {
+          category_name?: string
+          generated_at?: string
+          generated_by?: string | null
+          gsm?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code?: string
+          metadata?: Json | null
+          qualifier?: string | null
+          size_mm?: number | null
+          usage_type?: string
+        }
+        Relationships: []
+      }
+      valuation_price_history: {
+        Row: {
+          approval_status: string | null
+          approved_by: string | null
+          change_reason: string | null
+          changed_by: string | null
+          created_at: string
+          effective_date: string
+          id: string
+          item_code: string
+          metadata: Json | null
+          new_price: number
+          old_price: number | null
+          price_source: string | null
+        }
+        Insert: {
+          approval_status?: string | null
+          approved_by?: string | null
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string
+          effective_date?: string
+          id?: string
+          item_code: string
+          metadata?: Json | null
+          new_price: number
+          old_price?: number | null
+          price_source?: string | null
+        }
+        Update: {
+          approval_status?: string | null
+          approved_by?: string | null
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string
+          effective_date?: string
+          id?: string
+          item_code?: string
+          metadata?: Json | null
+          new_price?: number
+          old_price?: number | null
+          price_source?: string | null
+        }
+        Relationships: []
+      }
       vendor_price_lists: {
         Row: {
           created_at: string | null
@@ -9863,6 +10088,24 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      calculate_stock_valuation: {
+        Args: {
+          p_item_code?: string
+          p_valuation_method?: string
+          p_as_of_date?: string
+        }
+        Returns: {
+          item_code: string
+          item_name: string
+          category_name: string
+          current_qty: number
+          unit_cost: number
+          total_value: number
+          valuation_method: string
+          last_transaction_date: string
+          cost_layers: Json
+        }[]
+      }
       can_transition_to_stage: {
         Args: {
           p_uiorn: string
@@ -10022,6 +10265,16 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_valuation_item_code: {
+        Args: {
+          p_category_name: string
+          p_usage_type?: string
+          p_qualifier?: string
+          p_size_mm?: number
+          p_gsm?: number
+        }
+        Returns: string
+      }
       get_active_items_for_selection: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -10158,6 +10411,10 @@ export type Database = {
           updated_at: string
           prompt_data: Json
         }[]
+      }
+      get_valuation_analytics: {
+        Args: { p_filters?: Json }
+        Returns: Json
       }
       get_workflow_bottlenecks: {
         Args: Record<PropertyKey, never>
@@ -10346,6 +10603,10 @@ export type Database = {
       pre_populate_d_kegl_master_items: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      process_bulk_price_update: {
+        Args: { p_operation_id: string; p_price_data: Json }
+        Returns: Json
       }
       process_issue_batch: {
         Args: { p_rows: Json }
