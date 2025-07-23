@@ -5,6 +5,7 @@ export interface BulkOperationResult {
   success: number;
   failed: number;
   errors?: any[];
+  [key: string]: Json | undefined;
 }
 
 export function isBulkOperationResult(data: Json): data is BulkOperationResult {
