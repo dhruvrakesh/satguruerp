@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ItemPricingMaster } from "./ItemPricingMaster";
 import { CostCategoryManager } from "./CostCategoryManager";
+import { StockValuationChart } from "../analytics/StockValuationChart";
 
 type ValuationMethod = "WEIGHTED_AVG" | "FIFO" | "LIFO";
 
@@ -52,34 +53,10 @@ export function ValuationDashboard() {
         </TabsContent>
 
         <TabsContent value="valuation" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Stock Valuation Methods</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Valuation Method</label>
-                  <select 
-                    value={filters.valuationMethod}
-                    onChange={(e) => handleFiltersChange({
-                      ...filters,
-                      valuationMethod: e.target.value as ValuationMethod
-                    })}
-                    className="w-full mt-1 p-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="WEIGHTED_AVG">Weighted Average</option>
-                    <option value="FIFO">First In, First Out (FIFO)</option>
-                    <option value="LIFO">Last In, First Out (LIFO)</option>
-                  </select>
-                </div>
-                
-                <div className="text-center text-muted-foreground py-8">
-                  Stock valuation calculations will be implemented here based on the selected method.
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StockValuationChart 
+            filters={filters} 
+            onFiltersChange={handleFiltersChange} 
+          />
         </TabsContent>
       </Tabs>
     </div>
