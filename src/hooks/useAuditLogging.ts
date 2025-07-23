@@ -15,20 +15,17 @@ export const useAuditLogging = () => {
   const logAuditEvent = async (entry: AuditLogEntry) => {
     try {
       const { error } = await supabase
-        .from('pricing_audit_log')
-        .insert({
-          action: entry.action,
-          entity_type: entry.entity_type,
-          entity_id: entry.entity_id,
-          old_data: entry.old_data,
-          new_data: entry.new_data,
-          metadata: entry.metadata,
-          user_id: (await supabase.auth.getUser()).data.user?.id
+        .rpc('log_audit_event_pricing', {
+          p_action: entry.action,
+          p_entity_type: entry.entity_type,
+          p_entity_id: entry.entity_id,
+          p_old_data: entry.old_data,
+          p_new_data: entry.new_data,
+          p_metadata: entry.metadata
         });
 
       if (error) {
         console.error('Audit logging failed:', error);
-        // Don't show error to user for audit failures
       }
     } catch (error) {
       console.error('Audit logging error:', error);
