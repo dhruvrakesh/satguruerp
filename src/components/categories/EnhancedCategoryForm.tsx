@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEnhancedCategoryMutations, type EnhancedCategory } from "@/hooks/useEnhancedCategories";
 import { AlertCircle, Save, X } from "lucide-react";
+
+// Constants for Select component values
+const NO_PARENT_VALUE = "no_parent";
 
 interface EnhancedCategoryFormProps {
   category?: EnhancedCategory;
@@ -24,7 +28,7 @@ export function EnhancedCategoryForm({ category, parentCategories, onClose, onSu
     category_name: '',
     description: '',
     category_code: '',
-    parent_category_id: '',
+    parent_category_id: NO_PARENT_VALUE,
     category_type: 'STANDARD' as 'STANDARD' | 'SYSTEM' | 'TEMPORARY',
     sort_order: 0,
     is_active: true
@@ -39,7 +43,7 @@ export function EnhancedCategoryForm({ category, parentCategories, onClose, onSu
         category_name: category.category_name || '',
         description: category.description || '',
         category_code: category.category_code || '',
-        parent_category_id: category.parent_category_id || '',
+        parent_category_id: category.parent_category_id || NO_PARENT_VALUE,
         category_type: category.category_type || 'STANDARD',
         sort_order: category.sort_order || 0,
         is_active: category.is_active ?? true
@@ -78,13 +82,19 @@ export function EnhancedCategoryForm({ category, parentCategories, onClose, onSu
     setIsSubmitting(true);
     
     try {
+      // Convert form data for submission
+      const submissionData = {
+        ...formData,
+        parent_category_id: formData.parent_category_id === NO_PARENT_VALUE ? null : formData.parent_category_id
+      };
+
       if (category) {
         await updateCategory.mutateAsync({
           id: category.id,
-          updates: formData
+          updates: submissionData
         });
       } else {
-        await createCategory.mutateAsync(formData);
+        await createCategory.mutateAsync(submissionData);
       }
       
       onSuccess();
@@ -93,6 +103,10 @@ export function EnhancedCategoryForm({ category, parentCategories, onClose, onSu
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleParentCategoryChange = (value: string) => {
+    setFormData(prev => ({ ...prev, parent_category_id: value }));
   };
 
   const availableParents = parentCategories.filter(p => 
@@ -164,13 +178,13 @@ export function EnhancedCategoryForm({ category, parentCategories, onClose, onSu
               <Label htmlFor="parent_category">Parent Category</Label>
               <Select
                 value={formData.parent_category_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, parent_category_id: value }))}
+                onValueChange={handleParentCategoryChange}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select parent category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Parent (Root Level)</SelectItem>
+                  <SelectItem value={NO_PARENT_VALUE}>No Parent (Root Level)</SelectItem>
                   {availableParents.map((parent) => (
                     <SelectItem key={parent.id} value={parent.id}>
                       {parent.category_name}

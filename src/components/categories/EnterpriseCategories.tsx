@@ -49,6 +49,11 @@ import { BulkOperationsPanel } from "./BulkOperationsPanel";
 import { CategoryImportExport } from "./CategoryImportExport";
 import { toast } from "@/hooks/use-toast";
 
+// Constants for Select component values
+const FILTER_ALL_VALUE = "all";
+const FILTER_ACTIVE_VALUE = "active";
+const FILTER_INACTIVE_VALUE = "inactive";
+
 export function EnterpriseCategories() {
   const [activeTab, setActiveTab] = useState("categories");
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,6 +66,10 @@ export function EnterpriseCategories() {
   const [editingCategory, setEditingCategory] = useState<EnhancedCategory | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
+  // UI state for filter selects
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState(FILTER_ALL_VALUE);
+  const [statusFilter, setStatusFilter] = useState(FILTER_ALL_VALUE);
 
   // Data hooks
   const { 
@@ -150,6 +159,23 @@ export function EnterpriseCategories() {
   const handleFormSuccess = () => {
     refetchCategories();
     handleFormClose();
+  };
+
+  // Filter handlers
+  const handleCategoryTypeFilter = (value: string) => {
+    setCategoryTypeFilter(value);
+    setFilters(prev => ({ 
+      ...prev, 
+      category_type: value === FILTER_ALL_VALUE ? undefined : value 
+    }));
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setFilters(prev => ({ 
+      ...prev, 
+      is_active: value === FILTER_ALL_VALUE ? undefined : value === FILTER_ACTIVE_VALUE
+    }));
   };
 
   const formatCurrency = (value: number) => {
@@ -368,14 +394,14 @@ export function EnterpriseCategories() {
                       <div>
                         <Label>Category Type</Label>
                         <Select
-                          value={filters.category_type || ''}
-                          onValueChange={(value) => setFilters(prev => ({ ...prev, category_type: value || undefined }))}
+                          value={categoryTypeFilter}
+                          onValueChange={handleCategoryTypeFilter}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="All types" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All Types</SelectItem>
+                            <SelectItem value={FILTER_ALL_VALUE}>All Types</SelectItem>
                             <SelectItem value="STANDARD">Standard</SelectItem>
                             <SelectItem value="SYSTEM">System</SelectItem>
                             <SelectItem value="TEMPORARY">Temporary</SelectItem>
@@ -385,19 +411,16 @@ export function EnterpriseCategories() {
                       <div>
                         <Label>Status</Label>
                         <Select
-                          value={filters.is_active?.toString() || ''}
-                          onValueChange={(value) => setFilters(prev => ({ 
-                            ...prev, 
-                            is_active: value === '' ? undefined : value === 'true' 
-                          }))}
+                          value={statusFilter}
+                          onValueChange={handleStatusFilter}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="All statuses" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All Statuses</SelectItem>
-                            <SelectItem value="true">Active</SelectItem>
-                            <SelectItem value="false">Inactive</SelectItem>
+                            <SelectItem value={FILTER_ALL_VALUE}>All Statuses</SelectItem>
+                            <SelectItem value={FILTER_ACTIVE_VALUE}>Active</SelectItem>
+                            <SelectItem value={FILTER_INACTIVE_VALUE}>Inactive</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
