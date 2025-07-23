@@ -46,11 +46,11 @@ export const useConsumptionPatterns = (filters: ConsumptionFilters = {}) => {
         .select(`
           item_code,
           qty_issued,
-          issue_date,
+          date,
           item_master!inner(item_name, categories(category_name))
         `)
-        .gte("issue_date", format(startDate, "yyyy-MM-dd"))
-        .lte("issue_date", format(endDate, "yyyy-MM-dd"));
+        .gte("date", format(startDate, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
 
       if (category) {
         query = query.eq("item_master.categories.category_name", category);
@@ -76,7 +76,7 @@ export const useConsumptionPatterns = (filters: ConsumptionFilters = {}) => {
       issueData?.forEach((issue: any) => {
         const key = issue.item_code;
         const consumption = issue.qty_issued || 0;
-        const month = new Date(issue.issue_date).getMonth();
+        const month = new Date(issue.date).getMonth();
         
         if (!consumptionMap.has(key)) {
           consumptionMap.set(key, {
@@ -170,9 +170,9 @@ export const useConsumptionTrends = (months: number = 12) => {
 
       const { data, error } = await supabase
         .from("issue_log")
-        .select("qty_issued, issue_date")
-        .gte("issue_date", format(startDate, "yyyy-MM-dd"))
-        .lte("issue_date", format(endDate, "yyyy-MM-dd"));
+        .select("qty_issued, date, item_code")
+        .gte("date", format(startDate, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
 
       if (error) throw error;
 
@@ -180,7 +180,7 @@ export const useConsumptionTrends = (months: number = 12) => {
       const monthlyData = new Map<string, { total: number; items: Set<string> }>();
 
       data?.forEach((issue: any) => {
-        const monthKey = format(new Date(issue.issue_date), "yyyy-MM");
+        const monthKey = format(new Date(issue.date), "yyyy-MM");
         if (!monthlyData.has(monthKey)) {
           monthlyData.set(monthKey, { total: 0, items: new Set() });
         }
