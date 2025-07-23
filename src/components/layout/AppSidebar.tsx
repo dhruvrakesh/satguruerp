@@ -19,7 +19,11 @@ import {
   Shield,
   Image,
   FileSpreadsheet,
-  CircleDot
+  CircleDot,
+  ShoppingCart,
+  Users,
+  RefreshCw,
+  PieChart
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -42,6 +46,13 @@ const mainOperationsItems = [
   { title: "Specification Master", url: "/specification-master", icon: FileSpreadsheet },
   { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
   { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
+];
+
+const procurementItems = [
+  { title: "Procurement Dashboard", url: "/procurement-dashboard", icon: PieChart },
+  { title: "Purchase Orders", url: "/purchase-orders", icon: ShoppingCart },
+  { title: "Vendor Management", url: "/vendors", icon: Users },
+  { title: "Reorder Management", url: "/reorder-management", icon: RefreshCw },
 ];
 
 const manufacturingItems = [
@@ -102,6 +113,26 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {mainOperationsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2">
+            Procurement
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              {procurementItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavClasses}>

@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -22,6 +23,10 @@ import GravurePrinting from "./pages/GravurePrinting";
 import LaminationCoating from "./pages/LaminationCoating";
 import SlittingPackaging from "./pages/SlittingPackaging";
 import StockAnalytics from "./pages/StockAnalytics";
+import ProcurementDashboard from "./pages/ProcurementDashboard";
+import PurchaseOrders from "./pages/PurchaseOrders";
+import VendorManagement from "./pages/VendorManagement";
+import ReorderManagement from "./pages/ReorderManagement";
 import { Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import { AuthPage } from "./pages/AuthPage";
@@ -80,6 +85,38 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <CategoriesManagement />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/procurement-dashboard"
+                        element={
+                          <ProtectedRoute>
+                            <ProcurementDashboard />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/purchase-orders"
+                        element={
+                          <ProtectedRoute>
+                            <PurchaseOrders />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/vendors"
+                        element={
+                          <ProtectedRoute>
+                            <VendorManagement />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/reorder-management"
+                        element={
+                          <ProtectedRoute>
+                            <ReorderManagement />
                           </ProtectedRoute>
                         }
                       />
