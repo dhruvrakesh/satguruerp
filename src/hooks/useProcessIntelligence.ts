@@ -67,6 +67,25 @@ interface QualityAlert {
   status: 'ACTIVE' | 'RESOLVED';
 }
 
+// Type-safe helper function for process stage validation
+const validateProcessStage = (process: string): 'GRAVURE_PRINTING' | 'ADHESIVE_COATING' | 'PRINTING' | 'LAMINATION' | 'SLITTING' | 'DISPATCH' => {
+  const validProcessStages = ['GRAVURE_PRINTING', 'ADHESIVE_COATING', 'PRINTING', 'LAMINATION', 'SLITTING', 'DISPATCH'] as const;
+  
+  // Handle common mapping cases
+  if (process === 'PACKAGING') {
+    return 'DISPATCH';
+  }
+  
+  // Check if the process is already valid
+  if (validProcessStages.includes(process as any)) {
+    return process as 'GRAVURE_PRINTING' | 'ADHESIVE_COATING' | 'PRINTING' | 'LAMINATION' | 'SLITTING' | 'DISPATCH';
+  }
+  
+  // Default fallback
+  console.warn(`Invalid process stage: ${process}, mapping to DISPATCH`);
+  return 'DISPATCH';
+};
+
 export function useProcessIntelligence() {
   const queryClient = useQueryClient();
 
@@ -178,26 +197,14 @@ export const useProcessParameters = (process: string) => {
   return useQuery<ProcessParameter[]>({
     queryKey: ['process-parameters', process],
     queryFn: async () => {
-      // Map process string to valid process_stage enum value
-      const validProcessStages = ['GRAVURE_PRINTING', 'ADHESIVE_COATING', 'PRINTING', 'LAMINATION', 'SLITTING', 'DISPATCH'];
-      let mappedProcess = process;
-      
-      // Handle common mapping cases
-      if (process === 'PACKAGING') {
-        mappedProcess = 'DISPATCH';
-      }
-      
-      // Only proceed if we have a valid process stage
-      if (!validProcessStages.includes(mappedProcess)) {
-        console.warn(`Invalid process stage: ${process}, mapping to DISPATCH`);
-        mappedProcess = 'DISPATCH';
-      }
+      // Use the type-safe helper function to validate and cast the process
+      const validatedProcess = validateProcessStage(process);
 
       // Query process_logs_se for process-specific metrics and transform to ProcessParameter format
       const { data, error } = await supabase
         .from('process_logs_se')
         .select('*')
-        .eq('stage', mappedProcess)
+        .eq('stage', validatedProcess)
         .eq('metric', 'parameter_optimization')
         .order('captured_at', { ascending: false })
         .limit(10);

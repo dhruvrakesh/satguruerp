@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +40,7 @@ const PROCESS_CHAIN = [
   { id: 'LAMINATION', name: 'Lamination', color: 'bg-green-500' },
   { id: 'ADHESIVE_COATING', name: 'Adhesive Coating', color: 'bg-yellow-500' },
   { id: 'SLITTING', name: 'Slitting', color: 'bg-purple-500' },
-  { id: 'PACKAGING', name: 'Packaging', color: 'bg-red-500' }
+  { id: 'DISPATCH', name: 'Dispatch', color: 'bg-red-500' }
 ];
 
 export function ProcessMaterialFlow({ 
