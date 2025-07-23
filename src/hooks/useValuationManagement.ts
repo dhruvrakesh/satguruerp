@@ -106,9 +106,13 @@ export const useValuationManagement = () => {
         .from('valuation_bulk_operations')
         .insert({
           operation_type: 'PRICE_IMPORT',
-          status: 'PROCESSING',
+          status: 'PROCESSING', 
           total_records: priceData.length,
-          file_name: 'bulk_price_update.csv'
+          processed_records: 0,
+          failed_records: 0,
+          success_records: 0,
+          file_name: 'bulk_price_update.csv',
+          started_by: (await supabase.auth.getUser()).data.user?.id
         })
         .select()
         .single();
@@ -227,11 +231,13 @@ export const useValuationManagement = () => {
           status: 'COMPLETED',
           total_records: valuationData?.length || 0,
           processed_records: valuationData?.length || 0,
+          failed_records: 0,
           success_records: valuationData?.length || 0,
           operation_summary: { 
             filters: filters as any, 
             exported_at: new Date().toISOString() 
-          } as any
+          } as any,
+          started_by: (await supabase.auth.getUser()).data.user?.id
         });
 
       return valuationData;

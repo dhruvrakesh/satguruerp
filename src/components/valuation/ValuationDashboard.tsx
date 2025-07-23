@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedItemPricingMaster } from "./EnhancedItemPricingMaster";
 import { CostCategoryManager } from "./CostCategoryManager";
 import { RealStockValuationChart } from "../analytics/RealStockValuationChart";
+import { BulkOperationsCenter } from "./BulkOperationsCenter";
 
 type ValuationMethod = "WEIGHTED_AVG" | "FIFO" | "LIFO";
 
@@ -38,10 +39,11 @@ export function ValuationDashboard() {
       </div>
 
       <Tabs defaultValue="pricing" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="pricing">Item Pricing Master</TabsTrigger>
           <TabsTrigger value="categories">Cost Categories</TabsTrigger>
           <TabsTrigger value="valuation">Stock Valuation</TabsTrigger>
+          <TabsTrigger value="bulk">Bulk Operations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pricing" className="space-y-6">
@@ -54,6 +56,10 @@ export function ValuationDashboard() {
 
         <TabsContent value="valuation" className="space-y-6">
           <RealStockValuationChart />
+        </TabsContent>
+
+        <TabsContent value="bulk" className="space-y-6">
+          <BulkOperationsCenter />
         </TabsContent>
       </Tabs>
     </div>

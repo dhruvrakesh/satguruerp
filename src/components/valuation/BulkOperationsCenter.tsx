@@ -28,7 +28,7 @@ interface BulkOperation {
   operation_summary?: any;
   file_name?: string;
   file_size_mb?: number;
-  user?: { full_name: string };
+  user?: { full_name?: string } | null;
 }
 
 export function BulkOperationsCenter() {
@@ -44,7 +44,7 @@ export function BulkOperationsCenter() {
         .from('valuation_bulk_operations')
         .select(`
           *,
-          user:profiles!valuation_bulk_operations_created_by_fkey(full_name)
+          user:profiles!valuation_bulk_operations_started_by_fkey(full_name)
         `)
         .order('started_at', { ascending: false });
 
