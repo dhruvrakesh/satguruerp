@@ -8,17 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Plus, Filter, Download, Upload, MoreHorizontal, Edit, 
   Trash2, TrendingUp, Package, Factory, Eye, Archive, 
-  RefreshCw, BarChart3, Settings
+  RefreshCw, BarChart3, Settings, DollarSign
 } from "lucide-react";
 import { useEnhancedCategories, useCategoryAnalytics, CategoryFilters, CategorySortOptions } from "@/hooks/useEnhancedCategories";
-// Import components - will create these next
-// import { EnhancedCategoryForm } from "./EnhancedCategoryForm";
-// import { CategoryAnalyticsDashboard } from "./CategoryAnalyticsDashboard";
-// import { BulkOperationsPanel } from "./BulkOperationsPanel";
-// import { CategoryImportExport } from "./CategoryImportExport";
+import { useStockValuation } from "@/hooks/useStockValuation";
+import { EnhancedCategoryForm } from "./EnhancedCategoryForm";
+import { CategoryAnalyticsDashboard } from "./CategoryAnalyticsDashboard";
+import { BulkOperationsPanel } from "./BulkOperationsPanel";
+import { CategoryImportExport } from "./CategoryImportExport";
 
 export function EnterpriseCategories() {
   const [filters, setFilters] = useState<CategoryFilters>({});
@@ -31,10 +32,15 @@ export function EnterpriseCategories() {
 
   const { data: categories = [], isLoading, refetch } = useEnhancedCategories(filters, sort);
   const { data: analytics } = useCategoryAnalytics();
+  const { stockValuation } = useStockValuation();
 
   const filteredCategories = useMemo(() => {
     return categories.filter(cat => filters.is_active === undefined || cat.is_active === filters.is_active);
   }, [categories, filters.is_active]);
+
+  const editingCategoryData = useMemo(() => {
+    return editingCategory ? categories.find(cat => cat.id === editingCategory) : undefined;
+  }, [editingCategory, categories]);
 
   const handleSearch = (value: string) => {
     setFilters(prev => ({ ...prev, search: value || undefined }));
@@ -72,6 +78,23 @@ export function EnterpriseCategories() {
     }
   };
 
+  const handleFormSuccess = () => {
+    refetch();
+    setShowCreateForm(false);
+    setEditingCategory(null);
+  };
+
+  const handleCloseForm = () => {
+    setShowCreateForm(false);
+    setEditingCategory(null);
+  };
+
+  const calculateCategoryValue = (category: any) => {
+    // Enhanced value calculation using valuation data
+    const valuationData = stockValuation.data?.find(item => item.category_name === category.category_name);
+    return valuationData?.total_value || (category.avg_item_value * category.total_items);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -92,9 +115,9 @@ export function EnterpriseCategories() {
         </div>
       </div>
 
-      {/* Analytics Summary Cards */}
+      {/* Enhanced Analytics Summary Cards */}
       {analytics && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -143,6 +166,19 @@ export function EnterpriseCategories() {
                 <div>
                   <p className="text-sm text-muted-foreground">Avg Items/Category</p>
                   <p className="text-2xl font-bold">{analytics.avgItemsPerCategory}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100">
+                  <DollarSign className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Value</p>
+                  <p className="text-2xl font-bold">₹{analytics.totalValue.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -312,7 +348,15 @@ export function EnterpriseCategories() {
                         )}
                       </TableHead>
                       <TableHead>Usage Distribution</TableHead>
-                      <TableHead>Value</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSort('avg_item_value')}
+                      >
+                        Value
+                        {sort.field === 'avg_item_value' && (
+                          <span className="ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </TableHead>
                       <TableHead className="w-16">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -376,7 +420,7 @@ export function EnterpriseCategories() {
                         </TableCell>
                         <TableCell>
                           <div className="text-right">
-                            <div className="font-medium">₹{(category.avg_item_value * category.total_items).toFixed(0)}</div>
+                            <div className="font-medium">₹{calculateCategoryValue(category).toFixed(0)}</div>
                             <div className="text-xs text-muted-foreground">₹{category.avg_item_value.toFixed(2)} avg</div>
                           </div>
                         </TableCell>
@@ -450,6 +494,10 @@ export function EnterpriseCategories() {
                             <span className="text-sm">Total Items:</span>
                             <Badge variant="secondary">{category.total_items}</Badge>
                           </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Total Value:</span>
+                            <Badge variant="secondary">₹{calculateCategoryValue(category).toFixed(0)}</Badge>
+                          </div>
                           <div className="flex gap-1 flex-wrap">
                             {category.fg_items > 0 && (
                               <Badge className={`${getUsageTypeColor('fg')} text-xs`}>FG: {category.fg_items}</Badge>
@@ -475,22 +523,39 @@ export function EnterpriseCategories() {
         </TabsContent>
 
         <TabsContent value="analytics">
-          <Card><CardContent className="p-8 text-center"><p>Analytics Dashboard - Coming Soon</p></CardContent></Card>
+          <CategoryAnalyticsDashboard />
         </TabsContent>
 
         <TabsContent value="bulk-ops">
-          <Card><CardContent className="p-8 text-center"><p>Bulk Operations Panel - Coming Soon</p></CardContent></Card>
+          <BulkOperationsPanel 
+            selectedCategories={selectedCategories}
+            categories={filteredCategories}
+            onClearSelection={() => setSelectedCategories([])}
+            onRefresh={refetch}
+          />
         </TabsContent>
 
         <TabsContent value="import-export">
-          <Card><CardContent className="p-8 text-center"><p>Import/Export Tools - Coming Soon</p></CardContent></Card>
+          <CategoryImportExport />
         </TabsContent>
       </Tabs>
 
-      {/* Create/Edit Category Form - Placeholder */}
-      {(showCreateForm || editingCategory) && (
-        <div>Category Form - Coming Soon</div>
-      )}
+      {/* Create/Edit Category Form Dialog */}
+      <Dialog open={showCreateForm || !!editingCategory} onOpenChange={handleCloseForm}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? 'Edit Category' : 'Create New Category'}
+            </DialogTitle>
+          </DialogHeader>
+          <EnhancedCategoryForm
+            category={editingCategoryData}
+            parentCategories={categories.filter(cat => cat.category_level === 1)}
+            onClose={handleCloseForm}
+            onSuccess={handleFormSuccess}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -91,7 +91,35 @@ export function useEnhancedCategories(filters: CategoryFilters = {}, sort: Categ
         throw categoryError;
       }
 
-      // Merge category data with stats
+      // Get enhanced pricing data from valuation system
+      const { data: pricingData } = await supabase
+        .from('item_pricing_master')
+        .select(`
+          item_code, 
+          current_price, 
+          effective_date,
+          satguru_item_master!inner(category_id, category_name:satguru_categories!inner(category_name))
+        `)
+        .eq('is_active', true)
+        .eq('approval_status', 'APPROVED');
+
+      // Create enhanced pricing map by category
+      const categoryPricingMap = new Map<string, { totalValue: number; avgPrice: number; itemCount: number }>();
+      
+      if (pricingData) {
+        pricingData.forEach(item => {
+          const categoryId = item.satguru_item_master?.category_id;
+          if (categoryId) {
+            const existing = categoryPricingMap.get(categoryId) || { totalValue: 0, avgPrice: 0, itemCount: 0 };
+            existing.totalValue += item.current_price || 0;
+            existing.itemCount += 1;
+            existing.avgPrice = existing.totalValue / existing.itemCount;
+            categoryPricingMap.set(categoryId, existing);
+          }
+        });
+      }
+
+      // Merge category data with stats and enhanced pricing
       const statsMap = new Map(statsData?.map(stat => [stat.id, stat]) || []);
       
       let enhancedData = (categoryData || []).map(category => {
@@ -106,9 +134,14 @@ export function useEnhancedCategories(filters: CategoryFilters = {}, sort: Categ
           avg_item_value: 0
         };
 
+        // Enhanced pricing from valuation system
+        const pricingInfo = categoryPricingMap.get(category.id);
+        const enhancedAvgValue = pricingInfo?.avgPrice || stats.avg_item_value || 0;
+
         return {
           ...category,
           ...stats,
+          avg_item_value: enhancedAvgValue,
           category_level: category.category_level || 1,
           sort_order: category.sort_order || 0,
           is_active: category.is_active ?? true,
@@ -331,13 +364,23 @@ export function useCategoryAnalytics() {
 
       const categories = data || [];
       
-      // Calculate analytics
+      // Enhanced analytics with better value calculations
       const totalCategories = categories.length;
       const totalItems = categories.reduce((sum, cat) => sum + cat.total_items, 0);
       const totalFGItems = categories.reduce((sum, cat) => sum + cat.fg_items, 0);
       const totalRMItems = categories.reduce((sum, cat) => sum + cat.rm_items, 0);
       const avgItemsPerCategory = totalCategories > 0 ? totalItems / totalCategories : 0;
-      const totalValue = categories.reduce((sum, cat) => sum + (cat.avg_item_value * cat.total_items), 0);
+      
+      // Get enhanced pricing data for better value calculations
+      const { data: pricingData } = await supabase
+        .from('item_pricing_master')
+        .select('current_price, satguru_item_master!inner(category_id)')
+        .eq('is_active', true)
+        .eq('approval_status', 'APPROVED');
+
+      // Calculate enhanced total value
+      const enhancedTotalValue = pricingData?.reduce((sum, item) => sum + (item.current_price || 0), 0) || 0;
+      const totalValue = enhancedTotalValue > 0 ? enhancedTotalValue : categories.reduce((sum, cat) => sum + (cat.avg_item_value * cat.total_items), 0);
       
       // Top categories by different metrics
       const topCategoriesByItems = [...categories]
