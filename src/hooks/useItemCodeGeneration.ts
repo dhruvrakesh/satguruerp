@@ -17,24 +17,47 @@ export function useItemCodeGeneration() {
 
   const generateCode = useMutation({
     mutationFn: async (params: ItemCodeParams) => {
-      if (!params.categoryName) return "";
+      console.log('Generating item code with params:', params);
       
-      const { data, error } = await supabase.rpc('satguru_generate_enhanced_item_code', {
-        category_name: params.categoryName,
-        usage_type: params.usageType || 'FINISHED_GOOD',
-        qualifier: params.qualifier || '',
-        size_mm: params.size || '',
-        gsm: params.gsm || null
-      });
+      if (!params.categoryName) {
+        throw new Error('Category name is required for item code generation');
+      }
       
-      if (error) throw error;
-      return data as string;
+      try {
+        const { data, error } = await supabase.rpc('satguru_generate_enhanced_item_code', {
+          category_name: params.categoryName,
+          usage_type: params.usageType || 'RAW_MATERIAL',
+          qualifier: params.qualifier || '',
+          size_mm: params.size || '',
+          gsm: params.gsm || null
+        });
+        
+        if (error) {
+          console.error('Database error in item code generation:', error);
+          throw new Error(`Failed to generate item code: ${error.message}`);
+        }
+        
+        if (!data || data.startsWith('ERROR_')) {
+          throw new Error('Item code generation returned an error. Please check the parameters and try again.');
+        }
+        
+        console.log('Generated item code:', data);
+        return data as string;
+      } catch (err) {
+        console.error('Error in generateCode:', err);
+        throw err;
+      }
     },
     onSuccess: (code) => {
       setGeneratedCode(code);
-      if (code) {
+      if (code && !code.startsWith('ERROR_')) {
         validateCode.mutate(code);
       }
+    },
+    onError: (error) => {
+      console.error('Item code generation failed:', error);
+      setGeneratedCode('');
+      setIsUnique(null);
     }
   });
 

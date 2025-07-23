@@ -7034,6 +7034,251 @@ export type Database = {
           },
         ]
       }
+      quality_metrics: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          deviation_percentage: number | null
+          id: string
+          image_urls: string[] | null
+          measured_value: number | null
+          measurement_timestamp: string | null
+          measurement_unit: string | null
+          notes: string | null
+          operator_id: string | null
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          quality_template_id: string | null
+          specification_max: number | null
+          specification_min: number | null
+          specification_target: number | null
+          status: string | null
+          text_value: string | null
+          uiorn: string
+          updated_at: string | null
+          within_specification: boolean | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          deviation_percentage?: number | null
+          id?: string
+          image_urls?: string[] | null
+          measured_value?: number | null
+          measurement_timestamp?: string | null
+          measurement_unit?: string | null
+          notes?: string | null
+          operator_id?: string | null
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          quality_template_id?: string | null
+          specification_max?: number | null
+          specification_min?: number | null
+          specification_target?: number | null
+          status?: string | null
+          text_value?: string | null
+          uiorn: string
+          updated_at?: string | null
+          within_specification?: boolean | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          deviation_percentage?: number | null
+          id?: string
+          image_urls?: string[] | null
+          measured_value?: number | null
+          measurement_timestamp?: string | null
+          measurement_unit?: string | null
+          notes?: string | null
+          operator_id?: string | null
+          process_stage?: Database["public"]["Enums"]["process_stage"]
+          quality_template_id?: string | null
+          specification_max?: number | null
+          specification_min?: number | null
+          specification_target?: number | null
+          status?: string | null
+          text_value?: string | null
+          uiorn?: string
+          updated_at?: string | null
+          within_specification?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_metrics_quality_template_id_fkey"
+            columns: ["quality_template_id"]
+            isOneToOne: false
+            referencedRelation: "quality_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_specifications: {
+        Row: {
+          acceptance_criteria: string | null
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          customer_code: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          is_active: boolean | null
+          is_critical: boolean | null
+          item_code: string
+          max_value: number | null
+          measurement_unit: string | null
+          min_value: number | null
+          specification_name: string
+          specification_type: string
+          target_value: number | null
+          test_method: string | null
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          acceptance_criteria?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          customer_code: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_critical?: boolean | null
+          item_code: string
+          max_value?: number | null
+          measurement_unit?: string | null
+          min_value?: number | null
+          specification_name: string
+          specification_type: string
+          target_value?: number | null
+          test_method?: string | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          acceptance_criteria?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          customer_code?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_critical?: boolean | null
+          item_code?: string
+          max_value?: number | null
+          measurement_unit?: string | null
+          min_value?: number | null
+          specification_name?: string
+          specification_type?: string
+          target_value?: number | null
+          test_method?: string | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: []
+      }
+      quality_templates: {
+        Row: {
+          checkpoint_code: string
+          checkpoint_name: string
+          created_at: string | null
+          critical_level: string | null
+          frequency: string | null
+          id: string
+          is_mandatory: boolean | null
+          measurement_type: string
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          specification_limits: Json | null
+          test_method: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          checkpoint_code: string
+          checkpoint_name: string
+          created_at?: string | null
+          critical_level?: string | null
+          frequency?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          measurement_type: string
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          specification_limits?: Json | null
+          test_method?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          checkpoint_code?: string
+          checkpoint_name?: string
+          created_at?: string | null
+          critical_level?: string | null
+          frequency?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          measurement_type?: string
+          process_stage?: Database["public"]["Enums"]["process_stage"]
+          specification_limits?: Json | null
+          test_method?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      quality_workflows: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string | null
+          current_step: string
+          due_date: string | null
+          id: string
+          priority: string | null
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          started_at: string | null
+          status: string | null
+          uiorn: string
+          updated_at: string | null
+          workflow_data: Json | null
+          workflow_type: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step: string
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          process_stage: Database["public"]["Enums"]["process_stage"]
+          started_at?: string | null
+          status?: string | null
+          uiorn: string
+          updated_at?: string | null
+          workflow_data?: Json | null
+          workflow_type: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: string
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          process_stage?: Database["public"]["Enums"]["process_stage"]
+          started_at?: string | null
+          status?: string | null
+          uiorn?: string
+          updated_at?: string | null
+          workflow_data?: Json | null
+          workflow_type?: string
+        }
+        Relationships: []
+      }
       quarterly_results: {
         Row: {
           created_at: string
@@ -9321,6 +9566,19 @@ export type Database = {
           },
         ]
       }
+      quality_dashboard_summary: {
+        Row: {
+          avg_deviation: number | null
+          compliance_percentage: number | null
+          failed_measurements: number | null
+          last_measurement: string | null
+          passed_measurements: number | null
+          process_stage: Database["public"]["Enums"]["process_stage"] | null
+          total_measurements: number | null
+          uiorn: string | null
+        }
+        Relationships: []
+      }
       satguru_analytics_consumption_patterns: {
         Row: {
           active_months: number | null
@@ -9560,6 +9818,10 @@ export type Database = {
           weekly_offs: number
           leave_days: number
         }[]
+      }
+      calculate_quality_score: {
+        Args: { p_uiorn: string }
+        Returns: number
       }
       calculate_reorder_suggestions: {
         Args: Record<PropertyKey, never>
