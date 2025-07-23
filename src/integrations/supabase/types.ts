@@ -9079,6 +9079,10 @@ export type Database = {
             }
         Returns: Json
       }
+      bulk_create_employees_from_csv: {
+        Args: { rows: Json }
+        Returns: Json
+      }
       bulk_update_categories: {
         Args: { p_operations: Json }
         Returns: Json
@@ -9316,6 +9320,24 @@ export type Database = {
           id: string
           job_id: string | null
           viscosity_cps: number
+        }[]
+      }
+      get_employee_csv_template: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          name: string
+          uan_number: string
+          unit_code: string
+          department_code: string
+          joining_date: string
+          date_of_birth: string
+          base_salary: string
+          hra_amount: string
+          other_conv_amount: string
+          pan_number: string
+          aadhaar_number: string
+          email: string
+          preferred_language: string
         }[]
       }
       get_next_manufacturing_stage: {
