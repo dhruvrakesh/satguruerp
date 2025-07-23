@@ -9,6 +9,7 @@ import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
 import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
+import { QualityControlPanel } from "@/components/manufacturing/QualityControlPanel";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -189,9 +190,10 @@ export default function GravurePrinting() {
       </div>
 
       <Tabs defaultValue="material-flow" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="material-flow">Material Flow</TabsTrigger>
           <TabsTrigger value="printing">Printing Control</TabsTrigger>
+          <TabsTrigger value="quality">Quality Control</TabsTrigger>
           <TabsTrigger value="artwork">Artwork Intelligence</TabsTrigger>
           <TabsTrigger value="intelligence">AI Intelligence</TabsTrigger>
           <TabsTrigger value="monitoring">Active Monitoring</TabsTrigger>
@@ -325,6 +327,13 @@ export default function GravurePrinting() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="quality" className="space-y-6">
+          <QualityControlPanel 
+            uiorn={selectedOrder?.uiorn || ""} 
+            processStage="GRAVURE_PRINTING"
+          />
         </TabsContent>
 
         <TabsContent value="artwork" className="space-y-6">
