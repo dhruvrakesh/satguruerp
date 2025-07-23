@@ -168,6 +168,81 @@ export interface QualityCheck {
   deviation_approved_by?: string;
 }
 
+// Quality management system types aligned with database schema
+export interface QualityTemplate {
+  id: string;
+  checkpoint_code: string;
+  checkpoint_name: string;
+  process_stage: ProcessStage;
+  measurement_type: string; // Allow any string to match database
+  test_method: string;
+  specification_limits: any; // JSON field from database
+  critical_level: string;
+  frequency: string;
+  is_mandatory: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualityMetric {
+  id: string;
+  uiorn: string;
+  checkpoint_id: string;
+  measured_value?: number;
+  text_value?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REWORK';
+  deviation?: number;
+  within_specification: boolean;
+  measured_at: string;
+  measured_by?: string;
+  approved_by?: string;
+  approved_at?: string;
+  notes?: string;
+  process_stage?: ProcessStage;
+}
+
+export interface QualityWorkflow {
+  id: string;
+  uiorn: string;
+  workflow_name: string;
+  process_stage?: ProcessStage;
+  status: 'ACTIVE' | 'COMPLETED' | 'SUSPENDED';
+  start_date: string;
+  target_completion_date?: string;
+  actual_completion_date?: string;
+  assigned_to?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualitySpecification {
+  id: string;
+  customer_code?: string;
+  item_code?: string;
+  specification_type: string;
+  target_value?: number;
+  tolerance_upper?: number;
+  tolerance_lower?: number;
+  unit_of_measure?: string;
+  test_method: string;
+  frequency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualityDashboardSummary {
+  total_checkpoints: number;
+  completed_checkpoints: number;
+  pending_checkpoints: number;
+  failed_checkpoints: number;
+  overall_score: number;
+  color_accuracy?: number;
+  dimensional_accuracy?: number;
+  process_compliance?: number;
+}
+
 export interface Machine {
   id: string;
   machine_id: string;

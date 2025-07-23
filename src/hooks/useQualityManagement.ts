@@ -1,104 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-// Interfaces for Quality Management System
-export interface QualityTemplate {
-  id: string;
-  checkpoint_name: string;
-  checkpoint_code: string;
-  process_stage: 'GRAVURE_PRINTING' | 'ADHESIVE_COATING' | 'PRINTING' | 'LAMINATION' | 'SLITTING' | 'DISPATCH';
-  measurement_type: 'VISUAL' | 'MEASUREMENT' | 'TEST' | 'VERIFICATION';
-  specification_limits: any;
-  test_method: string;
-  frequency: 'CONTINUOUS' | 'BATCH' | 'HOURLY' | 'SHIFT';
-  critical_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  is_mandatory: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QualityMetric {
-  id: string;
-  uiorn: string;
-  quality_template_id: string;
-  process_stage: string;
-  measured_value?: number;
-  text_value?: string;
-  measurement_unit?: string;
-  operator_id?: string;
-  measurement_timestamp: string;
-  specification_min?: number;
-  specification_max?: number;
-  specification_target?: number;
-  within_specification?: boolean;
-  deviation_percentage?: number;
-  notes?: string;
-  image_urls?: string[];
-  status: 'MEASURED' | 'APPROVED' | 'REJECTED' | 'REWORK';
-  approved_by?: string;
-  approved_at?: string;
-  created_at: string;
-  updated_at: string;
-  quality_templates?: QualityTemplate;
-}
-
-export interface QualityWorkflow {
-  id: string;
-  uiorn: string;
-  process_stage: string;
-  workflow_type: 'CHECKPOINT' | 'APPROVAL' | 'REWORK' | 'ESCALATION';
-  current_step: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'ESCALATED';
-  assigned_to?: string;
-  due_date?: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  workflow_data: any;
-  started_at?: string;
-  completed_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QualitySpecification {
-  id: string;
-  customer_code: string;
-  item_code: string;
-  specification_name: string;
-  specification_type: 'DIMENSIONAL' | 'COLOR' | 'SURFACE' | 'PERFORMANCE';
-  target_value?: number;
-  min_value?: number;
-  max_value?: number;
-  measurement_unit?: string;
-  test_method?: string;
-  acceptance_criteria?: string;
-  is_critical: boolean;
-  is_active: boolean;
-  version: number;
-  effective_date: string;
-  expiry_date?: string;
-  approved_by?: string;
-  approved_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QualityDashboardSummary {
-  uiorn: string;
-  process_stage: string;
-  total_measurements: number;
-  passed_measurements: number;
-  failed_measurements: number;
-  compliance_percentage: number;
-  last_measurement: string;
-  avg_deviation: number;
-}
+import { QualityTemplate, QualityMetric, QualityWorkflow, QualitySpecification, QualityDashboardSummary } from "@/types/manufacturing";
 
 export function useQualityManagement() {
   const queryClient = useQueryClient();
 
   // Fetch quality templates by process stage
   const useQualityTemplates = (processStage?: string) => {
-    return useQuery<QualityTemplate[]>({
+    return useQuery({
       queryKey: ['quality-templates', processStage],
       queryFn: async () => {
         let query = supabase
@@ -107,19 +16,29 @@ export function useQualityManagement() {
           .order('checkpoint_name');
 
         if (processStage) {
-          query = query.eq('process_stage', processStage);
+          query = query.eq('process_stage', processStage as any);
         }
 
         const { data, error } = await query;
         if (error) throw error;
-        return data;
+        
+        // Transform database result to match our interface
+        return (data || []).map(item => ({
+          ...item,
+          measurement_type: item.measurement_type || 'MEASUREMENT',
+          created_at: item.created_at || '',
+          updated_at: item.updated_at || '',
+          critical_level: item.critical_level || '',
+          frequency: item.frequency || '',
+          is_mandatory: item.is_mandatory || false
+        })) as QualityTemplate[];
       },
     });
   };
 
   // Fetch quality metrics for an order
   const useQualityMetrics = (uiorn: string, processStage?: string) => {
-    return useQuery<QualityMetric[]>({
+    return useQuery({
       queryKey: ['quality-metrics', uiorn, processStage],
       queryFn: async () => {
         let query = supabase
@@ -138,12 +57,25 @@ export function useQualityManagement() {
           .order('measurement_timestamp', { ascending: false });
 
         if (processStage) {
-          query = query.eq('process_stage', processStage);
+          query = query.eq('process_stage', processStage as any);
         }
 
         const { data, error } = await query;
         if (error) throw error;
-        return data;
+        
+        // Transform and type the data
+        return (data || []).map(item => ({
+          ...item,
+          status: item.status || 'PENDING',
+          measured_at: item.measurement_timestamp || item.created_at || '',
+          deviation: item.deviation_percentage || 0,
+          within_specification: item.within_specification || false,
+          checkpoint_id: item.quality_template_id || '',
+          notes: item.notes || '',
+          approved_by: item.approved_by || undefined,
+          approved_at: item.approved_at || undefined,
+          measured_by: item.operator_id || undefined
+        })) as QualityMetric[];
       },
       enabled: !!uiorn,
     });
@@ -151,7 +83,7 @@ export function useQualityManagement() {
 
   // Fetch quality workflows for an order
   const useQualityWorkflows = (uiorn: string, processStage?: string) => {
-    return useQuery<QualityWorkflow[]>({
+    return useQuery({
       queryKey: ['quality-workflows', uiorn, processStage],
       queryFn: async () => {
         let query = supabase
@@ -161,12 +93,24 @@ export function useQualityManagement() {
           .order('created_at', { ascending: false });
 
         if (processStage) {
-          query = query.eq('process_stage', processStage);
+          query = query.eq('process_stage', processStage as any);
         }
 
         const { data, error } = await query;
         if (error) throw error;
-        return data;
+        
+        // Transform to match interface
+        return (data || []).map(item => ({
+          ...item,
+          workflow_name: item.current_step || 'Quality Workflow',
+          status: item.status === 'PENDING' ? 'ACTIVE' : 
+                 item.status === 'COMPLETED' ? 'COMPLETED' : 'SUSPENDED',
+          start_date: item.started_at || item.created_at || '',
+          target_completion_date: item.due_date || undefined,
+          actual_completion_date: item.completed_at || undefined,
+          assigned_to: item.assigned_to || undefined,
+          created_by: undefined,
+        })) as QualityWorkflow[];
       },
       enabled: !!uiorn,
     });
@@ -174,7 +118,7 @@ export function useQualityManagement() {
 
   // Fetch quality specifications for customer/item
   const useQualitySpecifications = (customerCode?: string, itemCode?: string) => {
-    return useQuery<QualitySpecification[]>({
+    return useQuery({
       queryKey: ['quality-specifications', customerCode, itemCode],
       queryFn: async () => {
         let query = supabase
@@ -192,14 +136,27 @@ export function useQualityManagement() {
 
         const { data, error } = await query;
         if (error) throw error;
-        return data;
+        
+        // Transform to match interface
+        return (data || []).map(item => ({
+          ...item,
+          specification_type: item.specification_type || 'DIMENSIONAL',
+          test_method: item.test_method || '',
+          frequency: 'daily',
+          customer_code: item.customer_code || undefined,
+          item_code: item.item_code || undefined,
+          target_value: item.target_value || undefined,
+          tolerance_upper: item.max_value || undefined,
+          tolerance_lower: item.min_value || undefined,
+          unit_of_measure: item.measurement_unit || undefined,
+        })) as QualitySpecification[];
       },
     });
   };
 
   // Fetch quality dashboard summary
   const useQualityDashboard = (uiorn: string) => {
-    return useQuery<QualityDashboardSummary[]>({
+    return useQuery({
       queryKey: ['quality-dashboard', uiorn],
       queryFn: async () => {
         const { data, error } = await supabase
@@ -208,7 +165,20 @@ export function useQualityManagement() {
           .eq('uiorn', uiorn);
 
         if (error) throw error;
-        return data;
+        
+        // Calculate summary from individual measurements
+        const summary: QualityDashboardSummary = {
+          total_checkpoints: data?.length || 0,
+          completed_checkpoints: data?.filter(d => d.passed_measurements > 0).length || 0,
+          pending_checkpoints: data?.filter(d => d.total_measurements === 0).length || 0,
+          failed_checkpoints: data?.filter(d => d.failed_measurements > 0).length || 0,
+          overall_score: data?.reduce((acc, item) => acc + item.compliance_percentage, 0) / Math.max(data?.length || 1, 1) || 0,
+          color_accuracy: data?.find(d => d.process_stage === 'PRINTING')?.compliance_percentage || 0,
+          dimensional_accuracy: data?.find(d => d.process_stage === 'LAMINATION')?.compliance_percentage || 0,
+          process_compliance: data?.reduce((acc, item) => acc + item.compliance_percentage, 0) / Math.max(data?.length || 1, 1) || 0
+        };
+        
+        return summary;
       },
       enabled: !!uiorn,
       refetchInterval: 30000, // Refresh every 30 seconds
@@ -217,7 +187,7 @@ export function useQualityManagement() {
 
   // Calculate quality score for an order
   const useQualityScore = (uiorn: string) => {
-    return useQuery<number>({
+    return useQuery({
       queryKey: ['quality-score', uiorn],
       queryFn: async () => {
         const { data, error } = await supabase.rpc('calculate_quality_score', {
@@ -225,7 +195,7 @@ export function useQualityManagement() {
         });
 
         if (error) throw error;
-        return data;
+        return data || 0;
       },
       enabled: !!uiorn,
       refetchInterval: 60000, // Refresh every minute
@@ -265,8 +235,14 @@ export function useQualityManagement() {
       const { data, error } = await supabase
         .from('quality_metrics')
         .insert({
-          ...measurement,
-          within_specification,
+          uiorn: measurement.uiorn,
+          quality_template_id: measurement.quality_template_id,
+          process_stage: measurement.process_stage as any,
+          measured_value: measurement.measured_value,
+          text_value: measurement.text_value,
+          measurement_unit: measurement.measurement_unit,
+          notes: measurement.notes,
+          image_urls: measurement.image_urls,
           deviation_percentage,
           status: 'MEASURED',
           measurement_timestamp: new Date().toISOString()
@@ -332,8 +308,13 @@ export function useQualityManagement() {
       const { data, error } = await supabase
         .from('quality_workflows')
         .insert({
-          ...workflow,
-          status: 'PENDING',
+          uiorn: workflow.uiorn,
+          process_stage: workflow.process_stage as any,
+          workflow_type: workflow.workflow_type,
+          current_step: workflow.current_step,
+          workflow_data: workflow.workflow_data,
+          assigned_to: workflow.assigned_to,
+          due_date: workflow.due_date,
           priority: workflow.priority || 'MEDIUM'
         })
         .select()
@@ -356,7 +337,9 @@ export function useQualityManagement() {
       const { data, error } = await supabase
         .from('quality_workflows')
         .update({
-          ...updates,
+          current_step: updates.workflow_name,
+          assigned_to: updates.assigned_to,
+          due_date: updates.target_completion_date,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
