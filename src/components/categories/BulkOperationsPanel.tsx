@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +25,7 @@ import {
 } from "lucide-react";
 import { useEnhancedCategories, useEnhancedCategoryMutations, EnhancedCategory } from "@/hooks/useEnhancedCategories";
 import { toast } from "@/hooks/use-toast";
-
-interface BulkOperationResult {
-  success: number;
-  failed: number;
-  errors?: any[];
-}
+import { BulkOperationResult, safeParseBulkOperationResult } from "@/utils/typeGuards";
 
 interface BulkOperationsPanelProps {
   selectedCategories: string[];
@@ -83,7 +77,7 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = result as BulkOperationResult;
+      const typedResult = safeParseBulkOperationResult(result);
       
       setOperationProgress(100);
       setOperationStatus('success');
@@ -122,7 +116,7 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = result as BulkOperationResult;
+      const typedResult = safeParseBulkOperationResult(result);
       
       setOperationProgress(100);
       setOperationStatus('success');
@@ -163,7 +157,7 @@ export function BulkOperationsPanel({
       }));
 
       const result = await bulkUpdateCategories.mutateAsync(operations);
-      const typedResult = result as BulkOperationResult;
+      const typedResult = safeParseBulkOperationResult(result);
       
       setOperationProgress(100);
       setOperationStatus('success');
