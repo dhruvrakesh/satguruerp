@@ -50,6 +50,23 @@ interface ReworkRoutingResult {
   routing_timestamp: string;
 }
 
+interface ProcessParameter {
+  metric: string;
+  current_value: number;
+  recommended_value: number;
+  optimization_score: number;
+  recommendation: string;
+}
+
+interface QualityAlert {
+  alert_id: string;
+  process: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  message: string;
+  created_at: string;
+  status: 'ACTIVE' | 'RESOLVED';
+}
+
 export function useProcessIntelligence() {
   const queryClient = useQueryClient();
 
@@ -156,9 +173,42 @@ export function useProcessIntelligence() {
   };
 }
 
-// Legacy exports for backward compatibility
-export const useProcessParameters = () => ({ data: [], isLoading: false });
-export const useProcessQualityAlerts = () => ({ data: [], isLoading: false });
+// Process parameters hook - now properly accepts process parameter
+export const useProcessParameters = (process: string) => {
+  return useQuery<ProcessParameter[]>({
+    queryKey: ['process-parameters', process],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('process_parameters')
+        .select('*')
+        .eq('process', process)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as ProcessParameter[];
+    },
+    enabled: !!process,
+  });
+};
+
+// Process quality alerts hook - now properly accepts process parameter
+export const useProcessQualityAlerts = (process: string) => {
+  return useQuery<QualityAlert[]>({
+    queryKey: ['process-quality-alerts', process],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('quality_alerts')
+        .select('*')
+        .eq('process', process)
+        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as QualityAlert[];
+    },
+    enabled: !!process,
+  });
+};
 
 // Hook for multi-process readiness assessment
 export function useMultiProcessReadiness(uiorn: string, processes: string[]) {

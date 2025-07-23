@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Layers, Thermometer, Gauge, Beaker, CheckCircle2, AlertTriangle, Play, Settings, Brain, Palette } from "lucide-react";
@@ -611,11 +610,13 @@ export default function LaminationCoating() {
         <TabsContent value="intelligence">
           <div className="grid gap-6 lg:grid-cols-2">
             <ProcessIntelligencePanel 
-              stage="LAMINATION"
+              uiorn={selectedOrder?.uiorn || ""}
+              currentProcess="LAMINATION"
               onApplyRecommendations={(params) => applyRecommendations(params, 'lamination')}
             />
             <ProcessIntelligencePanel 
-              stage="ADHESIVE_COATING"
+              uiorn={selectedOrder?.uiorn || ""}
+              currentProcess="ADHESIVE_COATING"
               onApplyRecommendations={(params) => applyRecommendations(params, 'coating')}
             />
           </div>
