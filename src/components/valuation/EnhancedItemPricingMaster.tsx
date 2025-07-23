@@ -547,7 +547,10 @@ export function EnhancedItemPricingMaster() {
           </CardHeader>
           <CardContent>
             <ItemPricingCSVUpload 
-              onUploadComplete={(data) => handleImportPrices(data)}
+              onUploadComplete={() => {
+                // Refresh data after upload
+                window.location.reload();
+              }}
             />
           </CardContent>
         </Card>
