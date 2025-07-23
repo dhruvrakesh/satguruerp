@@ -146,11 +146,28 @@ export const useAddItemPrice = () => {
   const mutate = async (data: Omit<ItemPricingEntry, 'id' | 'created_at' | 'updated_at'>) => {
     setIsPending(true);
     try {
-      // Mock implementation - replace with actual Supabase insert
-      console.log('Adding new item price:', data);
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true };
+      // Insert into item_pricing_master table
+      const { data: insertData, error } = await supabase
+        .from('item_pricing_master')
+        .insert({
+          item_code: data.item_code,
+          item_name: data.item_name,
+          category: data.category,
+          uom: data.uom,
+          current_price: data.current_price,
+          previous_price: data.previous_price,
+          cost_category: data.cost_category,
+          supplier: data.supplier,
+          effective_date: data.effective_date,
+          approval_status: data.approval_status,
+          price_change_reason: data.price_change_reason,
+          is_active: data.is_active
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: insertData };
     } catch (error) {
       throw error;
     } finally {

@@ -14,6 +14,7 @@ import { useItemPricing, useUpdateItemPrice, useAddItemPrice } from "@/hooks/use
 import { useCostCategories } from "@/hooks/useCostCategories";
 import { useCategories } from "@/hooks/useCategories";
 import { ItemPricingCSVUpload } from "./ItemPricingCSVUpload";
+import { supabase } from "@/integrations/supabase/client";
 
 export function ItemPricingMaster() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -64,7 +65,54 @@ export function ItemPricingMaster() {
     });
   };
 
-  const handleAddPrice = () => {
+  const handleExportPrices = async () => {
+    try {
+      // Generate CSV content
+      const headers = [
+        'Item Code', 'Item Name', 'Category', 'UOM', 'Current Price', 
+        'Previous Price', 'Effective Date', 'Cost Category', 'Approval Status'
+      ];
+      
+      const csvContent = [
+        headers.join(','),
+        ...pricingEntries.map(entry => [
+          entry.item_code,
+          `"${entry.item_name}"`,
+          entry.category,
+          entry.uom,
+          entry.current_price,
+          entry.previous_price || 0,
+          entry.effective_date,
+          entry.cost_category,
+          entry.approval_status
+        ].join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `item-prices-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Complete",
+        description: "Pricing data has been exported successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export pricing data",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddPrice = async () => {
     if (!newItemData.item_code || !newItemData.current_price || !newItemData.cost_category) {
       toast({
         title: "Missing Information",
@@ -74,29 +122,59 @@ export function ItemPricingMaster() {
       return;
     }
 
-    addPriceMutation.mutate({
-      item_code: newItemData.item_code,
-      item_name: "", // Will be populated from item master
-      category: "",
-      uom: "KG",
-      current_price: parseFloat(newItemData.current_price),
-      cost_category: newItemData.cost_category,
-      supplier: newItemData.supplier,
-      effective_date: new Date().toISOString().split('T')[0],
-      is_active: true,
-      approval_status: "PENDING" as const,
-      price_change_reason: newItemData.price_change_reason
-    }, {
-      onSuccess: () => {
-        setNewItemData({
-          item_code: "",
-          current_price: "",
-          cost_category: "",
-          supplier: "",
-          price_change_reason: ""
-        });
+    // Validate item exists in master data
+    try {
+      const { data: itemData, error } = await supabase
+        .from('satguru_item_master')
+        .select('item_name, category_id')
+        .eq('item_code', newItemData.item_code)
+        .maybeSingle();
+      
+      if (error) {
+        console.warn('Item validation error:', error);
       }
-    });
+
+      addPriceMutation.mutate({
+        item_code: newItemData.item_code,
+        item_name: itemData?.item_name || newItemData.item_code,
+        category: itemData?.category_id || "",
+        uom: "KG",
+        current_price: parseFloat(newItemData.current_price),
+        cost_category: newItemData.cost_category,
+        supplier: newItemData.supplier,
+        effective_date: new Date().toISOString().split('T')[0],
+        is_active: true,
+        approval_status: "PENDING" as const,
+        price_change_reason: newItemData.price_change_reason
+      }, {
+        onSuccess: () => {
+          setNewItemData({
+            item_code: "",
+            current_price: "",
+            cost_category: "",
+            supplier: "",
+            price_change_reason: ""
+          });
+          toast({
+            title: "Success",
+            description: "Item price added successfully",
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: "Error",
+            description: "Failed to add item price",
+            variant: "destructive",
+          });
+        }
+      });
+    } catch (error) {
+      toast({
+        title: "Validation Error",
+        description: "Please check if the item code exists in the system",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -132,7 +210,11 @@ export function ItemPricingMaster() {
             <Upload className="w-4 h-4" />
             Import Prices
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleExportPrices}
+          >
             <Download className="w-4 h-4" />
             Export Prices
           </Button>

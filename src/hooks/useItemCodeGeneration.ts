@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useDebounce } from "./useDebounce";
 
 interface ItemCodeParams {
   categoryName?: string;
@@ -14,6 +15,10 @@ export function useItemCodeGeneration() {
   const [generatedCode, setGeneratedCode] = useState<string>("");
   const [isValidating, setIsValidating] = useState(false);
   const [isUnique, setIsUnique] = useState<boolean | null>(null);
+  const [lastParams, setLastParams] = useState<ItemCodeParams | null>(null);
+  
+  // Debounce params to prevent rapid API calls
+  const debouncedParams = useDebounce(lastParams, 500);
 
   const generateCode = useMutation({
     mutationFn: async (params: ItemCodeParams) => {
@@ -50,7 +55,8 @@ export function useItemCodeGeneration() {
     },
     onSuccess: (code) => {
       setGeneratedCode(code);
-      if (code && !code.startsWith('ERROR_')) {
+      // Only validate if code is valid and different from current
+      if (code && !code.startsWith('ERROR_') && code !== generatedCode) {
         validateCode.mutate(code);
       }
     },
@@ -81,9 +87,22 @@ export function useItemCodeGeneration() {
     }
   });
 
-  const updateCode = (params: ItemCodeParams) => {
-    generateCode.mutate(params);
-  };
+  const updateCode = useCallback((params: ItemCodeParams) => {
+    // Prevent duplicate calls with same parameters
+    const paramsStr = JSON.stringify(params);
+    const lastParamsStr = JSON.stringify(lastParams);
+    
+    if (paramsStr !== lastParamsStr && !generateCode.isPending) {
+      setLastParams(params);
+    }
+  }, [lastParams, generateCode.isPending]);
+  
+  // Trigger generation when debounced params change
+  useEffect(() => {
+    if (debouncedParams && !generateCode.isPending) {
+      generateCode.mutate(debouncedParams);
+    }
+  }, [debouncedParams, generateCode]);
 
   const validateManualCode = (code: string) => {
     setGeneratedCode(code);
