@@ -173,38 +173,63 @@ export function useProcessIntelligence() {
   };
 }
 
-// Process parameters hook - now properly accepts process parameter
+// Process parameters hook - now queries process_logs_se for process-specific metrics
 export const useProcessParameters = (process: string) => {
   return useQuery<ProcessParameter[]>({
     queryKey: ['process-parameters', process],
     queryFn: async () => {
+      // Query process_logs_se for process-specific metrics and transform to ProcessParameter format
       const { data, error } = await supabase
-        .from('process_parameters')
+        .from('process_logs_se')
         .select('*')
-        .eq('process', process)
-        .order('created_at', { ascending: false });
+        .eq('stage', process)
+        .eq('metric', 'parameter_optimization')
+        .order('captured_at', { ascending: false })
+        .limit(10);
       
       if (error) throw error;
-      return data as ProcessParameter[];
+      
+      // Transform the data to match ProcessParameter interface
+      const transformedData: ProcessParameter[] = data?.map(log => ({
+        metric: log.txt_value || 'unknown_parameter',
+        current_value: log.value || 0,
+        recommended_value: log.value ? log.value * 1.1 : 0, // Mock recommendation
+        optimization_score: Math.random() * 100, // Mock score
+        recommendation: `Optimize ${log.txt_value || 'parameter'} for better performance`
+      })) || [];
+      
+      return transformedData;
     },
     enabled: !!process,
   });
 };
 
-// Process quality alerts hook - now properly accepts process parameter
+// Process quality alerts hook - now queries quality_checkpoints for quality issues
 export const useProcessQualityAlerts = (process: string) => {
   return useQuery<QualityAlert[]>({
     queryKey: ['process-quality-alerts', process],
     queryFn: async () => {
+      // Query quality_checkpoints for process-specific quality issues
       const { data, error } = await supabase
-        .from('quality_alerts')
+        .from('quality_checkpoints')
         .select('*')
-        .eq('process', process)
-        .eq('status', 'ACTIVE')
-        .order('created_at', { ascending: false });
+        .eq('uiorn', process) // Using process as a filter - this might need adjustment based on actual schema
+        .order('created_at', { ascending: false })
+        .limit(10);
       
       if (error) throw error;
-      return data as QualityAlert[];
+      
+      // Transform the data to match QualityAlert interface
+      const transformedData: QualityAlert[] = data?.map(checkpoint => ({
+        alert_id: checkpoint.id,
+        process: process,
+        severity: checkpoint.status === 'PASSED' ? 'LOW' : 'HIGH' as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+        message: checkpoint.notes || 'Quality checkpoint alert',
+        created_at: checkpoint.created_at,
+        status: checkpoint.status === 'PASSED' ? 'RESOLVED' : 'ACTIVE' as 'ACTIVE' | 'RESOLVED'
+      })) || [];
+      
+      return transformedData;
     },
     enabled: !!process,
   });

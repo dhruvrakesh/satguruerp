@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PrinterIcon, Palette, Gauge, Thermometer, CheckCircle2, AlertTriangle, Play, Settings } from "lucide-react";
+import { Printer, Gauge, CheckCircle2, AlertTriangle, Play, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,22 +8,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useManufacturingOrders } from "@/hooks/useManufacturingOrders";
 import { useProcessParameters, useProcessQualityAlerts } from "@/hooks/useProcessIntelligence";
 import { ProcessIntelligencePanel } from "@/components/manufacturing/ProcessIntelligencePanel";
-import { ArtworkProcessDisplay } from "@/components/manufacturing/ArtworkProcessDisplay";
 import { ProcessMaterialFlow } from "@/components/manufacturing/ProcessMaterialFlow";
 import { useArtworkByUiorn } from "@/hooks/useArtworkData";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GravurePrinting() {
-  const [printingLogs, setPrintingLogs] = useState([]);
+  const [processLogs, setProcessLogs] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [printingParams, setPrintingParams] = useState({
     speed: '',
-    temperature: '',
     pressure: '',
+    temperature: '',
     inkViscosity: '',
-    solventRatio: ''
+    registration: ''
   });
   
   const { toast } = useToast();
@@ -43,16 +41,16 @@ export default function GravurePrinting() {
   );
 
   useEffect(() => {
-    // Fetch printing process logs
+    // Fetch process logs
     const fetchProcessData = async () => {
-      const { data: printLogs } = await supabase
+      const { data } = await supabase
         .from('process_logs_se')
         .select('*')
         .eq('stage', 'GRAVURE_PRINTING')
         .order('captured_at', { ascending: false })
         .limit(15);
         
-      setPrintingLogs(printLogs || []);
+      setProcessLogs(data || []);
     };
 
     fetchProcessData();
@@ -110,10 +108,10 @@ export default function GravurePrinting() {
     
     setPrintingParams({
       speed: paramMap.get('line_speed_mpm')?.toFixed(0) || '',
+      pressure: paramMap.get('printing_pressure')?.toFixed(1) || '',
       temperature: paramMap.get('drying_temp_c')?.toFixed(0) || '',
-      pressure: '45',
       inkViscosity: paramMap.get('ink_viscosity')?.toFixed(1) || '',
-      solventRatio: '70:30'
+      registration: '±0.1'
     });
   };
 
@@ -122,10 +120,10 @@ export default function GravurePrinting() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <PrinterIcon className="w-8 h-8 text-primary" />
+            <Printer className="w-8 h-8 text-primary" />
             Gravure Printing
           </h1>
-          <p className="text-muted-foreground">High-quality rotogravure printing with precision color control</p>
+          <p className="text-muted-foreground">High-quality rotogravure printing operations</p>
         </div>
         <div className="flex gap-2">
           <Button 
@@ -148,10 +146,10 @@ export default function GravurePrinting() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Printing Records</CardTitle>
-            <PrinterIcon className="h-4 w-4 text-muted-foreground" />
+            <Printer className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{printingLogs.length}</div>
+            <div className="text-2xl font-bold">{processLogs.length}</div>
             <p className="text-xs text-muted-foreground">AI-analyzed records</p>
           </CardContent>
         </Card>
@@ -180,7 +178,7 @@ export default function GravurePrinting() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -251,6 +249,7 @@ export default function GravurePrinting() {
                     uiorn={selectedOrder.uiorn}
                     currentProcess="GRAVURE_PRINTING"
                     nextProcess="LAMINATION"
+                    previousProcess="PREPRESS"
                     artworkData={artworkData}
                     onFlowUpdate={(flowData) => {
                       console.log('Material flow updated:', flowData);
@@ -280,7 +279,15 @@ export default function GravurePrinting() {
                     <Input 
                       value={printingParams.speed}
                       onChange={(e) => setPrintingParams({...printingParams, speed: e.target.value})}
-                      placeholder="120"
+                      placeholder="150"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Printing Pressure (bar)</label>
+                    <Input 
+                      value={printingParams.pressure}
+                      onChange={(e) => setPrintingParams({...printingParams, pressure: e.target.value})}
+                      placeholder="12"
                     />
                   </div>
                   <div>
@@ -288,25 +295,25 @@ export default function GravurePrinting() {
                     <Input 
                       value={printingParams.temperature}
                       onChange={(e) => setPrintingParams({...printingParams, temperature: e.target.value})}
-                      placeholder="85"
+                      placeholder="60"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium">Ink Viscosity</label>
+                    <label className="text-sm font-medium">Ink Viscosity (sec)</label>
                     <Input 
                       value={printingParams.inkViscosity}
                       onChange={(e) => setPrintingParams({...printingParams, inkViscosity: e.target.value})}
-                      placeholder="18"
+                      placeholder="25"
                     />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium">Solvent Ratio</label>
-                    <Input 
-                      value={printingParams.solventRatio}
-                      onChange={(e) => setPrintingParams({...printingParams, solventRatio: e.target.value})}
-                      placeholder="70:30"
-                    />
-                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Registration Tolerance</label>
+                  <Input 
+                    value={printingParams.registration}
+                    onChange={(e) => setPrintingParams({...printingParams, registration: e.target.value})}
+                    placeholder="±0.1"
+                  />
                 </div>
                 <Button 
                   className="w-full"
@@ -323,21 +330,23 @@ export default function GravurePrinting() {
         <TabsContent value="artwork" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5" />
-                Selected Order Artwork
-              </CardTitle>
+              <CardTitle>Artwork Intelligence</CardTitle>
+              <CardDescription>View artwork specifications and process parameters</CardDescription>
             </CardHeader>
             <CardContent>
               {selectedOrder ? (
-                <ArtworkProcessDisplay
+                <ProcessMaterialFlow
                   uiorn={selectedOrder.uiorn}
-                  itemCode={selectedOrder.product_description}
-                  artworkData={artworkData?.artwork}
-                  processType="printing"
+                  currentProcess="GRAVURE_PRINTING"
+                  nextProcess="LAMINATION"
+                  previousProcess="PREPRESS"
+                  artworkData={artworkData}
+                  onFlowUpdate={(flowData) => {
+                    console.log('Material flow updated:', flowData);
+                  }}
                 />
               ) : (
-                <div className="text-center p-8 text-muted-foreground">
+                <div className="text-center py-8 text-muted-foreground">
                   Select an order to view artwork specifications
                 </div>
               )}
@@ -374,9 +383,9 @@ export default function GravurePrinting() {
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">{order.product_description}</p>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '65%' }} />
+                      <div className="bg-purple-600 h-2 rounded-full" style={{ width: '80%' }} />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">65% Complete</p>
+                    <p className="text-xs text-muted-foreground mt-1">80% Complete</p>
                   </div>
                 ))}
               </div>

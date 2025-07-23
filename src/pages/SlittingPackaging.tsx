@@ -54,7 +54,7 @@ export default function SlittingPackaging() {
       const { data: packLogs } = await supabase
         .from('process_logs_se')
         .select('*')
-        .eq('stage', 'PACKAGING')
+        .eq('stage', 'DISPATCH') // Changed from 'PACKAGING' to 'DISPATCH' to match enum
         .order('captured_at', { ascending: false })
         .limit(15);
         
@@ -256,7 +256,7 @@ export default function SlittingPackaging() {
                   <ProcessMaterialFlow
                     uiorn={selectedOrder.uiorn}
                     currentProcess="SLITTING"
-                    nextProcess="PACKAGING"
+                    nextProcess="DISPATCH"
                     previousProcess="ADHESIVE_COATING"
                     artworkData={artworkData}
                     onFlowUpdate={(flowData) => {
@@ -331,7 +331,7 @@ export default function SlittingPackaging() {
           {selectedOrder && (
             <ProcessMaterialFlow
               uiorn={selectedOrder.uiorn}
-              currentProcess="PACKAGING"
+              currentProcess="DISPATCH"
               previousProcess="SLITTING"
               artworkData={artworkData}
               onFlowUpdate={(flowData) => {
