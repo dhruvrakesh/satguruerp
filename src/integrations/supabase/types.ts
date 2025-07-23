@@ -9994,6 +9994,16 @@ export type Database = {
           recommended_forecast: number
         }[]
       }
+      analyze_pricing_hierarchy_usage: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          pricing_source: string
+          item_count: number
+          percentage: number
+          avg_confidence: number
+          total_value: number
+        }[]
+      }
       apply_leave_adjustments: {
         Args:
           | {
@@ -10343,6 +10353,40 @@ export type Database = {
           aadhaar_number: string
           email: string
           preferred_language: string
+        }[]
+      }
+      get_grn_price_suggestions: {
+        Args: {
+          p_item_code?: string
+          p_days_lookback?: number
+          p_min_transactions?: number
+        }
+        Returns: {
+          item_code: string
+          item_name: string
+          suggested_price: number
+          transaction_count: number
+          price_variance: number
+          min_price: number
+          max_price: number
+          last_grn_date: string
+          confidence_level: string
+          recommendation: Json
+        }[]
+      }
+      get_item_pricing_hierarchy: {
+        Args: {
+          p_item_code: string
+          p_valuation_method?: string
+          p_days_lookback?: number
+        }
+        Returns: {
+          item_code: string
+          pricing_source: string
+          unit_cost: number
+          confidence_score: number
+          last_updated: string
+          pricing_details: Json
         }[]
       }
       get_next_manufacturing_stage: {
