@@ -12,6 +12,8 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useAuditLogging } from "@/hooks/useAuditLogging";
+import { useRoleBasedAccess } from "@/hooks/useRoleBasedAccess";
 
 const COLORS = {
   high: 'hsl(var(--destructive))',
@@ -26,11 +28,22 @@ interface StockValuationChartProps {
 
 export function StockValuationChart({ filters, onFiltersChange }: StockValuationChartProps) {
   const { stockValuation, valuationSummary } = useStockValuation(filters);
+  const { permissions } = useRoleBasedAccess();
+  const { logPriceChange } = useAuditLogging();
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const updatePriceMutation = useUpdateItemPrice();
 
-  const handlePriceUpdate = (itemCode: string) => {
+  const handlePriceUpdate = async (itemCode: string) => {
+    if (!permissions.canEditPricing) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to edit prices",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!newPrice || parseFloat(newPrice) <= 0) {
       toast({
         title: "Invalid Price",
@@ -40,12 +53,20 @@ export function StockValuationChart({ filters, onFiltersChange }: StockValuation
       return;
     }
 
+    // Find the current item for audit logging
+    const currentItem = stockValuation.data?.find(item => item.item_code === itemCode);
+    const oldPrice = currentItem?.unit_price || 0;
+    const newPriceNum = parseFloat(newPrice);
+
     updatePriceMutation.mutate({
       itemCode,
-      newPrice: parseFloat(newPrice),
+      newPrice: newPriceNum,
       reason: "Manual price update from valuation screen"
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Log the price change for audit trail
+        await logPriceChange(itemCode, oldPrice, newPriceNum, "Manual price update from valuation screen");
+        
         setEditingItem(null);
         setNewPrice("");
         stockValuation.refetch();
@@ -286,16 +307,18 @@ export function StockValuationChart({ filters, onFiltersChange }: StockValuation
                       ) : (
                         <div className="flex items-center gap-2">
                           <span>{formatCurrency(item.unit_price || 0)}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingItem(item.item_code);
-                              setNewPrice(item.unit_price?.toString() || "0");
-                            }}
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </Button>
+                          {permissions.canEditPricing && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingItem(item.item_code);
+                                setNewPrice(item.unit_price?.toString() || "0");
+                              }}
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </TableCell>

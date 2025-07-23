@@ -10275,6 +10275,17 @@ export type Database = {
         Args: { input_date: string }
         Returns: boolean
       }
+      log_audit_event_pricing: {
+        Args: {
+          p_action: string
+          p_entity_type: string
+          p_entity_id?: string
+          p_old_data?: Json
+          p_new_data?: Json
+          p_metadata?: Json
+        }
+        Returns: undefined
+      }
       manage_category_lifecycle: {
         Args: {
           p_category_id: string

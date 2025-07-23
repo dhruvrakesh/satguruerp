@@ -15,6 +15,8 @@ import { useCostCategories } from "@/hooks/useCostCategories";
 import { useCategories } from "@/hooks/useCategories";
 import { ItemPricingCSVUpload } from "./ItemPricingCSVUpload";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuditLogging } from "@/hooks/useAuditLogging";
+import { useRoleBasedAccess } from "@/hooks/useRoleBasedAccess";
 
 export function ItemPricingMaster() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -31,6 +33,10 @@ export function ItemPricingMaster() {
     price_change_reason: ""
   });
 
+  // Enterprise-grade hooks
+  const { permissions, checkPermission } = useRoleBasedAccess();
+  const { logPriceChange, logBulkPriceImport, logPriceExport } = useAuditLogging();
+
   // Use real data from hooks
   const { data: pricingEntries = [], isLoading, error } = useItemPricing({
     category: selectedCategory,
@@ -43,7 +49,16 @@ export function ItemPricingMaster() {
   const updatePriceMutation = useUpdateItemPrice();
   const addPriceMutation = useAddItemPrice();
 
-  const handlePriceUpdate = (itemCode: string) => {
+  const handlePriceUpdate = async (itemCode: string) => {
+    if (!checkPermission('canEditPricing')) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to edit prices",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!newPrice || parseFloat(newPrice) <= 0) {
       toast({
         title: "Invalid Price",
@@ -53,12 +68,17 @@ export function ItemPricingMaster() {
       return;
     }
 
+    // Get old price for audit trail
+    const oldPrice = pricingEntries.find(entry => entry.item_code === itemCode)?.current_price || 0;
+
     updatePriceMutation.mutate({
       itemCode,
       newPrice: parseFloat(newPrice),
       reason: "Manual price update"
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Log the audit event
+        await logPriceChange(itemCode, oldPrice, parseFloat(newPrice), "Manual price update");
         setEditingItem(null);
         setNewPrice("");
       }
@@ -66,6 +86,15 @@ export function ItemPricingMaster() {
   };
 
   const handleExportPrices = async () => {
+    if (!checkPermission('canExportData')) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to export data",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       // Generate CSV content
       const headers = [
@@ -99,6 +128,13 @@ export function ItemPricingMaster() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
+      // Log the export event
+      await logPriceExport({ 
+        category: selectedCategory, 
+        costCategory: selectedCostCategory, 
+        searchTerm 
+      }, pricingEntries.length);
+
       toast({
         title: "Export Complete",
         description: "Pricing data has been exported successfully",
@@ -113,6 +149,15 @@ export function ItemPricingMaster() {
   };
 
   const handleAddPrice = async () => {
+    if (!checkPermission('canEditPricing')) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to add new prices",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!newItemData.item_code || !newItemData.current_price || !newItemData.cost_category) {
       toast({
         title: "Missing Information",
@@ -147,7 +192,10 @@ export function ItemPricingMaster() {
         approval_status: "PENDING" as const,
         price_change_reason: newItemData.price_change_reason
       }, {
-        onSuccess: () => {
+        onSuccess: async () => {
+          // Log the audit event
+          await logPriceChange(newItemData.item_code, 0, parseFloat(newItemData.current_price), "New item price added");
+
           setNewItemData({
             item_code: "",
             current_price: "",
@@ -202,29 +250,34 @@ export function ItemPricingMaster() {
           <p className="text-muted-foreground">Manage item prices and cost categories</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={() => setShowBulkUpload(!showBulkUpload)}
-          >
-            <Upload className="w-4 h-4" />
-            Import Prices
-          </Button>
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleExportPrices}
-          >
-            <Download className="w-4 h-4" />
-            Export Prices
-          </Button>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add Item Price
-              </Button>
-            </DialogTrigger>
+          {checkPermission('canBulkImport') && (
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => setShowBulkUpload(!showBulkUpload)}
+            >
+              <Upload className="w-4 h-4" />
+              Import Prices
+            </Button>
+          )}
+          {checkPermission('canExportData') && (
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={handleExportPrices}
+            >
+              <Download className="w-4 h-4" />
+              Export Prices
+            </Button>
+          )}
+          {checkPermission('canEditPricing') && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add Item Price
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add New Item Price</DialogTitle>
@@ -305,6 +358,7 @@ export function ItemPricingMaster() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
@@ -456,19 +510,21 @@ export function ItemPricingMaster() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingItem(entry.id);
-                          setNewPrice(entry.current_price.toString());
-                        }}
-                        disabled={updatePriceMutation.isPending}
-                        className="gap-1"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        Edit
-                      </Button>
+                      {checkPermission('canEditPricing') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingItem(entry.id);
+                            setNewPrice(entry.current_price.toString());
+                          }}
+                          disabled={updatePriceMutation.isPending}
+                          className="gap-1"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          Edit
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
