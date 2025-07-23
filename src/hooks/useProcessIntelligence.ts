@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -66,7 +67,7 @@ export function useProcessIntelligence() {
         return data as ProcessReadiness;
       },
       enabled: !!uiorn && !!targetProcess,
-      refetchInterval: 30000, // Refresh every 30 seconds
+      refetchInterval: 30000,
     });
   };
 
@@ -83,7 +84,7 @@ export function useProcessIntelligence() {
         return data as YieldAnalysis;
       },
       enabled: !!uiorn,
-      refetchInterval: 60000, // Refresh every minute
+      refetchInterval: 60000,
     });
   };
 
@@ -99,7 +100,7 @@ export function useProcessIntelligence() {
         if (error) throw error;
         return data as BottleneckAnalysis;
       },
-      refetchInterval: 120000, // Refresh every 2 minutes
+      refetchInterval: 120000,
     });
   };
 
@@ -140,7 +141,6 @@ export function useProcessIntelligence() {
       return data as ReworkRoutingResult;
     },
     onSuccess: () => {
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['process-transfers'] });
       queryClient.invalidateQueries({ queryKey: ['material-flow-tracking'] });
       queryClient.invalidateQueries({ queryKey: ['process-readiness'] });
@@ -159,7 +159,6 @@ export function useProcessIntelligence() {
 // Legacy exports for backward compatibility
 export const useProcessParameters = () => ({ data: [], isLoading: false });
 export const useProcessQualityAlerts = () => ({ data: [], isLoading: false });
-}
 
 // Hook for multi-process readiness assessment
 export function useMultiProcessReadiness(uiorn: string, processes: string[]) {

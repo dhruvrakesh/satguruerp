@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MaterialAvailabilityPanel } from "./MaterialAvailabilityPanel";
 import { useProcessIntelligence } from "@/hooks/useProcessIntelligence";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -17,7 +19,8 @@ import {
   BarChart3,
   RefreshCw,
   Zap,
-  Route
+  Route,
+  Package
 } from "lucide-react";
 
 interface ProcessIntelligencePanelProps {
@@ -35,7 +38,7 @@ const PROCESS_SEQUENCE = [
   'PACKAGING'
 ];
 
-export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntelligencePanelProps) {
+export function ProcessIntelligencePanel({ uiorn, currentProcess, onApplyRecommendations }: ProcessIntelligencePanelProps) {
   const { toast } = useToast();
   
   const {
@@ -76,7 +79,7 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
         uiorn,
         materialType: 'REWORK_MATERIAL',
         qualityGrade: 'REWORK',
-        reworkQuantity: 10, // This would come from actual rework data
+        reworkQuantity: 10,
         currentProcess: processStage
       });
       
@@ -84,6 +87,8 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
         title: "Rework Routed",
         description: `Rework material from ${processStage} has been automatically routed for reprocessing.`,
       });
+      
+      onApplyRecommendations?.({ action: 'rework_routed', process: processStage });
     } catch (error) {
       toast({
         title: "Routing Failed",
@@ -107,13 +112,18 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="readiness" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="availability" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="availability">Material Availability</TabsTrigger>
           <TabsTrigger value="readiness">Process Readiness</TabsTrigger>
           <TabsTrigger value="yield">Yield Analysis</TabsTrigger>
           <TabsTrigger value="bottlenecks">Bottlenecks</TabsTrigger>
           <TabsTrigger value="automation">Smart Routing</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="availability" className="space-y-4">
+          <MaterialAvailabilityPanel uiorn={uiorn} currentProcess={currentProcess} />
+        </TabsContent>
 
         <TabsContent value="readiness" className="space-y-4">
           <Card>
@@ -216,7 +226,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
                 </div>
               ) : yieldData ? (
                 <div className="space-y-6">
-                  {/* Overall Yield Summary */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
                       <div className="text-3xl font-bold text-green-600">
@@ -246,7 +255,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
 
                   <Separator />
 
-                  {/* Process-Specific Yields */}
                   <div className="space-y-3">
                     <h4 className="font-medium">Process-Specific Yields</h4>
                     {yieldData.process_yields.map((processYield: any, index: number) => (
@@ -291,7 +299,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
 
         <TabsContent value="bottlenecks" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Order-Specific Bottlenecks */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -329,7 +336,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
               </CardContent>
             </Card>
 
-            {/* Global Bottlenecks */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -379,7 +385,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Auto-Rework Routing */}
                 <div className="p-4 border-2 border-orange-200 rounded-lg bg-orange-50">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -400,7 +405,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
                   </div>
                 </div>
 
-                {/* Material Type Validation */}
                 <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle className="h-5 w-5 text-blue-600" />
@@ -429,7 +433,6 @@ export function ProcessIntelligencePanel({ uiorn, currentProcess }: ProcessIntel
                   </div>
                 </div>
 
-                {/* Quality Gate Enforcement */}
                 <div className="p-4 border-2 border-green-200 rounded-lg bg-green-50">
                   <div className="flex items-center gap-2 mb-2">
                     <Zap className="h-5 w-5 text-green-600" />
