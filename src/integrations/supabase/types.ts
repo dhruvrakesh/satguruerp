@@ -464,6 +464,60 @@ export type Database = {
           },
         ]
       }
+      approval_matrix: {
+        Row: {
+          approval_level: number
+          approver_id: string | null
+          approver_role: string | null
+          category: string | null
+          created_at: string | null
+          delegate_to: string | null
+          department: string | null
+          entity_type: string
+          escalation_hours: number | null
+          id: string
+          is_active: boolean | null
+          is_mandatory: boolean | null
+          max_amount: number | null
+          min_amount: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          approval_level: number
+          approver_id?: string | null
+          approver_role?: string | null
+          category?: string | null
+          created_at?: string | null
+          delegate_to?: string | null
+          department?: string | null
+          entity_type: string
+          escalation_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_mandatory?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          approval_level?: number
+          approver_id?: string | null
+          approver_role?: string | null
+          category?: string | null
+          created_at?: string | null
+          delegate_to?: string | null
+          department?: string | null
+          entity_type?: string
+          escalation_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_mandatory?: boolean | null
+          max_amount?: number | null
+          min_amount?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       approvals: {
         Row: {
           approved_at: string | null
@@ -6150,6 +6204,312 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_approvals: {
+        Row: {
+          approval_level: number
+          approval_status: Database["public"]["Enums"]["approval_status"] | null
+          approved_at: string | null
+          approver_id: string | null
+          comments: string | null
+          created_at: string | null
+          delegation_from: string | null
+          escalation_date: string | null
+          id: string
+          notification_sent: boolean | null
+          po_id: string | null
+          rejected_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approval_level: number
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          approved_at?: string | null
+          approver_id?: string | null
+          comments?: string | null
+          created_at?: string | null
+          delegation_from?: string | null
+          escalation_date?: string | null
+          id?: string
+          notification_sent?: boolean | null
+          po_id?: string | null
+          rejected_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approval_level?: number
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          approved_at?: string | null
+          approver_id?: string | null
+          comments?: string | null
+          created_at?: string | null
+          delegation_from?: string | null
+          escalation_date?: string | null
+          id?: string
+          notification_sent?: boolean | null
+          po_id?: string | null
+          rejected_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_approvals_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_order_items: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          discount_amount: number | null
+          discount_percentage: number | null
+          id: string
+          is_closed: boolean | null
+          item_code: string
+          item_name: string
+          line_number: number
+          line_total: number
+          pending_quantity: number | null
+          po_id: string | null
+          quantity: number
+          received_quantity: number | null
+          required_date: string | null
+          specifications: Json | null
+          tax_amount: number | null
+          tax_percentage: number | null
+          unit_price: number
+          uom: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          is_closed?: boolean | null
+          item_code: string
+          item_name: string
+          line_number: number
+          line_total: number
+          pending_quantity?: number | null
+          po_id?: string | null
+          quantity: number
+          received_quantity?: number | null
+          required_date?: string | null
+          specifications?: Json | null
+          tax_amount?: number | null
+          tax_percentage?: number | null
+          unit_price: number
+          uom: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          is_closed?: boolean | null
+          item_code?: string
+          item_name?: string
+          line_number?: number
+          line_total?: number
+          pending_quantity?: number | null
+          po_id?: string | null
+          quantity?: number
+          received_quantity?: number | null
+          required_date?: string | null
+          specifications?: Json | null
+          tax_amount?: number | null
+          tax_percentage?: number | null
+          unit_price?: number
+          uom?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_order_sequences: {
+        Row: {
+          created_at: string | null
+          fiscal_year: number
+          id: string
+          last_sequence: number
+          prefix: string
+        }
+        Insert: {
+          created_at?: string | null
+          fiscal_year: number
+          id?: string
+          last_sequence?: number
+          prefix?: string
+        }
+        Update: {
+          created_at?: string | null
+          fiscal_year?: number
+          id?: string
+          last_sequence?: number
+          prefix?: string
+        }
+        Relationships: []
+      }
+      purchase_orders: {
+        Row: {
+          approval_required: boolean | null
+          approval_status: Database["public"]["Enums"]["approval_status"] | null
+          approved_at: string | null
+          approved_by: string | null
+          billing_address: Json | null
+          closed_at: string | null
+          closed_by: string | null
+          cost_center: string | null
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          delivery_date: string | null
+          department: string | null
+          discount_amount: number | null
+          exchange_rate: number | null
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          notes: string | null
+          parent_po_id: string | null
+          po_date: string
+          po_number: string
+          priority:
+            | Database["public"]["Enums"]["purchase_order_priority"]
+            | null
+          project_code: string | null
+          reference_number: string | null
+          required_date: string | null
+          revision_number: number | null
+          shipping_address: Json | null
+          status: Database["public"]["Enums"]["purchase_order_status"] | null
+          subtotal: number | null
+          supplier_id: string
+          tax_amount: number | null
+          terms_conditions: string | null
+          total_amount: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          approval_required?: boolean | null
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          approved_at?: string | null
+          approved_by?: string | null
+          billing_address?: Json | null
+          closed_at?: string | null
+          closed_by?: string | null
+          cost_center?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          delivery_date?: string | null
+          department?: string | null
+          discount_amount?: number | null
+          exchange_rate?: number | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          parent_po_id?: string | null
+          po_date?: string
+          po_number: string
+          priority?:
+            | Database["public"]["Enums"]["purchase_order_priority"]
+            | null
+          project_code?: string | null
+          reference_number?: string | null
+          required_date?: string | null
+          revision_number?: number | null
+          shipping_address?: Json | null
+          status?: Database["public"]["Enums"]["purchase_order_status"] | null
+          subtotal?: number | null
+          supplier_id: string
+          tax_amount?: number | null
+          terms_conditions?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          approval_required?: boolean | null
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          approved_at?: string | null
+          approved_by?: string | null
+          billing_address?: Json | null
+          closed_at?: string | null
+          closed_by?: string | null
+          cost_center?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          delivery_date?: string | null
+          department?: string | null
+          discount_amount?: number | null
+          exchange_rate?: number | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          parent_po_id?: string | null
+          po_date?: string
+          po_number?: string
+          priority?:
+            | Database["public"]["Enums"]["purchase_order_priority"]
+            | null
+          project_code?: string | null
+          reference_number?: string | null
+          required_date?: string | null
+          revision_number?: number | null
+          shipping_address?: Json | null
+          status?: Database["public"]["Enums"]["purchase_order_status"] | null
+          subtotal?: number | null
+          supplier_id?: string
+          tax_amount?: number | null
+          terms_conditions?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_parent_po_id_fkey"
+            columns: ["parent_po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quality_checkpoints: {
         Row: {
           checkpoint_name: string
@@ -6248,6 +6608,158 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      reorder_rules: {
+        Row: {
+          auto_reorder_enabled: boolean | null
+          category_specific_rules: Json | null
+          consumption_rate: number | null
+          created_at: string | null
+          created_by: string | null
+          economic_order_quantity: number | null
+          id: string
+          is_active: boolean | null
+          item_code: string
+          last_consumption_date: string | null
+          lead_time_days: number
+          maximum_stock: number | null
+          minimum_order_quantity: number | null
+          priority_level: number | null
+          reorder_level: number
+          reorder_quantity: number
+          safety_stock: number | null
+          seasonal_factor: number | null
+          supplier_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          auto_reorder_enabled?: boolean | null
+          category_specific_rules?: Json | null
+          consumption_rate?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          economic_order_quantity?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code: string
+          last_consumption_date?: string | null
+          lead_time_days?: number
+          maximum_stock?: number | null
+          minimum_order_quantity?: number | null
+          priority_level?: number | null
+          reorder_level: number
+          reorder_quantity: number
+          safety_stock?: number | null
+          seasonal_factor?: number | null
+          supplier_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          auto_reorder_enabled?: boolean | null
+          category_specific_rules?: Json | null
+          consumption_rate?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          economic_order_quantity?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_code?: string
+          last_consumption_date?: string | null
+          lead_time_days?: number
+          maximum_stock?: number | null
+          minimum_order_quantity?: number | null
+          priority_level?: number | null
+          reorder_level?: number
+          reorder_quantity?: number
+          safety_stock?: number | null
+          seasonal_factor?: number | null
+          supplier_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reorder_rules_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reorder_suggestions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          current_stock: number
+          estimated_cost: number | null
+          estimated_stockout_date: string | null
+          id: string
+          item_code: string
+          po_id: string | null
+          reason: string | null
+          reorder_level: number
+          status: string | null
+          suggested_quantity: number
+          supplier_id: string | null
+          updated_at: string | null
+          urgency_level: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          current_stock: number
+          estimated_cost?: number | null
+          estimated_stockout_date?: string | null
+          id?: string
+          item_code: string
+          po_id?: string | null
+          reason?: string | null
+          reorder_level: number
+          status?: string | null
+          suggested_quantity: number
+          supplier_id?: string | null
+          updated_at?: string | null
+          urgency_level?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          current_stock?: number
+          estimated_cost?: number | null
+          estimated_stockout_date?: string | null
+          id?: string
+          item_code?: string
+          po_id?: string | null
+          reason?: string | null
+          reorder_level?: number
+          status?: string | null
+          suggested_quantity?: number
+          supplier_id?: string | null
+          updated_at?: string | null
+          urgency_level?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reorder_suggestions_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorder_suggestions_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resource_links: {
         Row: {
@@ -7680,6 +8192,87 @@ export type Database = {
         }
         Relationships: []
       }
+      suppliers: {
+        Row: {
+          address: Json | null
+          bank_details: Json | null
+          category: string | null
+          certifications: Json | null
+          contact_person: string | null
+          created_at: string | null
+          created_by: string | null
+          credit_limit: number | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_approved: boolean | null
+          lead_time_days: number | null
+          material_categories: string[] | null
+          minimum_order_value: number | null
+          payment_terms: string | null
+          performance_rating: number | null
+          phone: string | null
+          supplier_code: string
+          supplier_name: string
+          supplier_type: string | null
+          tax_details: Json | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          address?: Json | null
+          bank_details?: Json | null
+          category?: string | null
+          certifications?: Json | null
+          contact_person?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          credit_limit?: number | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_approved?: boolean | null
+          lead_time_days?: number | null
+          material_categories?: string[] | null
+          minimum_order_value?: number | null
+          payment_terms?: string | null
+          performance_rating?: number | null
+          phone?: string | null
+          supplier_code: string
+          supplier_name: string
+          supplier_type?: string | null
+          tax_details?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          address?: Json | null
+          bank_details?: Json | null
+          category?: string | null
+          certifications?: Json | null
+          contact_person?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          credit_limit?: number | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_approved?: boolean | null
+          lead_time_days?: number | null
+          material_categories?: string[] | null
+          minimum_order_value?: number | null
+          payment_terms?: string | null
+          performance_rating?: number | null
+          phone?: string | null
+          supplier_code?: string
+          supplier_name?: string
+          supplier_type?: string | null
+          tax_details?: Json | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       templates: {
         Row: {
           created_at: string | null
@@ -8410,6 +9003,10 @@ export type Database = {
           leave_days: number
         }[]
       }
+      calculate_reorder_suggestions: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       can_transition_to_stage: {
         Args: {
           p_uiorn: string
@@ -8550,6 +9147,10 @@ export type Database = {
           size_mm?: string
           gsm?: number
         }
+        Returns: string
+      }
+      generate_po_number: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       get_active_items_for_selection: {
@@ -8826,6 +9427,15 @@ export type Database = {
       }
       process_issue_batch: {
         Args: { p_rows: Json }
+        Returns: Json
+      }
+      process_po_approval: {
+        Args: {
+          p_po_id: string
+          p_approver_id: string
+          p_action: string
+          p_comments?: string
+        }
         Returns: Json
       }
       process_pricing_upload_batch: {
@@ -9178,6 +9788,7 @@ export type Database = {
       }
     }
     Enums: {
+      approval_status: "PENDING" | "APPROVED" | "REJECTED" | "ESCALATED"
       asset_condition: "new" | "good" | "fair" | "poor"
       asset_status: "active" | "maintenance" | "retired" | "disposed"
       attendance_status:
@@ -9209,6 +9820,21 @@ export type Database = {
         | "LAMINATION_COATING"
         | "ADHESIVE_COATING"
         | "SLITTING_PACKING"
+      purchase_order_priority:
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH"
+        | "URGENT"
+        | "EMERGENCY"
+      purchase_order_status:
+        | "DRAFT"
+        | "SUBMITTED"
+        | "APPROVED"
+        | "ISSUED"
+        | "PARTIALLY_RECEIVED"
+        | "RECEIVED"
+        | "CLOSED"
+        | "CANCELLED"
       stage: "printing" | "lamination" | "adhesive" | "slitting" | "dispatch"
       transfer_status: "pending" | "approved" | "rejected" | "completed"
       variable_type: "fixed" | "calculated" | "employee_specific" | "system"
@@ -9355,6 +9981,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      approval_status: ["PENDING", "APPROVED", "REJECTED", "ESCALATED"],
       asset_condition: ["new", "good", "fair", "poor"],
       asset_status: ["active", "maintenance", "retired", "disposed"],
       attendance_status: [
@@ -9388,6 +10015,17 @@ export const Constants = {
         "LAMINATION_COATING",
         "ADHESIVE_COATING",
         "SLITTING_PACKING",
+      ],
+      purchase_order_priority: ["LOW", "MEDIUM", "HIGH", "URGENT", "EMERGENCY"],
+      purchase_order_status: [
+        "DRAFT",
+        "SUBMITTED",
+        "APPROVED",
+        "ISSUED",
+        "PARTIALLY_RECEIVED",
+        "RECEIVED",
+        "CLOSED",
+        "CANCELLED",
       ],
       stage: ["printing", "lamination", "adhesive", "slitting", "dispatch"],
       transfer_status: ["pending", "approved", "rejected", "completed"],
