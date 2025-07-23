@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRawMaterials, RawMaterial } from "@/hooks/useRawMaterials";
-import { useAutomatedMaterialFlow } from "@/hooks/useAutomatedMaterialFlow";
+import { useAutomatedMaterialFlow, useMaterialTypeValidation } from "@/hooks/useAutomatedMaterialFlow";
 import { 
   ArrowRight, 
   Package, 
@@ -86,13 +86,16 @@ export function MaterialFlowTracker({
   // Fetch raw materials for dropdown
   const { data: rawMaterials = [], isLoading: isLoadingMaterials, error: rawMaterialsError } = useRawMaterials();
   
-  // Enhanced automated material flow
+  // Enhanced automated material flow with validation
   const { 
     getUpstreamMaterials, 
     autoTransferMutation, 
     validateMaterialFlowQuery, 
     materialFlowContinuityQuery 
   } = useAutomatedMaterialFlow(uiorn);
+  
+  // Material type validation
+  const { validateCompatibility } = useMaterialTypeValidation();
   
   // Get upstream materials using new automated system
   const { data: upstreamMaterials = [], isLoading: isLoadingUpstream } = getUpstreamMaterials(processStage);

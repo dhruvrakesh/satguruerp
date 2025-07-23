@@ -116,6 +116,26 @@ export function useAutomatedMaterialFlow(uiorn: string) {
 }
 
 // Enhanced hook for specific process material availability
+// Enhanced material type validation hook
+export function useMaterialTypeValidation() {
+  const validateCompatibility = async (
+    fromProcess: string,
+    toProcess: string,
+    materialType: string
+  ): Promise<boolean> => {
+    const { data, error } = await (supabase as any).rpc('validate_material_type_compatibility', {
+      p_from_process: fromProcess,
+      p_to_process: toProcess,
+      p_material_type: materialType
+    });
+    
+    if (error) throw error;
+    return data as boolean;
+  };
+
+  return { validateCompatibility };
+}
+
 export function useProcessMaterialAvailability(uiorn: string, processStage: string) {
   return useQuery({
     queryKey: ['process-material-availability', uiorn, processStage],

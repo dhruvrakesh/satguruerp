@@ -9492,6 +9492,10 @@ export type Database = {
             }
         Returns: Json
       }
+      assess_process_readiness: {
+        Args: { p_uiorn: string; p_target_process: string }
+        Returns: Json
+      }
       bulk_create_employees_from_csv: {
         Args: { rows: Json }
         Returns: Json
@@ -9518,6 +9522,10 @@ export type Database = {
       }
       calculate_current_stock: {
         Args: { p_item_code: string; p_opening_stock_date?: string }
+        Returns: Json
+      }
+      calculate_end_to_end_yield: {
+        Args: { p_uiorn: string }
         Returns: Json
       }
       calculate_order_progress: {
@@ -9945,6 +9953,10 @@ export type Database = {
         Args: { curlopt: string; value: string }
         Returns: boolean
       }
+      identify_process_bottlenecks: {
+        Args: { p_uiorn?: string }
+        Returns: Json
+      }
       import_requirements: {
         Args: { csv_url: string }
         Returns: undefined
@@ -10082,6 +10094,16 @@ export type Database = {
       retry_job: {
         Args: { p_job_id: string; p_user_id: string }
         Returns: boolean
+      }
+      route_rework_material: {
+        Args: {
+          p_uiorn: string
+          p_material_type: string
+          p_quality_grade: string
+          p_rework_quantity: number
+          p_current_process: string
+        }
+        Returns: Json
       }
       rpc_upsert_stage_status_dkpkl: {
         Args: {
@@ -10378,6 +10400,14 @@ export type Database = {
           p_leave_type: Database["public"]["Enums"]["attendance_status"]
           p_leave_date: string
           p_days?: number
+        }
+        Returns: boolean
+      }
+      validate_material_type_compatibility: {
+        Args: {
+          p_from_process: string
+          p_to_process: string
+          p_material_type: string
         }
         Returns: boolean
       }
