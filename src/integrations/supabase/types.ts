@@ -10844,7 +10844,9 @@ export type Database = {
         Returns: boolean
       }
       satguru_validate_unique_item_code: {
-        Args: { p_item_code: string; p_exclude_id?: string }
+        Args:
+          | { p_item_code: string }
+          | { p_item_code: string; p_exclude_id?: string }
         Returns: boolean
       }
       search_employees: {
