@@ -15,6 +15,9 @@ import StockOperations from "./pages/StockOperations";
 import StockSummary from "./pages/StockSummary";
 import CategoriesManagement from "./pages/CategoriesManagement";
 import Settings from "./pages/Settings";
+import ProductionReports from "./pages/ProductionReports";
+import WorkflowAnalytics from "./pages/WorkflowAnalytics";
+import UserManagement from "./pages/UserManagement";
 import ManufacturingWorkflow from "./pages/ManufacturingWorkflow";
 import OrderPunching from "./pages/OrderPunching";
 import ArtworkManagement from "./pages/ArtworkManagement";
@@ -189,6 +192,30 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <StockAnalytics />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/production-reports"
+                        element={
+                          <ProtectedRoute>
+                            <ProductionReports />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/workflow-analytics"
+                        element={
+                          <ProtectedRoute>
+                            <WorkflowAnalytics />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/user-management"
+                        element={
+                          <ProtectedRoute>
+                            <UserManagement />
                           </ProtectedRoute>
                         }
                       />
