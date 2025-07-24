@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,8 @@ import { ItemSelector } from "./ItemSelector";
 import { CylinderSelector } from "./CylinderSelector";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { X, Calculator, Package, Truck, AlertCircle, Settings2 } from "lucide-react";
+import { useBOMPreview } from "@/hooks/useBOMPreview";
+import { X, Calculator, Package, Truck, AlertCircle, Settings2, FileText, TreePine } from "lucide-react";
 
 interface Item {
   item_code: string;
@@ -61,6 +62,18 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get FG item codes for BOM preview
+  const fgItemCodes = selectedItems
+    .filter(item => item.usage_type === 'FG')
+    .map(item => item.item_code);
+  
+  const { data: bomPreview, isLoading: bomLoading } = useBOMPreview(fgItemCodes);
+
+  // Update totals when items change
+  useEffect(() => {
+    calculateTotals();
+  }, [selectedItems, orderData.unit_price]);
 
   const handleItemSelect = (item: Item) => {
     const selectedItem: SelectedItem = {
@@ -164,6 +177,17 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
       return;
     }
 
+    // BOM Validation for FG items
+    const fgItemsWithoutBOM = bomPreview?.filter(bom => !bom.has_bom) || [];
+    if (fgItemsWithoutBOM.length > 0) {
+      toast({
+        title: "BOM Missing",
+        description: `Missing BOM for: ${fgItemsWithoutBOM.map(bom => bom.fg_item_code).join(', ')}. Create BOMs first.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -237,8 +261,9 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
         </DialogHeader>
 
         <Tabs defaultValue="items" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="items">Items & Selection</TabsTrigger>
+            <TabsTrigger value="bom">BOM Preview</TabsTrigger>
             <TabsTrigger value="cylinders">Cylinder Assignment</TabsTrigger>
             <TabsTrigger value="details">Order Details</TabsTrigger>
           </TabsList>
@@ -393,6 +418,115 @@ export function EnhancedOrderCreationDialog({ open, onOpenChange }: EnhancedOrde
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="bom" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TreePine className="h-5 w-5" />
+                  BOM Preview & Validation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {bomLoading && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    Loading BOM data...
+                  </div>
+                )}
+                
+                {!bomLoading && fgItemCodes.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <TreePine className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No finished goods selected</p>
+                    <p className="text-sm">Add FG items to see BOM preview</p>
+                  </div>
+                )}
+
+                {!bomLoading && bomPreview && bomPreview.length > 0 && (
+                  <div className="space-y-4">
+                    {bomPreview.map((bom) => (
+                      <Card key={bom.fg_item_code} className={`border ${!bom.has_bom ? 'border-destructive bg-destructive/5' : 'border-success bg-success/5'}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium flex items-center gap-2">
+                                {bom.fg_item_code}
+                                {bom.has_bom ? (
+                                  <Badge variant="default" className="bg-success text-success-foreground">
+                                    BOM Available
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive">
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    No BOM
+                                  </Badge>
+                                )}
+                              </h4>
+                              <p className="text-sm text-muted-foreground">{bom.fg_item_name}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium">
+                                {bom.total_materials} Materials
+                              </p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        
+                        {bom.has_bom && bom.materials.length > 0 && (
+                          <CardContent className="pt-0">
+                            <div className="space-y-2">
+                              <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                Material Requirements:
+                              </h5>
+                              <div className="grid gap-1">
+                                {bom.materials.slice(0, 5).map((material) => (
+                                  <div key={material.rm_item_code} className="flex justify-between items-center text-sm bg-muted/50 p-2 rounded">
+                                    <div className="flex-1">
+                                      <span className="font-medium">{material.rm_item_code}</span>
+                                      {material.item_name && (
+                                        <span className="text-muted-foreground ml-2">- {material.item_name}</span>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <span>{material.quantity_required} {material.unit_of_measure}</span>
+                                      {material.wastage_percentage > 0 && (
+                                        <span className="text-xs text-muted-foreground ml-1">
+                                          (+{material.wastage_percentage}% waste)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                                {bom.materials.length > 5 && (
+                                  <div className="text-xs text-muted-foreground text-center py-1">
+                                    +{bom.materials.length - 5} more materials...
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        )}
+
+                        {!bom.has_bom && (
+                          <CardContent className="pt-0">
+                            <div className="text-center py-2">
+                              <p className="text-sm text-muted-foreground mb-2">
+                                No BOM defined for this item
+                              </p>
+                              <Button variant="outline" size="sm" onClick={() => window.open('/bom-management', '_blank')}>
+                                <TreePine className="h-3 w-3 mr-1" />
+                                Create BOM
+                              </Button>
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="cylinders" className="space-y-6">
