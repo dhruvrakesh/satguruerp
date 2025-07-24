@@ -74,7 +74,8 @@ export const BOMManagement: React.FC = () => {
     queryKey: ['bom-data', searchQuery, selectedFGItem, selectedCustomer],
     queryFn: async (): Promise<SimpleBOMItem[]> => {
       try {
-        const { data, error } = await supabase
+        // First get BOM data
+        const { data: bomRawData, error: bomError } = await supabase
           .from('bill_of_materials')
           .select(`
             id,
@@ -93,10 +94,23 @@ export const BOMManagement: React.FC = () => {
           `)
           .order('fg_item_code');
 
-        if (error) throw error;
+        if (bomError) throw bomError;
+
+        // Get FG item customer mapping from artwork master
+        const fgCodes = [...new Set(bomRawData?.map(item => item.fg_item_code))];
+        const { data: artworkData, error: artworkError } = await supabase
+          .from('master_data_artworks_se')
+          .select('item_code, customer_name')
+          .in('item_code', fgCodes);
+
+        if (artworkError) throw artworkError;
+
+        const customerMap = new Map(
+          artworkData?.map(item => [item.item_code, item.customer_name]) || []
+        );
         
-        // Transform data to match our simple interface
-        return (data || []).map((item: any) => ({
+        // Transform data and apply customer filter
+        let transformedData = (bomRawData || []).map((item: any) => ({
           id: item.id,
           fg_item_code: item.fg_item_code,
           rm_item_code: item.rm_item_code,
@@ -107,11 +121,26 @@ export const BOMManagement: React.FC = () => {
           wastage_percentage: item.wastage_percentage,
           gsm_contribution: item.gsm_contribution || 0,
           percentage_contribution: item.percentage_contribution || 0,
-          customer_code: item.customer_code,
+          customer_code: item.customer_code || customerMap.get(item.fg_item_code),
           bom_version: item.bom_version || 1,
           is_active: item.is_active !== false,
           bom_groups: item.bom_groups
         }));
+
+        // Apply customer filter if selected
+        if (selectedCustomer && selectedCustomer !== 'all') {
+          transformedData = transformedData.filter(item => {
+            const itemCustomer = item.customer_code || customerMap.get(item.fg_item_code);
+            return itemCustomer === selectedCustomer;
+          });
+        }
+
+        // Apply FG item filter if selected
+        if (selectedFGItem && selectedFGItem !== 'all') {
+          transformedData = transformedData.filter(item => item.fg_item_code === selectedFGItem);
+        }
+
+        return transformedData;
       } catch (error) {
         console.error('Error fetching BOM data:', error);
         throw error;
@@ -132,6 +161,22 @@ export const BOMManagement: React.FC = () => {
         item_code: item.item_code,
         item_name: item.item_name || `Artwork - ${item.item_code}`
       })) as SimpleItemMaster[];
+    }
+  });
+
+  // Dynamic customer list from artwork master
+  const { data: customers } = useQuery({
+    queryKey: ['artwork-customers'],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('master_data_artworks_se')
+        .select('customer_name')
+        .not('customer_name', 'is', null)
+        .order('customer_name');
+      if (error) throw error;
+      // Get unique customer names
+      const uniqueCustomers = [...new Set(data?.map(item => item.customer_name).filter(Boolean))] as string[];
+      return uniqueCustomers;
     }
   });
 
@@ -335,18 +380,19 @@ export const BOMManagement: React.FC = () => {
                       </div>
                       <div>
                         <Label>Customer (Optional)</Label>
-                        <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="All Customers" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Customers</SelectItem>
-                            <SelectItem value="GCPL">GCPL</SelectItem>
-                            <SelectItem value="RB">Reckitt Benckiser</SelectItem>
-                            <SelectItem value="HUL">Hindustan Unilever</SelectItem>
-                            <SelectItem value="ITC">ITC Limited</SelectItem>
-                          </SelectContent>
-                        </Select>
+                         <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                           <SelectTrigger>
+                             <SelectValue placeholder="All Customers" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="all">All Customers</SelectItem>
+                             {customers?.map((customer) => (
+                               <SelectItem key={customer} value={customer}>
+                                 {customer}
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
                       </div>
                       <div>
                         <Label>Quantity (KG)</Label>
@@ -436,18 +482,19 @@ export const BOMManagement: React.FC = () => {
             </div>
             <div className="w-48">
               <Label htmlFor="customer-filter">Filter by Customer</Label>
-              <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Customers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
-                  <SelectItem value="GCPL">GCPL</SelectItem>
-                  <SelectItem value="RB">Reckitt Benckiser</SelectItem>
-                  <SelectItem value="HUL">Hindustan Unilever</SelectItem>
-                  <SelectItem value="ITC">ITC Limited</SelectItem>
-                </SelectContent>
-              </Select>
+               <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                 <SelectTrigger>
+                   <SelectValue placeholder="All Customers" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">All Customers</SelectItem>
+                   {customers?.map((customer) => (
+                     <SelectItem key={customer} value={customer}>
+                       {customer}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
             </div>
           </div>
 
@@ -650,20 +697,19 @@ export const BOMManagement: React.FC = () => {
 
             <div>
               <Label htmlFor="customer">Customer Code (Optional)</Label>
-              <Select value={newBOMItem.customer_code} onValueChange={(value) => setNewBOMItem({...newBOMItem, customer_code: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Generic BOM (no customer)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Generic BOM</SelectItem>
-                  <SelectItem value="GCPL">GCPL</SelectItem>
-                  <SelectItem value="RB">Reckitt Benckiser</SelectItem>
-                  <SelectItem value="HUL">Hindustan Unilever</SelectItem>
-                  <SelectItem value="ITC">ITC Limited</SelectItem>
-                  <SelectItem value="PATANJALI">Patanjali</SelectItem>
-                  <SelectItem value="ANCHOR">Anchor</SelectItem>
-                </SelectContent>
-              </Select>
+               <Select value={newBOMItem.customer_code} onValueChange={(value) => setNewBOMItem({...newBOMItem, customer_code: value})}>
+                 <SelectTrigger>
+                   <SelectValue placeholder="Generic BOM (no customer)" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="">Generic BOM</SelectItem>
+                   {customers?.map((customer) => (
+                     <SelectItem key={customer} value={customer}>
+                       {customer}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
             </div>
 
             <div>
