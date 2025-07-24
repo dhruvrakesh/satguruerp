@@ -23,7 +23,8 @@ import {
   ShoppingCart,
   Users,
   RefreshCw,
-  PieChart
+  PieChart,
+  TreePine
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -58,6 +59,7 @@ const procurementItems = [
 const manufacturingItems = [
   { title: "Manufacturing Workflow", url: "/manufacturing-workflow", icon: Workflow },
   { title: "Order Punching", url: "/order-punching", icon: FileText },
+  { title: "BOM Management", url: "/bom-management", icon: TreePine },
   { title: "Artwork Management", url: "/artwork-management", icon: Image },
   { title: "Cylinder Management", url: "/cylinder-management", icon: CircleDot },
   { title: "Gravure Printing", url: "/gravure-printing", icon: Palette },

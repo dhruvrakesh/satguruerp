@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Plus, Search, Filter, Calendar, Package, User, AlertCircle } from "lucide-react";
+import { FileText, Plus, Search, Filter, Calendar, Package, User, AlertCircle, TreePine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { useManufacturingOrders, useUpdateOrderStatus } from "@/hooks/useManufac
 import { useCustomerNamesForOrders } from "@/hooks/useCustomerNamesForOrders";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 export default function OrderPunching() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -22,6 +23,7 @@ export default function OrderPunching() {
   const [isOrderCreationOpen, setIsOrderCreationOpen] = useState(false);
   
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { data: orders = [] } = useManufacturingOrders({
     search: searchTerm,
     status: statusFilter,
@@ -108,6 +110,10 @@ export default function OrderPunching() {
           <Button onClick={() => setIsOrderCreationOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Order
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/bom-management')}>
+            <TreePine className="h-4 w-4 mr-2" />
+            Manage BOMs
           </Button>
           <Button variant="outline">
             <Calendar className="h-4 w-4 mr-2" />

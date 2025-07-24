@@ -20,6 +20,7 @@ import WorkflowAnalytics from "./pages/WorkflowAnalytics";
 import UserManagement from "./pages/UserManagement";
 import ManufacturingWorkflow from "./pages/ManufacturingWorkflow";
 import OrderPunching from "./pages/OrderPunching";
+import { BOMManagement } from "@/components/manufacturing/BOMManagement";
 import ArtworkManagement from "./pages/ArtworkManagement";
 import CylinderManagement from "./pages/CylinderManagement";
 import GravurePrinting from "./pages/GravurePrinting";
@@ -144,6 +145,14 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <OrderPunching />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/bom-management"
+                        element={
+                          <ProtectedRoute>
+                            <BOMManagement />
                           </ProtectedRoute>
                         }
                       />
