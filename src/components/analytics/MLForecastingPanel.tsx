@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ItemCodeSelector } from "@/components/shared/ItemCodeSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -91,11 +92,10 @@ export const MLForecastingPanel = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div>
               <Label htmlFor="itemCode">Item Code</Label>
-              <Input
-                id="itemCode"
+              <ItemCodeSelector
                 value={selectedItemCode}
-                onChange={(e) => setSelectedItemCode(e.target.value)}
-                placeholder="Enter item code"
+                onChange={setSelectedItemCode}
+                placeholder="Search and select item for forecasting..."
               />
             </div>
             <div>
