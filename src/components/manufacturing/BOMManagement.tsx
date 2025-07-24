@@ -119,17 +119,19 @@ export const BOMManagement: React.FC = () => {
     }
   });
 
-  // Simplified finished goods query
+  // FG items from artwork master (source of truth)
   const { data: finishedGoods } = useQuery({
-    queryKey: ['finished-goods'],
+    queryKey: ['finished-goods-artworks'],
     queryFn: async (): Promise<SimpleItemMaster[]> => {
       const { data, error } = await supabase
-        .from('satguru_item_master')
+        .from('master_data_artworks_se')
         .select('item_code, item_name')
-        .eq('usage_type', 'FINISHED_GOOD')
         .order('item_code');
       if (error) throw error;
-      return (data || []) as SimpleItemMaster[];
+      return (data || []).map(item => ({
+        item_code: item.item_code,
+        item_name: item.item_name || `Artwork - ${item.item_code}`
+      })) as SimpleItemMaster[];
     }
   });
 

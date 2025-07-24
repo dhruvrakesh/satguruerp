@@ -45,22 +45,39 @@ export const useBOMPreview = (fgItemCodes: string[]) => {
 
       if (bomError) throw bomError;
 
-      // Get item names for both FG and RM items
-      const allItemCodes = [
-        ...fgItemCodes,
-        ...(bomData?.map(bom => bom.rm_item_code) || [])
-      ];
+      // Get FG item names from artwork master
+      const { data: fgItemNames, error: fgError } = await supabase
+        .from('master_data_artworks_se')
+        .select('item_code, item_name')
+        .in('item_code', fgItemCodes);
 
-      const { data: itemNames, error: itemError } = await supabase
+      if (fgError) throw fgError;
+
+      // Get RM item names from item master
+      const rmItemCodes = bomData?.map(bom => bom.rm_item_code) || [];
+      const { data: rmItemNames, error: rmError } = await supabase
         .from('satguru_item_master')
         .select('item_code, item_name')
-        .in('item_code', allItemCodes);
+        .in('item_code', rmItemCodes);
 
-      if (itemError) throw itemError;
+      if (rmError) throw rmError;
 
-      const itemNameMap = new Map(
-        itemNames?.map(item => [item.item_code, item.item_name]) || []
-      );
+      // Combine both name maps
+      const itemNameMap = new Map<string, string>();
+      
+      // Add FG item names
+      fgItemNames?.forEach(item => {
+        if (item.item_code && item.item_name) {
+          itemNameMap.set(item.item_code, item.item_name);
+        }
+      });
+      
+      // Add RM item names
+      rmItemNames?.forEach(item => {
+        if (item.item_code && item.item_name) {
+          itemNameMap.set(item.item_code, item.item_name);
+        }
+      });
 
       // Group BOM data by FG item
       const bomMap = new Map<string, BOMItem[]>();
@@ -83,7 +100,7 @@ export const useBOMPreview = (fgItemCodes: string[]) => {
       // Create explosion data for each FG item
       return fgItemCodes.map(fgCode => ({
         fg_item_code: fgCode,
-        fg_item_name: itemNameMap.get(fgCode),
+        fg_item_name: itemNameMap.get(fgCode) || `Artwork - ${fgCode}`,
         materials: bomMap.get(fgCode) || [],
         total_materials: bomMap.get(fgCode)?.length || 0,
         has_bom: bomMap.has(fgCode)
