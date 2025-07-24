@@ -17,6 +17,7 @@ import { MLForecastingPanel } from "@/components/analytics/MLForecastingPanel";
 import { InventoryOptimizationPanel } from "@/components/analytics/InventoryOptimizationPanel";
 import { AdvancedFilters } from "@/components/analytics/AdvancedFilters";
 import { ValuationDashboard } from "@/components/valuation/ValuationDashboard";
+import { PowerBIEmbedded } from "@/components/analytics/PowerBIEmbedded";
 import { StockValuationFilters } from "@/hooks/useStockValuation";
 import { useStockMovementExport, useStockValuationExport } from "@/hooks/useDataExport";
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
@@ -201,6 +202,7 @@ export default function StockAnalytics() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="powerbi">Power BI</TabsTrigger>
           <TabsTrigger value="valuation-mgmt">Valuation Management</TabsTrigger>
           <TabsTrigger value="alerts">Low Stock Alerts</TabsTrigger>
           <TabsTrigger value="ml-forecasting">ML Forecasting</TabsTrigger>
@@ -221,6 +223,10 @@ export default function StockAnalytics() {
             <InventoryTurnoverChart />
             <ABCAnalysisChart />
           </div>
+        </TabsContent>
+
+        <TabsContent value="powerbi" className="space-y-6">
+          <PowerBIEmbedded />
         </TabsContent>
 
         <TabsContent value="valuation-mgmt" className="space-y-6">
