@@ -317,13 +317,31 @@ export default function GravurePrinting() {
                     placeholder="±0.1"
                   />
                 </div>
-                <Button 
-                  className="w-full"
-                  onClick={handleStartProcess}
-                  disabled={isProcessing || !selectedOrder}
-                >
-                  {isProcessing ? "Starting Process..." : "Apply Parameters & Start Printing"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1"
+                    onClick={handleStartProcess}
+                    disabled={isProcessing || !selectedOrder}
+                  >
+                    {isProcessing ? "Starting Process..." : "Apply Parameters & Start Printing"}
+                  </Button>
+                  {selectedOrder && (
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        // Auto-scroll to quality tab and show color control
+                        const qualityTab = document.querySelector('[value="quality"]') as HTMLElement;
+                        qualityTab?.click();
+                        setTimeout(() => {
+                          const colorTab = document.querySelector('[value="color"]') as HTMLElement;
+                          colorTab?.click();
+                        }, 100);
+                      }}
+                    >
+                      Begin Color QC
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

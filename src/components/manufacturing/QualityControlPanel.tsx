@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQualityManagement } from "@/hooks/useQualityManagement";
-import { Gauge, CheckCircle, XCircle, Clock, FileText, AlertTriangle } from "lucide-react";
+import { ColorQualityPanel } from "./ColorQualityPanel";
+import { Gauge, CheckCircle, XCircle, Clock, FileText, AlertTriangle, Palette } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface QualityControlPanelProps {
@@ -241,8 +242,9 @@ export function QualityControlPanel({ uiorn, processStage }: QualityControlPanel
 
       <CardContent>
         <Tabs defaultValue="metrics" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsTrigger value="color">Color Control</TabsTrigger>
             <TabsTrigger value="checkpoints">Checkpoints</TabsTrigger>
             <TabsTrigger value="measurement">Measurement</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -301,6 +303,10 @@ export function QualityControlPanel({ uiorn, processStage }: QualityControlPanel
                 </div>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="color" className="space-y-4">
+            <ColorQualityPanel uiorn={uiorn} />
           </TabsContent>
 
           <TabsContent value="checkpoints" className="space-y-4">
