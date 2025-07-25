@@ -143,6 +143,56 @@ export type Database = {
         }
         Relationships: []
       }
+      account_hierarchy: {
+        Row: {
+          account_code: string
+          account_level: number
+          account_name: string
+          account_type: string
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          parent_account_id: string | null
+          report_category: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_code: string
+          account_level?: number
+          account_name: string
+          account_type: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          parent_account_id?: string | null
+          report_category?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_code?: string
+          account_level?: number
+          account_name?: string
+          account_type?: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          parent_account_id?: string | null
+          report_category?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_hierarchy_parent_account_id_fkey"
+            columns: ["parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "account_hierarchy"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           action: string
@@ -1350,6 +1400,56 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_entries: {
+        Row: {
+          account_code: string
+          approved_at: string | null
+          approved_by: string | null
+          budget_amount: number
+          budget_type: string
+          budget_version: number | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          period_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          account_code: string
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_amount?: number
+          budget_type?: string
+          budget_version?: number | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          period_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          account_code?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_amount?: number
+          budget_type?: string
+          budget_version?: number | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          period_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_entries_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "financial_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_leave_applications: {
         Row: {
           applied_by: string | null
@@ -1484,6 +1584,54 @@ export type Database = {
           total_employees?: number | null
         }
         Relationships: []
+      }
+      calculated_ratios: {
+        Row: {
+          calculated_value: number | null
+          calculation_date: string | null
+          created_at: string | null
+          denominator_value: number | null
+          id: string
+          numerator_value: number | null
+          period_id: number
+          ratio_definition_id: string
+        }
+        Insert: {
+          calculated_value?: number | null
+          calculation_date?: string | null
+          created_at?: string | null
+          denominator_value?: number | null
+          id?: string
+          numerator_value?: number | null
+          period_id: number
+          ratio_definition_id: string
+        }
+        Update: {
+          calculated_value?: number | null
+          calculation_date?: string | null
+          created_at?: string | null
+          denominator_value?: number | null
+          id?: string
+          numerator_value?: number | null
+          period_id?: number
+          ratio_definition_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calculated_ratios_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "financial_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculated_ratios_ratio_definition_id_fkey"
+            columns: ["ratio_definition_id"]
+            isOneToOne: false
+            referencedRelation: "ratio_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
@@ -1733,6 +1881,50 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "satguru_category_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      color_measurements_log: {
+        Row: {
+          captured_at: string
+          delta_e: number
+          id: string
+          is_pass: boolean
+          measured_a: number
+          measured_b: number
+          measured_l: number
+          measurement_notes: string | null
+          session_id: string
+        }
+        Insert: {
+          captured_at?: string
+          delta_e: number
+          id?: string
+          is_pass: boolean
+          measured_a: number
+          measured_b: number
+          measured_l: number
+          measurement_notes?: string | null
+          session_id: string
+        }
+        Update: {
+          captured_at?: string
+          delta_e?: number
+          id?: string
+          is_pass?: boolean
+          measured_a?: number
+          measured_b?: number
+          measured_l?: number
+          measurement_notes?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "color_measurements_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "qc_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -2152,6 +2344,821 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_appointments: {
+        Row: {
+          appointment_date: string
+          appointment_number: string
+          appointment_type: Database["public"]["Enums"]["dental_appointment_type"]
+          confirmation_sent: boolean | null
+          created_at: string | null
+          created_by: string | null
+          dentist_id: string | null
+          duration_minutes: number
+          end_time: string
+          id: string
+          is_emergency: boolean | null
+          patient_id: string | null
+          post_appointment_notes: string | null
+          practice_id: string | null
+          pre_appointment_notes: string | null
+          recurring_pattern: Json | null
+          reminder_sent: boolean | null
+          room_number: string | null
+          start_time: string
+          status:
+            | Database["public"]["Enums"]["dental_appointment_status"]
+            | null
+          treatment_planned: string[] | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          appointment_date: string
+          appointment_number: string
+          appointment_type: Database["public"]["Enums"]["dental_appointment_type"]
+          confirmation_sent?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          dentist_id?: string | null
+          duration_minutes?: number
+          end_time: string
+          id?: string
+          is_emergency?: boolean | null
+          patient_id?: string | null
+          post_appointment_notes?: string | null
+          practice_id?: string | null
+          pre_appointment_notes?: string | null
+          recurring_pattern?: Json | null
+          reminder_sent?: boolean | null
+          room_number?: string | null
+          start_time: string
+          status?:
+            | Database["public"]["Enums"]["dental_appointment_status"]
+            | null
+          treatment_planned?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          appointment_date?: string
+          appointment_number?: string
+          appointment_type?: Database["public"]["Enums"]["dental_appointment_type"]
+          confirmation_sent?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          dentist_id?: string | null
+          duration_minutes?: number
+          end_time?: string
+          id?: string
+          is_emergency?: boolean | null
+          patient_id?: string | null
+          post_appointment_notes?: string | null
+          practice_id?: string | null
+          pre_appointment_notes?: string | null
+          recurring_pattern?: Json | null
+          reminder_sent?: boolean | null
+          room_number?: string | null
+          start_time?: string
+          status?:
+            | Database["public"]["Enums"]["dental_appointment_status"]
+            | null
+          treatment_planned?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_appointments_dentist_id_fkey"
+            columns: ["dentist_id"]
+            isOneToOne: false
+            referencedRelation: "dental_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "dental_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_appointments_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_audit_logs: {
+        Row: {
+          action: string
+          changed_fields: string[] | null
+          created_at: string | null
+          id: string
+          ip_address: unknown | null
+          new_values: Json | null
+          old_values: Json | null
+          practice_id: string | null
+          record_id: string
+          table_name: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          changed_fields?: string[] | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_values?: Json | null
+          old_values?: Json | null
+          practice_id?: string | null
+          record_id: string
+          table_name: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          changed_fields?: string[] | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_values?: Json | null
+          old_values?: Json | null
+          practice_id?: string | null
+          record_id?: string
+          table_name?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_audit_logs_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_invoice_items: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          insurance_covered: number | null
+          invoice_id: string | null
+          patient_portion: number
+          quantity: number | null
+          total_price: number
+          treatment_id: string | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          insurance_covered?: number | null
+          invoice_id?: string | null
+          patient_portion: number
+          quantity?: number | null
+          total_price: number
+          treatment_id?: string | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          insurance_covered?: number | null
+          invoice_id?: string | null
+          patient_portion?: number
+          quantity?: number | null
+          total_price?: number
+          treatment_id?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_invoice_items_treatment_id_fkey"
+            columns: ["treatment_id"]
+            isOneToOne: false
+            referencedRelation: "dental_treatments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_invoices: {
+        Row: {
+          amount_paid: number | null
+          appointment_id: string | null
+          balance_due: number
+          created_at: string | null
+          created_by: string | null
+          discount_amount: number | null
+          due_date: string
+          id: string
+          invoice_date: string
+          invoice_number: string
+          notes: string | null
+          patient_id: string | null
+          payment_terms: string | null
+          practice_id: string | null
+          sent_date: string | null
+          sent_to_patient: boolean | null
+          status: Database["public"]["Enums"]["payment_status"] | null
+          subtotal: number
+          tax_amount: number | null
+          tax_rate: number | null
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          amount_paid?: number | null
+          appointment_id?: string | null
+          balance_due: number
+          created_at?: string | null
+          created_by?: string | null
+          discount_amount?: number | null
+          due_date: string
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          notes?: string | null
+          patient_id?: string | null
+          payment_terms?: string | null
+          practice_id?: string | null
+          sent_date?: string | null
+          sent_to_patient?: boolean | null
+          status?: Database["public"]["Enums"]["payment_status"] | null
+          subtotal?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount: number
+          updated_at?: string | null
+        }
+        Update: {
+          amount_paid?: number | null
+          appointment_id?: string | null
+          balance_due?: number
+          created_at?: string | null
+          created_by?: string | null
+          discount_amount?: number | null
+          due_date?: string
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          notes?: string | null
+          patient_id?: string | null
+          payment_terms?: string | null
+          practice_id?: string | null
+          sent_date?: string | null
+          sent_to_patient?: boolean | null
+          status?: Database["public"]["Enums"]["payment_status"] | null
+          subtotal?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_invoices_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "dental_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "dental_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_invoices_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_patient_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          message: string
+          patient_id: string | null
+          practice_id: string | null
+          severity: string | null
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message: string
+          patient_id?: string | null
+          practice_id?: string | null
+          severity?: string | null
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          patient_id?: string | null
+          practice_id?: string | null
+          severity?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_patient_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "dental_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_patient_alerts_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_patients: {
+        Row: {
+          address: string | null
+          allergies: string[] | null
+          city: string | null
+          created_at: string | null
+          created_by: string | null
+          date_of_birth: string | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relation: string | null
+          full_name: string
+          gender: string | null
+          id: string
+          insurance_group_number: string | null
+          insurance_policy_number: string | null
+          insurance_provider: string | null
+          is_active: boolean | null
+          last_visit: string | null
+          medical_conditions: string[] | null
+          medications: string[] | null
+          next_appointment_due: string | null
+          notes: string | null
+          patient_number: string
+          phone: string | null
+          practice_id: string | null
+          referred_by: string | null
+          state: string | null
+          updated_at: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          allergies?: string[] | null
+          city?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relation?: string | null
+          full_name: string
+          gender?: string | null
+          id?: string
+          insurance_group_number?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
+          is_active?: boolean | null
+          last_visit?: string | null
+          medical_conditions?: string[] | null
+          medications?: string[] | null
+          next_appointment_due?: string | null
+          notes?: string | null
+          patient_number: string
+          phone?: string | null
+          practice_id?: string | null
+          referred_by?: string | null
+          state?: string | null
+          updated_at?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          allergies?: string[] | null
+          city?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relation?: string | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          insurance_group_number?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
+          is_active?: boolean | null
+          last_visit?: string | null
+          medical_conditions?: string[] | null
+          medications?: string[] | null
+          next_appointment_due?: string | null
+          notes?: string | null
+          patient_number?: string
+          phone?: string | null
+          practice_id?: string | null
+          referred_by?: string | null
+          state?: string | null
+          updated_at?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_patients_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          patient_id: string | null
+          payment_date: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          practice_id: string | null
+          processed_by: string | null
+          reference_number: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          payment_date?: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          practice_id?: string | null
+          processed_by?: string | null
+          reference_number?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          payment_date?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          practice_id?: string | null
+          processed_by?: string | null
+          reference_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_payments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "dental_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_payments_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_practices: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          license_number: string | null
+          logo_url: string | null
+          name: string
+          phone: string | null
+          settings: Json | null
+          tax_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          settings?: Json | null
+          tax_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          settings?: Json | null
+          tax_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      dental_staff: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          email: string
+          employee_id: string | null
+          full_name: string
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          license_number: string | null
+          phone: string | null
+          practice_id: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          specialization: string[] | null
+          updated_at: string | null
+          user_id: string | null
+          working_hours: Json | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email: string
+          employee_id?: string | null
+          full_name: string
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          phone?: string | null
+          practice_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          specialization?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          working_hours?: Json | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email?: string
+          employee_id?: string | null
+          full_name?: string
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          license_number?: string | null
+          phone?: string | null
+          practice_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          specialization?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          working_hours?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_staff_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dental_treatment_templates: {
+        Row: {
+          category: string
+          cost: number
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          notes: string | null
+          procedure_codes: string[] | null
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          procedure_codes?: string[] | null
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          procedure_codes?: string[] | null
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dental_treatments: {
+        Row: {
+          after_images: string[] | null
+          anesthesia_used: string | null
+          appointment_id: string | null
+          before_images: string[] | null
+          complications: string | null
+          cost: number | null
+          created_at: string | null
+          created_by: string | null
+          date_performed: string | null
+          dentist_id: string | null
+          duration_minutes: number | null
+          follow_up_date: string | null
+          follow_up_needed: boolean | null
+          id: string
+          insurance_covered: number | null
+          materials_used: string[] | null
+          notes: string | null
+          patient_id: string | null
+          patient_portion: number | null
+          practice_id: string | null
+          status: Database["public"]["Enums"]["treatment_status"] | null
+          surface: string[] | null
+          tooth_number: string[] | null
+          treatment_code: string | null
+          treatment_description: string | null
+          treatment_name: string
+          updated_at: string | null
+          x_ray_images: string[] | null
+        }
+        Insert: {
+          after_images?: string[] | null
+          anesthesia_used?: string | null
+          appointment_id?: string | null
+          before_images?: string[] | null
+          complications?: string | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          date_performed?: string | null
+          dentist_id?: string | null
+          duration_minutes?: number | null
+          follow_up_date?: string | null
+          follow_up_needed?: boolean | null
+          id?: string
+          insurance_covered?: number | null
+          materials_used?: string[] | null
+          notes?: string | null
+          patient_id?: string | null
+          patient_portion?: number | null
+          practice_id?: string | null
+          status?: Database["public"]["Enums"]["treatment_status"] | null
+          surface?: string[] | null
+          tooth_number?: string[] | null
+          treatment_code?: string | null
+          treatment_description?: string | null
+          treatment_name: string
+          updated_at?: string | null
+          x_ray_images?: string[] | null
+        }
+        Update: {
+          after_images?: string[] | null
+          anesthesia_used?: string | null
+          appointment_id?: string | null
+          before_images?: string[] | null
+          complications?: string | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          date_performed?: string | null
+          dentist_id?: string | null
+          duration_minutes?: number | null
+          follow_up_date?: string | null
+          follow_up_needed?: boolean | null
+          id?: string
+          insurance_covered?: number | null
+          materials_used?: string[] | null
+          notes?: string | null
+          patient_id?: string | null
+          patient_portion?: number | null
+          practice_id?: string | null
+          status?: Database["public"]["Enums"]["treatment_status"] | null
+          surface?: string[] | null
+          tooth_number?: string[] | null
+          treatment_code?: string | null
+          treatment_description?: string | null
+          treatment_name?: string
+          updated_at?: string | null
+          x_ray_images?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_treatments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "dental_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_treatments_dentist_id_fkey"
+            columns: ["dentist_id"]
+            isOneToOne: false
+            referencedRelation: "dental_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_treatments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "dental_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_treatments_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
             referencedColumns: ["id"]
           },
         ]
@@ -2703,6 +3710,63 @@ export type Database = {
         }
         Relationships: []
       }
+      enhanced_mappings: {
+        Row: {
+          account_hierarchy_id: string | null
+          auto_mapped: boolean | null
+          created_at: string | null
+          id: string
+          mapped_by: string | null
+          mapping_confidence: number | null
+          mapping_notes: string | null
+          original_mapping_id: number | null
+          review_required: boolean | null
+          reviewed_by: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_hierarchy_id?: string | null
+          auto_mapped?: boolean | null
+          created_at?: string | null
+          id?: string
+          mapped_by?: string | null
+          mapping_confidence?: number | null
+          mapping_notes?: string | null
+          original_mapping_id?: number | null
+          review_required?: boolean | null
+          reviewed_by?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_hierarchy_id?: string | null
+          auto_mapped?: boolean | null
+          created_at?: string | null
+          id?: string
+          mapped_by?: string | null
+          mapping_confidence?: number | null
+          mapping_notes?: string | null
+          original_mapping_id?: number | null
+          review_required?: boolean | null
+          reviewed_by?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enhanced_mappings_account_hierarchy_id_fkey"
+            columns: ["account_hierarchy_id"]
+            isOneToOne: false
+            referencedRelation: "account_hierarchy"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enhanced_mappings_original_mapping_id_fkey"
+            columns: ["original_mapping_id"]
+            isOneToOne: false
+            referencedRelation: "schedule3_mapping"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           age: number
@@ -2910,27 +3974,36 @@ export type Database = {
       financial_periods: {
         Row: {
           created_at: string
+          created_by: string | null
           id: number
           notes: string | null
+          quarter: number | null
           quarter_end_date: string
           status: string
           uploaded_by: string | null
+          year: number | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: number
           notes?: string | null
+          quarter?: number | null
           quarter_end_date: string
           status?: string
           uploaded_by?: string | null
+          year?: number | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: number
           notes?: string | null
+          quarter?: number | null
           quarter_end_date?: string
           status?: string
           uploaded_by?: string | null
+          year?: number | null
         }
         Relationships: []
       }
@@ -4553,6 +5626,7 @@ export type Database = {
           customer_name: string | null
           cut_length: string | null
           cyl_qty: string | null
+          delta_e_tolerance: number | null
           dimensions: string | null
           file_hyperlink: string | null
           file_id: string | null
@@ -4565,6 +5639,9 @@ export type Database = {
           no_of_colours: string | null
           qr_code: string | null
           remarks: string | null
+          target_a: number | null
+          target_b: number | null
+          target_l: number | null
           total_runs: string | null
           ups: number | null
         }
@@ -4574,6 +5651,7 @@ export type Database = {
           customer_name?: string | null
           cut_length?: string | null
           cyl_qty?: string | null
+          delta_e_tolerance?: number | null
           dimensions?: string | null
           file_hyperlink?: string | null
           file_id?: string | null
@@ -4586,6 +5664,9 @@ export type Database = {
           no_of_colours?: string | null
           qr_code?: string | null
           remarks?: string | null
+          target_a?: number | null
+          target_b?: number | null
+          target_l?: number | null
           total_runs?: string | null
           ups?: number | null
         }
@@ -4595,6 +5676,7 @@ export type Database = {
           customer_name?: string | null
           cut_length?: string | null
           cyl_qty?: string | null
+          delta_e_tolerance?: number | null
           dimensions?: string | null
           file_hyperlink?: string | null
           file_id?: string | null
@@ -4607,6 +5689,9 @@ export type Database = {
           no_of_colours?: string | null
           qr_code?: string | null
           remarks?: string | null
+          target_a?: number | null
+          target_b?: number | null
+          target_l?: number | null
           total_runs?: string | null
           ups?: number | null
         }
@@ -4889,6 +5974,42 @@ export type Database = {
             referencedColumns: ["uiorn"]
           },
         ]
+      }
+      materiality_settings: {
+        Row: {
+          applicable_to: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          materiality_type: string
+          setting_name: string
+          threshold_value: number
+          updated_at: string | null
+        }
+        Insert: {
+          applicable_to: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          materiality_type: string
+          setting_name: string
+          threshold_value: number
+          updated_at?: string | null
+        }
+        Update: {
+          applicable_to?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          materiality_type?: string
+          setting_name?: string
+          threshold_value?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       media: {
         Row: {
@@ -7013,6 +8134,54 @@ export type Database = {
           },
         ]
       }
+      qc_sessions: {
+        Row: {
+          created_at: string | null
+          delta_e_tolerance: number | null
+          end_time: string | null
+          id: string
+          item_code: string
+          operator_id: string | null
+          start_time: string
+          status: string
+          target_a: number | null
+          target_b: number | null
+          target_l: number | null
+          uiorn: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          delta_e_tolerance?: number | null
+          end_time?: string | null
+          id?: string
+          item_code: string
+          operator_id?: string | null
+          start_time?: string
+          status?: string
+          target_a?: number | null
+          target_b?: number | null
+          target_l?: number | null
+          uiorn: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          delta_e_tolerance?: number | null
+          end_time?: string | null
+          id?: string
+          item_code?: string
+          operator_id?: string | null
+          start_time?: string
+          status?: string
+          target_a?: number | null
+          target_b?: number | null
+          target_l?: number | null
+          uiorn?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       quality_checkpoints: {
         Row: {
           checkpoint_name: string
@@ -7357,6 +8526,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ratio_definitions: {
+        Row: {
+          benchmark_value: number | null
+          calculation_formula: Json
+          created_at: string | null
+          display_order: number | null
+          formula_description: string
+          id: string
+          industry_average: number | null
+          is_active: boolean | null
+          ratio_category: string
+          ratio_name: string
+          target_value: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          benchmark_value?: number | null
+          calculation_formula: Json
+          created_at?: string | null
+          display_order?: number | null
+          formula_description: string
+          id?: string
+          industry_average?: number | null
+          is_active?: boolean | null
+          ratio_category: string
+          ratio_name: string
+          target_value?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          benchmark_value?: number | null
+          calculation_formula?: Json
+          created_at?: string | null
+          display_order?: number | null
+          formula_description?: string
+          id?: string
+          industry_average?: number | null
+          is_active?: boolean | null
+          ratio_category?: string
+          ratio_name?: string
+          target_value?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       reorder_rules: {
         Row: {
           auto_reorder_enabled: boolean | null
@@ -7508,6 +8722,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      report_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          regulatory_standard: string | null
+          template_name: string
+          template_structure: Json
+          template_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          regulatory_standard?: string | null
+          template_name: string
+          template_structure: Json
+          template_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          regulatory_standard?: string | null
+          template_name?: string
+          template_structure?: Json
+          template_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       resource_links: {
         Row: {
@@ -10053,6 +11306,17 @@ export type Database = {
         Args: { p_item_code: string; p_opening_stock_date?: string }
         Returns: Json
       }
+      calculate_delta_e_2000: {
+        Args: {
+          l1: number
+          a1: number
+          b1: number
+          l2: number
+          a2: number
+          b2: number
+        }
+        Returns: number
+      }
       calculate_end_to_end_yield: {
         Args: { p_uiorn: string }
         Returns: Json
@@ -10258,6 +11522,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      generate_dental_appointment_number: {
+        Args: { practice_id: string }
+        Returns: string
+      }
+      generate_dental_invoice_number: {
+        Args: { practice_id: string }
+        Returns: string
+      }
+      generate_dental_patient_number: {
+        Args: { practice_id: string }
+        Returns: string
+      }
       generate_employee_code: {
         Args: { p_unit_id: string }
         Returns: string
@@ -10269,6 +11545,10 @@ export type Database = {
           size_mm?: string
           gsm?: number
         }
+        Returns: string
+      }
+      generate_patient_number_rpc: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       generate_po_number: {
@@ -10321,6 +11601,10 @@ export type Database = {
           last_activity: string
           utilization_score: number
         }[]
+      }
+      get_current_user_practice_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
@@ -10569,6 +11853,10 @@ export type Database = {
         Returns: Json
       }
       is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_dental_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
@@ -11048,10 +12336,40 @@ export type Database = {
         | "CASUAL_LEAVE"
         | "EARNED_LEAVE"
         | "UNPAID_LEAVE"
+      dental_appointment_status:
+        | "scheduled"
+        | "confirmed"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "no_show"
+      dental_appointment_type:
+        | "consultation"
+        | "cleaning"
+        | "filling"
+        | "extraction"
+        | "root_canal"
+        | "crown"
+        | "implant"
+        | "orthodontics"
+        | "emergency"
       formula_type: "gross_salary" | "deductions" | "net_salary" | "allowances"
       material_type: "PAPER" | "PLASTIC" | "FOIL" | "LAMINATE" | "COMPOSITE"
       media_type: "audio" | "video"
       packaging_type: "POUCH" | "BAG" | "ROLL" | "SHEET" | "CUSTOM"
+      payment_method:
+        | "cash"
+        | "credit_card"
+        | "debit_card"
+        | "check"
+        | "insurance"
+        | "bank_transfer"
+      payment_status:
+        | "pending"
+        | "paid"
+        | "partially_paid"
+        | "cancelled"
+        | "refunded"
       process_stage:
         | "PRINTING"
         | "LAMINATION"
@@ -11088,6 +12406,13 @@ export type Database = {
         | "CANCELLED"
       stage: "printing" | "lamination" | "adhesive" | "slitting" | "dispatch"
       transfer_status: "pending" | "approved" | "rejected" | "completed"
+      treatment_status: "planned" | "in_progress" | "completed" | "cancelled"
+      user_role:
+        | "admin"
+        | "dentist"
+        | "hygienist"
+        | "receptionist"
+        | "assistant"
       variable_type: "fixed" | "calculated" | "employee_specific" | "system"
     }
     CompositeTypes: {
@@ -11242,10 +12567,44 @@ export const Constants = {
         "EARNED_LEAVE",
         "UNPAID_LEAVE",
       ],
+      dental_appointment_status: [
+        "scheduled",
+        "confirmed",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "no_show",
+      ],
+      dental_appointment_type: [
+        "consultation",
+        "cleaning",
+        "filling",
+        "extraction",
+        "root_canal",
+        "crown",
+        "implant",
+        "orthodontics",
+        "emergency",
+      ],
       formula_type: ["gross_salary", "deductions", "net_salary", "allowances"],
       material_type: ["PAPER", "PLASTIC", "FOIL", "LAMINATE", "COMPOSITE"],
       media_type: ["audio", "video"],
       packaging_type: ["POUCH", "BAG", "ROLL", "SHEET", "CUSTOM"],
+      payment_method: [
+        "cash",
+        "credit_card",
+        "debit_card",
+        "check",
+        "insurance",
+        "bank_transfer",
+      ],
+      payment_status: [
+        "pending",
+        "paid",
+        "partially_paid",
+        "cancelled",
+        "refunded",
+      ],
       process_stage: [
         "PRINTING",
         "LAMINATION",
@@ -11280,6 +12639,8 @@ export const Constants = {
       ],
       stage: ["printing", "lamination", "adhesive", "slitting", "dispatch"],
       transfer_status: ["pending", "approved", "rejected", "completed"],
+      treatment_status: ["planned", "in_progress", "completed", "cancelled"],
+      user_role: ["admin", "dentist", "hygienist", "receptionist", "assistant"],
       variable_type: ["fixed", "calculated", "employee_specific", "system"],
     },
   },
