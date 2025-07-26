@@ -4,9 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export function StockAlertsPanel() {
   const { lowStockAlerts } = useLowStockAlerts();
+  const navigate = useNavigate();
+
+  const handleViewAllClick = () => {
+    navigate('/stock-analytics?tab=alerts');
+  };
 
   const getDaysOfCover = (currentQty: number, dailyConsumption: number = 1) => {
     if (dailyConsumption <= 0) return Infinity;
@@ -73,7 +79,7 @@ export function StockAlertsPanel() {
               </Badge>
             )}
           </CardTitle>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleViewAllClick}>
             View All
             <ExternalLink className="w-4 h-4 ml-2" />
           </Button>

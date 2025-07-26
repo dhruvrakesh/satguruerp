@@ -23,7 +23,8 @@ import { useStockMovementExport, useStockValuationExport } from "@/hooks/useData
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
 import { useStockValuation } from "@/hooks/useStockValuation";
 import { useDeadStockAnalysis } from "@/hooks/useDeadStockAnalysis";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 export default function StockAnalytics() {
@@ -32,6 +33,15 @@ export default function StockAnalytics() {
   });
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams] = useSearchParams();
+
+  // Handle URL parameters to auto-open specific tabs
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam === 'alerts') {
+      setActiveTab('alerts');
+    }
+  }, [searchParams]);
 
   const movementExportMutation = useStockMovementExport();
   const valuationExportMutation = useStockValuationExport();
