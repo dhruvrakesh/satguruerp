@@ -12091,6 +12091,7 @@ export type Database = {
       generate_predictive_insights: {
         Args:
           | Record<PropertyKey, never>
+          | { p_prediction_type?: string }
           | { p_prediction_type?: string; p_user_id?: string }
           | { p_user_id: string; p_prediction_type?: string }
         Returns: Json
@@ -12187,7 +12188,7 @@ export type Database = {
         }[]
       }
       get_enhanced_manufacturing_context_for_ai: {
-        Args: { p_user_id: string }
+        Args: { p_user_id?: string }
         Returns: Json
       }
       get_grn_price_suggestions: {
