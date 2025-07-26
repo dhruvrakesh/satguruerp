@@ -12184,6 +12184,10 @@ export type Database = {
           preferred_language: string
         }[]
       }
+      get_enhanced_manufacturing_context_for_ai: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       get_grn_price_suggestions: {
         Args: {
           p_item_code?: string
@@ -12424,6 +12428,23 @@ export type Database = {
       is_sunday: {
         Args: { input_date: string }
         Returns: boolean
+      }
+      log_ai_intelligence_query: {
+        Args:
+          | {
+              p_query_type: string
+              p_analysis_type?: string
+              p_execution_time_ms?: number
+              p_result_count?: number
+              p_insights?: Json
+            }
+          | {
+              p_query_type: string
+              p_query_context?: Json
+              p_response_data?: Json
+              p_execution_time_ms?: number
+            }
+        Returns: string
       }
       log_audit_event_pricing: {
         Args: {

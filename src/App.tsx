@@ -35,6 +35,7 @@ import { Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import { AuthPage } from "./pages/AuthPage";
 import AIChatHub from "./pages/AIChatHub";
+import AIIntelligenceDashboard from "./pages/AIIntelligenceDashboard";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,14 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <AIChatHub />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/ai-intelligence-dashboard"
+                        element={
+                          <ProtectedRoute>
+                            <AIIntelligenceDashboard />
                           </ProtectedRoute>
                         }
                       />
