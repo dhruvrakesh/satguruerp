@@ -135,6 +135,7 @@ serve(async (req) => {
             priority: 'high',
             actionable: true,
             recommendation: 'Review and place urgent purchase orders for critical items',
+            timestamp: new Date().toISOString(),
             metadata: { affected_items: lowStockItems }
           });
         }
@@ -147,6 +148,7 @@ serve(async (req) => {
             priority: 'critical',
             actionable: true,
             recommendation: 'Immediate procurement required to prevent production delays',
+            timestamp: new Date().toISOString(),
             metadata: { out_of_stock_count: outOfStockItems }
           });
         }
@@ -159,6 +161,7 @@ serve(async (req) => {
             priority: 'medium',
             actionable: true,
             recommendation: 'Implement proactive inventory management and review reorder points',
+            timestamp: new Date().toISOString(),
             metadata: { current_score: inventoryHealthScore, target_score: 80 }
           });
         }
@@ -171,6 +174,7 @@ serve(async (req) => {
             priority: 'medium',
             actionable: true,
             recommendation: 'Analyze workflow bottlenecks and optimize process stages',
+            timestamp: new Date().toISOString(),
             metadata: { current_efficiency: processEfficiency, target_efficiency: 75 }
           });
         }
@@ -228,6 +232,7 @@ serve(async (req) => {
             priority: 'high',
             actionable: true,
             recommendation: 'Plan procurement for predicted high-demand items to avoid stockouts',
+            timestamp: new Date().toISOString(),
             metadata: { predicted_items: highPriorityItems, timeline: '2 weeks' }
           });
         }
@@ -240,6 +245,7 @@ serve(async (req) => {
             priority: 'medium',
             actionable: true,
             recommendation: 'Review consumption trends and adjust reorder points proactively',
+            timestamp: new Date().toISOString(),
             metadata: { at_risk_items: stockoutRisk }
           });
         }
@@ -252,6 +258,7 @@ serve(async (req) => {
             priority: 'medium',
             actionable: true,
             recommendation: 'Schedule maintenance during low-production periods to minimize disruption',
+            timestamp: new Date().toISOString(),
             metadata: { maintenance_items: maintenanceAlerts }
           });
         }
@@ -333,7 +340,8 @@ serve(async (req) => {
             message: `${lowEfficiencyStages.length} stages with minimal activity: ${lowEfficiencyStages.join(', ')}`,
             priority: 'medium',
             actionable: true,
-            recommendation: 'Review workflow for underutilized process stages'
+            recommendation: 'Review workflow for underutilized process stages',
+            timestamp: new Date().toISOString()
           });
         }
         break;

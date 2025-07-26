@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Enhanced AI Intelligence Service
 import { ManufacturingIntelligenceService } from '@/services/manufacturingIntelligence';
+import { CategoryIntelligenceDashboard } from './CategoryIntelligenceDashboard';
 
 interface EnhancedIntelligenceDashboardProps {
   className?: string;
@@ -318,8 +319,9 @@ export function EnhancedManufacturingIntelligenceDashboard({ className }: Enhanc
 
       {/* Enhanced Tabbed Interface */}
       <Tabs defaultValue="insights" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
+          <TabsTrigger value="categories">Category Intelligence</TabsTrigger>
           <TabsTrigger value="analytics">Advanced Analytics</TabsTrigger>
           <TabsTrigger value="predictive">Predictive Intelligence</TabsTrigger>
           <TabsTrigger value="recommendations">Smart Actions</TabsTrigger>
@@ -366,7 +368,7 @@ export function EnhancedManufacturingIntelligenceDashboard({ className }: Enhanc
                               )}
                             </div>
                             <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                              {new Date(insight.timestamp).toLocaleTimeString()}
+                              {insight.timestamp ? new Date(insight.timestamp).toLocaleTimeString() : 'Just now'}
                             </span>
                           </div>
                         </CardContent>
@@ -377,6 +379,10 @@ export function EnhancedManufacturingIntelligenceDashboard({ className }: Enhanc
               </ScrollArea>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="categories" className="space-y-4">
+          <CategoryIntelligenceDashboard />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
