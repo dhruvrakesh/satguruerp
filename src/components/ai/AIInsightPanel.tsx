@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useAIInsights } from '@/hooks/useAIInsights';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Lightbulb, 
   TrendingUp, 
@@ -29,6 +30,8 @@ export function AIInsightPanel({ insightType, className }: AIInsightPanelProps) 
     generateInsights,
     markAsRead,
   } = useAIInsights(insightType);
+  
+  const { toast } = useToast();
 
   const getInsightIcon = (type: string) => {
     switch (type) {

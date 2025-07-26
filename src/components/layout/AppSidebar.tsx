@@ -56,10 +56,6 @@ const mainOperationsItems = [
 
 const aiAssistantItems = [
   { title: "AI Chat Hub", url: "/ai-chat", icon: MessageSquare },
-  { title: "Smart Analytics", url: "/ai-analytics", icon: Brain },
-  { title: "Process Optimizer", url: "/ai-optimizer", icon: Zap },
-  { title: "Document Assistant", url: "/ai-documents", icon: FileText },
-  { title: "Training Center", url: "/ai-training", icon: BookOpen },
 ];
 
 const procurementItems = [

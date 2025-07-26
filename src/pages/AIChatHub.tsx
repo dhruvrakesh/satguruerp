@@ -196,11 +196,8 @@ export default function AIChatHub() {
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AIInsightPanel insightType="process_optimization" />
-            <AIInsightPanel insightType="quality_control" />
-            <AIInsightPanel insightType="analytics" />
-            <AIInsightPanel />
+          <div className="max-w-4xl mx-auto">
+            <AIInsightPanel className="h-96" />
           </div>
         </TabsContent>
       </Tabs>

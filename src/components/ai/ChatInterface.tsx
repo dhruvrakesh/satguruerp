@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAIChat } from '@/hooks/useAIChat';
+import { useToast } from '@/hooks/use-toast';
 import { AIMessage, AIConversation } from '@/services/aiService';
 import { Send, Plus, Archive, Edit2, Bot, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,8 @@ export function ChatInterface({
     archiveConversation,
     updateConversationTitle,
   } = useAIChat(selectedConversationId);
+  
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,8 +52,17 @@ export function ChatInterface({
     e.preventDefault();
     if (!inputMessage.trim() || isTyping) return;
 
-    await sendMessage(inputMessage, contextType);
-    setInputMessage('');
+    try {
+      await sendMessage(inputMessage, contextType);
+      setInputMessage('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast({
+        title: "Chat Error",
+        description: "Failed to send message. Please check if OpenAI API key is configured.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNewConversation = async () => {
