@@ -12091,6 +12091,7 @@ export type Database = {
       generate_predictive_insights: {
         Args:
           | Record<PropertyKey, never>
+          | { p_prediction_type?: string; p_user_id?: string }
           | { p_user_id: string; p_prediction_type?: string }
         Returns: Json
       }
@@ -12117,6 +12118,7 @@ export type Database = {
       get_advanced_manufacturing_analytics: {
         Args:
           | Record<PropertyKey, never>
+          | { p_analysis_type?: string; p_user_id?: string }
           | { p_user_id: string; p_analysis_type?: string }
         Returns: Json
       }
