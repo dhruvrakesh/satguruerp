@@ -26,6 +26,9 @@ import { useToast } from '@/hooks/use-toast';
 // Enhanced AI Intelligence Service
 import { ManufacturingIntelligenceService } from '@/services/manufacturingIntelligence';
 import { CategoryIntelligenceDashboard } from './CategoryIntelligenceDashboard';
+import { HistoricalIntelligenceBrowser } from './HistoricalIntelligenceBrowser';
+import { SessionIntelligenceTracker } from './SessionIntelligenceTracker';
+import { EnhancedCategoryIntelligenceService } from '@/services/enhancedCategoryIntelligence';
 
 interface EnhancedIntelligenceDashboardProps {
   className?: string;
@@ -319,9 +322,11 @@ export function EnhancedManufacturingIntelligenceDashboard({ className }: Enhanc
 
       {/* Enhanced Tabbed Interface */}
       <Tabs defaultValue="insights" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
           <TabsTrigger value="categories">Category Intelligence</TabsTrigger>
+          <TabsTrigger value="historical">Historical Data</TabsTrigger>
+          <TabsTrigger value="session">Session Intelligence</TabsTrigger>
           <TabsTrigger value="analytics">Advanced Analytics</TabsTrigger>
           <TabsTrigger value="predictive">Predictive Intelligence</TabsTrigger>
           <TabsTrigger value="recommendations">Smart Actions</TabsTrigger>
@@ -383,6 +388,14 @@ export function EnhancedManufacturingIntelligenceDashboard({ className }: Enhanc
 
         <TabsContent value="categories" className="space-y-4">
           <CategoryIntelligenceDashboard />
+        </TabsContent>
+
+        <TabsContent value="historical" className="space-y-4">
+          <HistoricalIntelligenceBrowser />
+        </TabsContent>
+
+        <TabsContent value="session" className="space-y-4">
+          <SessionIntelligenceTracker />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
