@@ -399,6 +399,134 @@ export type Database = {
           },
         ]
       }
+      ai_conversations: {
+        Row: {
+          context_type: string | null
+          created_at: string | null
+          id: string
+          is_archived: boolean | null
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_insights: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          data: Json | null
+          description: string | null
+          id: string
+          insight_type: string
+          is_read: boolean | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          data?: Json | null
+          description?: string | null
+          id?: string
+          insight_type: string
+          is_read?: boolean | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          data?: Json | null
+          description?: string | null
+          id?: string
+          insight_type?: string
+          is_read?: boolean | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_messages: {
+        Row: {
+          content: string
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_analytics: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string | null
+          feature_type: string
+          id: string
+          tokens_used: number | null
+          user_id: string | null
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          feature_type: string
+          id?: string
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          feature_type?: string
+          id?: string
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       albums: {
         Row: {
           artist_id: string | null
@@ -3975,8 +4103,10 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          end_date: string | null
           id: number
           notes: string | null
+          period_name: string | null
           quarter: number | null
           quarter_end_date: string
           status: string
@@ -3986,8 +4116,10 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          end_date?: string | null
           id?: number
           notes?: string | null
+          period_name?: string | null
           quarter?: number | null
           quarter_end_date: string
           status?: string
@@ -3997,8 +4129,10 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          end_date?: string | null
           id?: number
           notes?: string | null
+          period_name?: string | null
           quarter?: number | null
           quarter_end_date?: string
           status?: string
@@ -7761,6 +7895,7 @@ export type Database = {
           is_active: boolean | null
           is_approved: boolean | null
           organization_id: string
+          practice_id: string | null
           role: string | null
           updated_at: string
         }
@@ -7773,6 +7908,7 @@ export type Database = {
           is_active?: boolean | null
           is_approved?: boolean | null
           organization_id: string
+          practice_id?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -7785,6 +7921,7 @@ export type Database = {
           is_active?: boolean | null
           is_approved?: boolean | null
           organization_id?: string
+          practice_id?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -7794,6 +7931,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "dental_practices"
             referencedColumns: ["id"]
           },
         ]
@@ -9512,7 +9656,7 @@ export type Database = {
           created_at: string
           id: number
           master_item_id: number
-          period_id: number | null
+          period_id: number
           tally_ledger_name: string
           updated_at: string
         }
@@ -9520,7 +9664,7 @@ export type Database = {
           created_at?: string
           id?: number
           master_item_id: number
-          period_id?: number | null
+          period_id: number
           tally_ledger_name: string
           updated_at?: string
         }
@@ -9528,7 +9672,7 @@ export type Database = {
           created_at?: string
           id?: number
           master_item_id?: number
-          period_id?: number | null
+          period_id?: number
           tally_ledger_name?: string
           updated_at?: string
         }
@@ -10526,6 +10670,63 @@ export type Database = {
         }
         Relationships: []
       }
+      user_ratio_benchmarks: {
+        Row: {
+          benchmark_source: string | null
+          created_at: string | null
+          custom_industry_average: number | null
+          custom_target_value: number | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          organization_id: string | null
+          ratio_definition_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          benchmark_source?: string | null
+          created_at?: string | null
+          custom_industry_average?: number | null
+          custom_target_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          ratio_definition_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          benchmark_source?: string | null
+          created_at?: string | null
+          custom_industry_average?: number | null
+          custom_target_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          organization_id?: string | null
+          ratio_definition_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ratio_benchmarks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratio_benchmarks_ratio_definition_id_fkey"
+            columns: ["ratio_definition_id"]
+            isOneToOne: false
+            referencedRelation: "ratio_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string | null
@@ -11364,6 +11565,10 @@ export type Database = {
         Args: { p_uiorn: string }
         Returns: Json
       }
+      calculate_financial_ratios: {
+        Args: { p_period_id: number }
+        Returns: undefined
+      }
       calculate_order_progress: {
         Args: Record<PropertyKey, never> | { p_uiorn: string }
         Returns: {
@@ -11716,6 +11921,14 @@ export type Database = {
           pricing_details: Json
         }[]
       }
+      get_mapping_statistics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_accounts: number
+          mapped_accounts: number
+          completion_percentage: number
+        }[]
+      }
       get_next_manufacturing_stage: {
         Args: {
           p_current_status: Database["public"]["Enums"]["process_status"]
@@ -11782,6 +11995,10 @@ export type Database = {
           updated_at: string
           prompt_data: Json
         }[]
+      }
+      get_user_practice_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_valuation_analytics: {
         Args: { p_filters?: Json }

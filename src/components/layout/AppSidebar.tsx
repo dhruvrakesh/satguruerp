@@ -24,7 +24,12 @@ import {
   Users,
   RefreshCw,
   PieChart,
-  TreePine
+  TreePine,
+  Brain,
+  MessageSquare,
+  Lightbulb,
+  Zap,
+  BookOpen
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -47,6 +52,14 @@ const mainOperationsItems = [
   { title: "Specification Master", url: "/specification-master", icon: FileSpreadsheet },
   { title: "Stock Operations", url: "/stock-operations", icon: ArrowUpDown },
   { title: "Stock Summary", url: "/stock-summary", icon: ClipboardList },
+];
+
+const aiAssistantItems = [
+  { title: "AI Chat Hub", url: "/ai-chat", icon: MessageSquare },
+  { title: "Smart Analytics", url: "/ai-analytics", icon: Brain },
+  { title: "Process Optimizer", url: "/ai-optimizer", icon: Zap },
+  { title: "Document Assistant", url: "/ai-documents", icon: FileText },
+  { title: "Training Center", url: "/ai-training", icon: BookOpen },
 ];
 
 const procurementItems = [
@@ -115,6 +128,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {mainOperationsItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} end className={getNavClasses}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-3">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            {!isCollapsed && "AI Assistant"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              {aiAssistantItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavClasses}>

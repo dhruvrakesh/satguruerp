@@ -34,6 +34,7 @@ import ReorderManagement from "./pages/ReorderManagement";
 import { Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import { AuthPage } from "./pages/AuthPage";
+import AIChatHub from "./pages/AIChatHub";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,14 @@ function App() {
                   <main className="flex-1 overflow-auto">
                     <Routes>
                       <Route path="/" element={<Index />} />
+                      <Route
+                        path="/ai-chat"
+                        element={
+                          <ProtectedRoute>
+                            <AIChatHub />
+                          </ProtectedRoute>
+                        }
+                      />
                       <Route
                         path="/item-master"
                         element={
