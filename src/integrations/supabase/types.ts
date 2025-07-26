@@ -9851,6 +9851,36 @@ export type Database = {
           },
         ]
       }
+      satguru_item_pricing: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_code: string
+          item_name: string | null
+          purchase_rate: number | null
+          standard_rate: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_code: string
+          item_name?: string | null
+          purchase_rate?: number | null
+          standard_rate?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_code?: string
+          item_name?: string | null
+          purchase_rate?: number | null
+          standard_rate?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       satguru_stock: {
         Row: {
           current_qty: number
@@ -12059,7 +12089,9 @@ export type Database = {
         Returns: string
       }
       generate_predictive_insights: {
-        Args: { p_user_id: string; p_prediction_type?: string }
+        Args:
+          | Record<PropertyKey, never>
+          | { p_user_id: string; p_prediction_type?: string }
         Returns: Json
       }
       generate_valuation_item_code: {
@@ -12083,7 +12115,9 @@ export type Database = {
         }[]
       }
       get_advanced_manufacturing_analytics: {
-        Args: { p_user_id: string; p_analysis_type?: string }
+        Args:
+          | Record<PropertyKey, never>
+          | { p_user_id: string; p_analysis_type?: string }
         Returns: Json
       }
       get_artwork_items_for_selection: {
@@ -12185,7 +12219,7 @@ export type Database = {
         }[]
       }
       get_manufacturing_context_for_ai: {
-        Args: { p_user_id: string }
+        Args: Record<PropertyKey, never> | { p_user_id: string }
         Returns: Json
       }
       get_mapping_statistics: {
