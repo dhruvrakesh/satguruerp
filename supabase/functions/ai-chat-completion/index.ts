@@ -109,9 +109,12 @@ serve(async (req) => {
     
     console.log('SATGURU user profile loaded:', profile);
 
-    // Get manufacturing context for AI
+    // Get advanced manufacturing context for AI
     let manufacturingContext = {};
+    let intelligenceData = {};
+    
     try {
+      // Get basic manufacturing context
       const { data: contextData, error: contextError } = await supabase
         .rpc('get_manufacturing_context_for_ai', { p_user_id: user.id });
       
@@ -120,6 +123,20 @@ serve(async (req) => {
       } else {
         manufacturingContext = contextData || {};
         console.log('Manufacturing context loaded:', manufacturingContext);
+      }
+
+      // Get advanced analytics for AI intelligence
+      if (contextType === 'analytics' || contextType === 'manufacturing') {
+        const { data: advancedData, error: advancedError } = await supabase
+          .rpc('get_advanced_manufacturing_analytics', { 
+            p_user_id: user.id,
+            p_analysis_type: 'ai_context'
+          });
+        
+        if (!advancedError && advancedData) {
+          intelligenceData = advancedData;
+          console.log('Advanced intelligence data loaded for AI context');
+        }
       }
     } catch (error) {
       console.warn('Error loading manufacturing context:', error);
@@ -136,19 +153,25 @@ Current Context:
 
 You can help with inventory management, manufacturing processes, and business operations.`,
 
-      manufacturing: `You are an AI assistant specialized in manufacturing processes for Satguru Engravures, a flexible packaging company. You help with production planning, quality control, and process optimization.
+      manufacturing: `You are an AI Manufacturing Intelligence Assistant for Satguru Engravures, a flexible packaging company. You provide advanced analytics, process optimization, and predictive insights for manufacturing operations.
 
-Current Manufacturing Context:
-- Total Items in Inventory: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
-- Low Stock Items: ${manufacturingContext.stock_summary?.low_stock_count || 'N/A'}
-- Recent Manufacturing Orders: ${manufacturingContext.recent_orders?.length || 0}
+Current Manufacturing Intelligence:
+- Inventory Status: ${manufacturingContext.stock_summary?.total_items || 'N/A'} total items, ${manufacturingContext.stock_summary?.low_stock_count || 0} below reorder level
+- Quality Performance: ${intelligenceData?.quality_metrics?.quality_rate || 'N/A'}% pass rate
+- Process Efficiency: ${intelligenceData?.process_efficiency?.active_orders || 'N/A'} active orders
+- Bottlenecks Detected: ${intelligenceData?.process_efficiency?.bottlenecks?.length || 0} process bottlenecks
 ${manufacturingContext.low_stock_items?.length > 0 ? 
-  `\nLow Stock Alert Items:\n${manufacturingContext.low_stock_items.slice(0, 5).map(item => 
-    `- ${item.item_name} (${item.item_code}): ${item.current_qty} remaining`
+  `\nCritical Stock Alerts:\n${manufacturingContext.low_stock_items.slice(0, 3).map(item => 
+    `- ${item.item_name} (${item.item_code}): ${item.current_qty} remaining (reorder at ${item.reorder_level})`
+  ).join('\n')}` : ''
+}
+${intelligenceData?.process_efficiency?.bottlenecks?.length > 0 ? 
+  `\nProcess Bottlenecks:\n${intelligenceData.process_efficiency.bottlenecks.slice(0, 3).map(bottleneck => 
+    `- ${bottleneck.stage}: ${bottleneck.pending_count} pending, ${bottleneck.avg_wait_time?.toFixed(1)}h avg wait`
   ).join('\n')}` : ''
 }
 
-You specialize in gravure printing, lamination, slitting, and packaging operations.`,
+You provide actionable insights for gravure printing, lamination, slitting, and packaging operations. You can analyze trends, predict issues, and recommend optimizations.`,
 
       inventory: `You are an AI assistant specialized in inventory management for Satguru Engravures. You help with stock analysis, reorder suggestions, and inventory optimization.
 
@@ -164,15 +187,19 @@ ${manufacturingContext.low_stock_items?.length > 0 ?
 
 You can help analyze stock levels, suggest reorders, and optimize inventory management.`,
 
-      analytics: `You are an AI assistant specialized in data analytics for Satguru Engravures manufacturing operations. You help interpret business data, generate insights, and create meaningful reports.
+      analytics: `You are an AI Data Intelligence Specialist for Satguru Engravures manufacturing operations. You analyze real-time data, generate predictive insights, and create actionable business intelligence reports.
 
-Current Analytics Overview:
-- Total Inventory Items: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
-- Inventory Valuation: ₹${manufacturingContext.stock_summary?.total_value?.toLocaleString() || 'N/A'}
-- Active Manufacturing Orders: ${manufacturingContext.recent_orders?.length || 0}
-- Stock Efficiency: ${manufacturingContext.stock_summary?.low_stock_count > 0 ? 'Needs Attention' : 'Good'}
+Current Analytics Intelligence:
+- Inventory Analytics: ${manufacturingContext.stock_summary?.total_items || 'N/A'} items, ₹${manufacturingContext.stock_summary?.total_value?.toLocaleString() || 'N/A'} total value
+- Turnover Analysis: ${intelligenceData?.inventory_intelligence?.avg_stock_days?.toFixed(1) || 'N/A'} avg stock days
+- Process Performance: ${intelligenceData?.process_efficiency?.active_orders || 'N/A'} active orders across ${Object.keys(intelligenceData?.process_efficiency?.process_stages || {}).length} stages
+- Quality Metrics: ${intelligenceData?.quality_metrics?.quality_rate || 'N/A'}% overall quality rate
+- Efficiency Score: ${manufacturingContext.stock_summary?.low_stock_count > 0 ? 'Optimization Needed' : 'Performing Well'}
+${intelligenceData?.inventory_intelligence?.high_value_items > 0 ? 
+  `\nHigh-Value Inventory: ${intelligenceData.inventory_intelligence.high_value_items} items >₹1L each` : ''
+}
 
-You can help analyze manufacturing KPIs, inventory turnover, production efficiency, and generate business insights.`
+You provide deep analytics on manufacturing KPIs, predictive forecasting, inventory optimization, cost analysis, and ROI calculations. You can identify patterns, anomalies, and growth opportunities.`
     };
 
     const systemMessage = {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChatInterface } from '@/components/ai/ChatInterface';
 import { AIInsightPanel } from '@/components/ai/AIInsightPanel';
+import { ManufacturingIntelligenceDashboard } from '@/components/ai/ManufacturingIntelligenceDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -196,9 +197,7 @@ export default function AIChatHub() {
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4">
-          <div className="max-w-4xl mx-auto">
-            <AIInsightPanel className="h-96" />
-          </div>
+          <ManufacturingIntelligenceDashboard />
         </TabsContent>
       </Tabs>
     </div>

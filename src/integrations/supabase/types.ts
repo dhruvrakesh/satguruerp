@@ -9260,6 +9260,56 @@ export type Database = {
           },
         ]
       }
+      satguru_ai_intelligence_queries: {
+        Row: {
+          analysis_results: Json | null
+          confidence_score: number | null
+          created_at: string | null
+          execution_time_ms: number | null
+          id: string
+          insights: Json | null
+          organization_id: string | null
+          query_parameters: Json | null
+          query_type: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          analysis_results?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          insights?: Json | null
+          organization_id?: string | null
+          query_parameters?: Json | null
+          query_type: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          analysis_results?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          insights?: Json | null
+          organization_id?: string | null
+          query_parameters?: Json | null
+          query_type?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_intelligence_queries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       satguru_ai_messages: {
         Row: {
           content: string
@@ -12008,6 +12058,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_predictive_insights: {
+        Args: { p_user_id: string; p_prediction_type?: string }
+        Returns: Json
+      }
       generate_valuation_item_code: {
         Args: {
           p_category_name: string
@@ -12027,6 +12081,10 @@ export type Database = {
           status: string
           usage_type: string
         }[]
+      }
+      get_advanced_manufacturing_analytics: {
+        Args: { p_user_id: string; p_analysis_type?: string }
+        Returns: Json
       }
       get_artwork_items_for_selection: {
         Args: Record<PropertyKey, never>
