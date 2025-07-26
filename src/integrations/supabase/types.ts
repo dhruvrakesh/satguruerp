@@ -12092,8 +12092,12 @@ export type Database = {
         Args:
           | Record<PropertyKey, never>
           | { p_prediction_type: string; p_user_id?: string }
-          | { p_user_id: string; p_prediction_type?: string }
-        Returns: Json
+        Returns: {
+          insight_type: string
+          insight_message: string
+          confidence_score: number
+          metadata: Json
+        }[]
       }
       generate_valuation_item_code: {
         Args: {
@@ -12119,8 +12123,14 @@ export type Database = {
         Args:
           | Record<PropertyKey, never>
           | { p_analysis_type: string; p_user_id?: string }
-          | { p_user_id: string; p_analysis_type?: string }
-        Returns: Json
+        Returns: {
+          metric_name: string
+          metric_value: number
+          metric_unit: string
+          trend_direction: string
+          insight_message: string
+          metadata: Json
+        }[]
       }
       get_artwork_items_for_selection: {
         Args: Record<PropertyKey, never>
