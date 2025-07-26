@@ -12089,9 +12089,7 @@ export type Database = {
         Returns: string
       }
       generate_predictive_insights: {
-        Args:
-          | Record<PropertyKey, never>
-          | { p_prediction_type: string; p_user_id?: string }
+        Args: { p_prediction_type?: string; p_user_id?: string }
         Returns: {
           insight_type: string
           insight_message: string
@@ -12120,16 +12118,17 @@ export type Database = {
         }[]
       }
       get_advanced_manufacturing_analytics: {
-        Args:
-          | Record<PropertyKey, never>
-          | { p_analysis_type: string; p_user_id?: string }
+        Args: { p_analysis_type?: string; p_user_id?: string }
         Returns: {
-          metric_name: string
-          metric_value: number
-          metric_unit: string
-          trend_direction: string
-          insight_message: string
-          metadata: Json
+          total_items: number
+          low_stock_items: number
+          out_of_stock_items: number
+          total_inventory_value: number
+          average_stock_level: number
+          stock_turnover_rate: number
+          critical_reorder_items: number
+          excess_stock_items: number
+          analysis_timestamp: string
         }[]
       }
       get_artwork_items_for_selection: {
