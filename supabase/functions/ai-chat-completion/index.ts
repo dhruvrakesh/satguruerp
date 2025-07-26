@@ -8,45 +8,86 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('AI Chat Completion function called:', req.method, req.url);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log('Starting ai-chat-completion function');
+    
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    console.log('OpenAI API Key configured:', !!openAIApiKey);
+    
     if (!openAIApiKey) {
+      console.error('OPENAI_API_KEY is not configured');
       throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('Supabase URL configured:', !!supabaseUrl);
+    console.log('Supabase Service Role Key configured:', !!supabaseKey);
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log('Request body parsed successfully');
+    } catch (error) {
+      console.error('Failed to parse request body:', error);
+      throw new Error('Invalid JSON in request body');
+    }
 
     const { 
       messages, 
       conversationId, 
       contextType = 'general',
-      model = 'gpt-4o-mini',
+      model = 'gpt-4.1-2025-04-14',
       temperature = 0.7 
-    } = await req.json();
+    } = requestBody;
+    
+    console.log('Request params:', { 
+      messageCount: messages?.length, 
+      conversationId, 
+      contextType, 
+      model 
+    });
 
     if (!messages || !Array.isArray(messages)) {
+      console.error('Invalid messages array:', messages);
       throw new Error('Messages array is required');
     }
 
     // Get user from auth token
     const authHeader = req.headers.get('authorization');
+    console.log('Auth header present:', !!authHeader);
+    
     if (!authHeader) {
+      console.error('No authorization header found');
       throw new Error('Authorization header is required');
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('Attempting to get user with token');
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError || !user) {
+    if (authError) {
+      console.error('Auth error:', authError);
+      throw new Error(`Authentication failed: ${authError.message}`);
+    }
+    
+    if (!user) {
+      console.error('No user found');
       throw new Error('Invalid authentication token');
     }
+    
+    console.log('User authenticated:', user.id);
 
     // Add system context based on contextType
     const systemMessages = {
@@ -65,19 +106,27 @@ serve(async (req) => {
 
     // Make OpenAI API call
     console.log('Making OpenAI API call with model:', model);
+    console.log('Message count for OpenAI:', fullMessages.length);
+    
+    const openAIPayload = {
+      model,
+      messages: fullMessages,
+      temperature,
+      max_tokens: 1000,
+    };
+    
+    console.log('OpenAI request payload:', JSON.stringify(openAIPayload, null, 2));
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        messages: fullMessages,
-        temperature,
-        max_tokens: 1000,
-      }),
+      body: JSON.stringify(openAIPayload),
     });
+    
+    console.log('OpenAI response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -164,8 +213,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in ai-chat-completion function:', error);
+    console.error('Error stack:', error.stack);
+    
     return new Response(JSON.stringify({ 
-      error: error.message 
+      error: error.message,
+      type: error.constructor.name,
+      timestamp: new Date().toISOString()
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
