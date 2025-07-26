@@ -59,11 +59,11 @@ export class AIService {
   }
 
   /**
-   * Get all conversations for the current user
+   * Get all SATGURU conversations for the current user
    */
   static async getConversations(): Promise<AIConversation[]> {
     const { data, error } = await supabase
-      .from('ai_conversations')
+      .from('satguru_ai_conversations')
       .select('*')
       .eq('is_archived', false)
       .order('updated_at', { ascending: false });
@@ -76,11 +76,11 @@ export class AIService {
   }
 
   /**
-   * Get messages for a specific conversation
+   * Get messages for a specific SATGURU conversation
    */
   static async getConversationMessages(conversationId: string): Promise<AIMessage[]> {
     const { data, error } = await supabase
-      .from('ai_messages')
+      .from('satguru_ai_messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
@@ -97,17 +97,25 @@ export class AIService {
   }
 
   /**
-   * Create a new conversation
+   * Create a new SATGURU conversation
    */
   static async createConversation(
     title: string,
     contextType: string = 'general'
   ): Promise<AIConversation> {
+    // Get user's organization
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .single();
+
     const { data, error } = await supabase
-      .from('ai_conversations')
+      .from('satguru_ai_conversations')
       .insert({
         title,
-        context_type: contextType
+        context_type: contextType,
+        organization_id: profile?.organization_id,
+        manufacturing_context: {},
       })
       .select()
       .single();
@@ -120,11 +128,11 @@ export class AIService {
   }
 
   /**
-   * Update conversation title
+   * Update SATGURU conversation title
    */
   static async updateConversationTitle(conversationId: string, title: string) {
     const { error } = await supabase
-      .from('ai_conversations')
+      .from('satguru_ai_conversations')
       .update({ title })
       .eq('id', conversationId);
 
@@ -134,11 +142,11 @@ export class AIService {
   }
 
   /**
-   * Archive a conversation
+   * Archive a SATGURU conversation
    */
   static async archiveConversation(conversationId: string) {
     const { error } = await supabase
-      .from('ai_conversations')
+      .from('satguru_ai_conversations')
       .update({ is_archived: true })
       .eq('id', conversationId);
 
@@ -148,11 +156,11 @@ export class AIService {
   }
 
   /**
-   * Get AI insights for the current user
+   * Get SATGURU AI insights for the current user
    */
   static async getInsights(insightType?: string): Promise<AIInsight[]> {
     let query = supabase
-      .from('ai_insights')
+      .from('satguru_ai_insights')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -173,11 +181,11 @@ export class AIService {
   }
 
   /**
-   * Mark an insight as read
+   * Mark a SATGURU insight as read
    */
   static async markInsightAsRead(insightId: string) {
     const { error } = await supabase
-      .from('ai_insights')
+      .from('satguru_ai_insights')
       .update({ is_read: true })
       .eq('id', insightId);
 
@@ -187,40 +195,100 @@ export class AIService {
   }
 
   /**
-   * Generate manufacturing insights based on current data
+   * Generate SATGURU manufacturing insights based on current data
    */
   static async generateManufacturingInsights() {
-    // This would analyze manufacturing data and generate insights
-    // For now, return a placeholder implementation
-    const insights = [
-      {
-        insight_type: 'process_optimization',
-        title: 'Gravure Printing Efficiency',
-        description: 'Consider optimizing print speed for better throughput',
-        data: { 
-          current_efficiency: 78, 
-          target_efficiency: 85,
-          improvement_potential: '9% throughput increase'
-        },
-        confidence_score: 0.85
-      },
-      {
-        insight_type: 'quality_control',
-        title: 'Color Consistency Alert',
-        description: 'Recent color measurements show variance in Cyan values',
-        data: {
-          affected_orders: 3,
-          variance_percentage: 12,
-          recommended_action: 'Recalibrate spectrophotometer'
-        },
-        confidence_score: 0.92
-      }
-    ];
+    // Get user's organization
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .single();
 
-    // Insert insights into database
+    // Get real manufacturing context for insights
+    const { data: manufacturingContext } = await supabase
+      .rpc('get_manufacturing_context_for_ai', { 
+        p_user_id: (await supabase.auth.getUser()).data.user?.id 
+      });
+
+    // Type the manufacturing context properly
+    const context = manufacturingContext as any;
+
+    // Generate real insights based on manufacturing data
+    const insights = [];
+
+    // Stock optimization insight
+    if (context?.stock_summary?.low_stock_count > 0) {
+      insights.push({
+        insight_type: 'inventory_optimization',
+        title: 'Low Stock Alert',
+        description: `${context.stock_summary.low_stock_count} items below reorder level`,
+        data: {
+          low_stock_count: context.stock_summary.low_stock_count,
+          total_items: context.stock_summary.total_items,
+          affected_items: context.low_stock_items?.slice(0, 3) || [],
+          recommended_action: 'Review and place purchase orders for critical items'
+        },
+        confidence_score: 0.95,
+        manufacturing_context: context
+      });
+    }
+
+    // Process efficiency insight
+    if (context?.recent_orders?.length > 0) {
+      insights.push({
+        insight_type: 'process_efficiency',
+        title: 'Production Activity',
+        description: `${context.recent_orders.length} active manufacturing orders`,
+        data: {
+          active_orders: context.recent_orders.length,
+          recent_orders: context.recent_orders.slice(0, 5),
+          recommended_action: 'Monitor order progress and optimize workflow'
+        },
+        confidence_score: 0.88,
+        manufacturing_context: context
+      });
+    }
+
+    // Cost analysis insight
+    if (context?.stock_summary?.total_value) {
+      insights.push({
+        insight_type: 'cost_analysis',
+        title: 'Inventory Valuation',
+        description: `Total inventory value: ₹${context.stock_summary.total_value.toLocaleString()}`,
+        data: {
+          total_value: context.stock_summary.total_value,
+          inventory_turnover: 'Monitor for optimal turnover',
+          recommended_action: 'Analyze slow-moving items to reduce carrying costs'
+        },
+        confidence_score: 0.82,
+        manufacturing_context: context
+      });
+    }
+
+    if (insights.length === 0) {
+      // Fallback insights if no data available
+      insights.push({
+        insight_type: 'process_optimization',
+        title: 'System Ready',
+        description: 'AI analytics ready to provide insights as data becomes available',
+        data: {
+          status: 'ready',
+          recommended_action: 'Continue operations and data collection'
+        },
+        confidence_score: 0.75,
+        manufacturing_context: {}
+      });
+    }
+
+    // Insert insights into SATGURU database
+    const insightRecords = insights.map(insight => ({
+      ...insight,
+      organization_id: profile?.organization_id
+    }));
+
     const { error } = await supabase
-      .from('ai_insights')
-      .insert(insights);
+      .from('satguru_ai_insights')
+      .insert(insightRecords);
 
     if (error) {
       throw new Error(`Failed to generate insights: ${error.message}`);
@@ -230,11 +298,11 @@ export class AIService {
   }
 
   /**
-   * Get usage analytics for the current user
+   * Get SATGURU usage analytics for the current user
    */
   static async getUsageAnalytics() {
     const { data, error } = await supabase
-      .from('ai_usage_analytics')
+      .from('satguru_ai_usage_analytics')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);

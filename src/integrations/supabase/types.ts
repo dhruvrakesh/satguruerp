@@ -9134,6 +9134,211 @@ export type Database = {
           },
         ]
       }
+      satguru_ai_context_data: {
+        Row: {
+          context_data: Json
+          context_type: string
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          context_data?: Json
+          context_type: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          context_data?: Json
+          context_type?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_context_data_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satguru_ai_conversations: {
+        Row: {
+          context_type: string | null
+          created_at: string | null
+          id: string
+          is_archived: boolean | null
+          manufacturing_context: Json | null
+          organization_id: string | null
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          manufacturing_context?: Json | null
+          organization_id?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          context_type?: string | null
+          created_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          manufacturing_context?: Json | null
+          organization_id?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satguru_ai_insights: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          data: Json | null
+          description: string | null
+          id: string
+          insight_type: string
+          is_read: boolean | null
+          manufacturing_context: Json | null
+          organization_id: string | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          data?: Json | null
+          description?: string | null
+          id?: string
+          insight_type: string
+          is_read?: boolean | null
+          manufacturing_context?: Json | null
+          organization_id?: string | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          data?: Json | null
+          description?: string | null
+          id?: string
+          insight_type?: string
+          is_read?: boolean | null
+          manufacturing_context?: Json | null
+          organization_id?: string | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_insights_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satguru_ai_messages: {
+        Row: {
+          content: string
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          manufacturing_data: Json | null
+          metadata: Json | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          manufacturing_data?: Json | null
+          metadata?: Json | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          manufacturing_data?: Json | null
+          metadata?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "satguru_ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satguru_ai_usage_analytics: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string | null
+          feature_type: string
+          id: string
+          organization_id: string | null
+          session_data: Json | null
+          tokens_used: number | null
+          user_id: string | null
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          feature_type: string
+          id?: string
+          organization_id?: string | null
+          session_data?: Json | null
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          feature_type?: string
+          id?: string
+          organization_id?: string | null
+          session_data?: Json | null
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satguru_ai_usage_analytics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       satguru_categories: {
         Row: {
           business_rules: Json | null
@@ -11920,6 +12125,10 @@ export type Database = {
           last_updated: string
           pricing_details: Json
         }[]
+      }
+      get_manufacturing_context_for_ai: {
+        Args: { p_user_id: string }
+        Returns: Json
       }
       get_mapping_statistics: {
         Args: Record<PropertyKey, never>

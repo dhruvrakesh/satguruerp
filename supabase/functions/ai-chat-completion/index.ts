@@ -89,12 +89,90 @@ serve(async (req) => {
     
     console.log('User authenticated:', user.id);
 
-    // Add system context based on contextType
+    // Make sure user has valid SATGURU org
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id, organizations!inner(code)')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Profile error:', profileError);
+      throw new Error('User profile not found');
+    }
+    
+    // Verify user is from SATGURU organization
+    if (profile.organizations.code !== 'SATGURU') {
+      console.error('User not authorized for SATGURU AI:', profile.organizations.code);
+      throw new Error('Access denied: SATGURU organization required');
+    }
+    
+    console.log('SATGURU user profile loaded:', profile);
+
+    // Get manufacturing context for AI
+    let manufacturingContext = {};
+    try {
+      const { data: contextData, error: contextError } = await supabase
+        .rpc('get_manufacturing_context_for_ai', { p_user_id: user.id });
+      
+      if (contextError) {
+        console.warn('Failed to get manufacturing context:', contextError);
+      } else {
+        manufacturingContext = contextData || {};
+        console.log('Manufacturing context loaded:', manufacturingContext);
+      }
+    } catch (error) {
+      console.warn('Error loading manufacturing context:', error);
+    }
+
+    // Add system context based on contextType with manufacturing data
     const systemMessages = {
-      general: "You are a helpful AI assistant for a manufacturing ERP system. You help with general questions and provide guidance on using the system effectively.",
-      manufacturing: "You are an AI assistant specialized in manufacturing processes. You help with production planning, quality control, and process optimization in a flexible packaging manufacturing environment.",
-      inventory: "You are an AI assistant specialized in inventory management. You help with stock analysis, reorder suggestions, and inventory optimization.",
-      analytics: "You are an AI assistant specialized in data analytics. You help interpret business data, generate insights, and create meaningful reports."
+      general: `You are a helpful AI assistant for Satguru Engravures, a flexible packaging manufacturing company. You help with general questions and provide guidance on using the ERP system effectively.
+
+Current Context:
+- Total Items in Inventory: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
+- Low Stock Items: ${manufacturingContext.stock_summary?.low_stock_count || 'N/A'}
+- Recent Orders: ${manufacturingContext.recent_orders?.length || 0}
+
+You can help with inventory management, manufacturing processes, and business operations.`,
+
+      manufacturing: `You are an AI assistant specialized in manufacturing processes for Satguru Engravures, a flexible packaging company. You help with production planning, quality control, and process optimization.
+
+Current Manufacturing Context:
+- Total Items in Inventory: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
+- Low Stock Items: ${manufacturingContext.stock_summary?.low_stock_count || 'N/A'}
+- Recent Manufacturing Orders: ${manufacturingContext.recent_orders?.length || 0}
+${manufacturingContext.low_stock_items?.length > 0 ? 
+  `\nLow Stock Alert Items:\n${manufacturingContext.low_stock_items.slice(0, 5).map(item => 
+    `- ${item.item_name} (${item.item_code}): ${item.current_qty} remaining`
+  ).join('\n')}` : ''
+}
+
+You specialize in gravure printing, lamination, slitting, and packaging operations.`,
+
+      inventory: `You are an AI assistant specialized in inventory management for Satguru Engravures. You help with stock analysis, reorder suggestions, and inventory optimization.
+
+Current Inventory Status:
+- Total Items: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
+- Low Stock Items: ${manufacturingContext.stock_summary?.low_stock_count || 'N/A'}
+- Total Inventory Value: ₹${manufacturingContext.stock_summary?.total_value?.toLocaleString() || 'N/A'}
+${manufacturingContext.low_stock_items?.length > 0 ? 
+  `\nItems Needing Attention:\n${manufacturingContext.low_stock_items.slice(0, 5).map(item => 
+    `- ${item.item_name} (${item.item_code}): ${item.current_qty} units (Reorder at: ${item.reorder_level})`
+  ).join('\n')}` : ''
+}
+
+You can help analyze stock levels, suggest reorders, and optimize inventory management.`,
+
+      analytics: `You are an AI assistant specialized in data analytics for Satguru Engravures manufacturing operations. You help interpret business data, generate insights, and create meaningful reports.
+
+Current Analytics Overview:
+- Total Inventory Items: ${manufacturingContext.stock_summary?.total_items || 'N/A'}
+- Inventory Valuation: ₹${manufacturingContext.stock_summary?.total_value?.toLocaleString() || 'N/A'}
+- Active Manufacturing Orders: ${manufacturingContext.recent_orders?.length || 0}
+- Stock Efficiency: ${manufacturingContext.stock_summary?.low_stock_count > 0 ? 'Needs Attention' : 'Good'}
+
+You can help analyze manufacturing KPIs, inventory turnover, production efficiency, and generate business insights.`
     };
 
     const systemMessage = {
@@ -137,36 +215,40 @@ serve(async (req) => {
     const data = await response.json();
     const assistantMessage = data.choices[0].message;
 
-    // Save conversation to database
+    // Save conversation to SATGURU database
     let savedConversationId = conversationId;
     
     if (!savedConversationId) {
-      // Create new conversation
+      // Create new SATGURU conversation
       const { data: newConversation, error: convError } = await supabase
-        .from('ai_conversations')
+        .from('satguru_ai_conversations')
         .insert({
           user_id: user.id,
-          title: messages[0]?.content?.substring(0, 50) || 'New Chat',
-          context_type: contextType
+          organization_id: profile.organization_id,
+          title: messages[0]?.content?.substring(0, 50) || 'New Manufacturing Chat',
+          context_type: contextType,
+          manufacturing_context: manufacturingContext
         })
         .select('id')
         .single();
 
       if (convError) {
-        console.error('Error creating conversation:', convError);
+        console.error('Error creating SATGURU conversation:', convError);
         throw new Error('Failed to create conversation');
       }
 
       savedConversationId = newConversation.id;
+      console.log('New SATGURU conversation created:', savedConversationId);
     }
 
-    // Save user message and assistant response
+    // Save user message and assistant response to SATGURU tables
     const messagesToSave = [
       {
         conversation_id: savedConversationId,
         role: messages[messages.length - 1].role,
         content: messages[messages.length - 1].content,
-        metadata: { timestamp: new Date().toISOString() }
+        metadata: { timestamp: new Date().toISOString() },
+        manufacturing_data: manufacturingContext
       },
       {
         conversation_id: savedConversationId,
@@ -176,27 +258,50 @@ serve(async (req) => {
           model,
           tokens_used: data.usage?.total_tokens || 0,
           finish_reason: data.choices[0].finish_reason
-        }
+        },
+        manufacturing_data: manufacturingContext
       }
     ];
 
     const { error: messageError } = await supabase
-      .from('ai_messages')
+      .from('satguru_ai_messages')
       .insert(messagesToSave);
 
     if (messageError) {
-      console.error('Error saving messages:', messageError);
+      console.error('Error saving SATGURU messages:', messageError);
       // Don't throw error here, just log it
     }
 
-    // Log usage analytics
+    // Store manufacturing context data
+    if (Object.keys(manufacturingContext).length > 0) {
+      const { error: contextError } = await supabase
+        .from('satguru_ai_context_data')
+        .insert({
+          conversation_id: savedConversationId,
+          context_type: 'stock_levels',
+          context_data: manufacturingContext
+        });
+
+      if (contextError) {
+        console.error('Error saving context data:', contextError);
+      }
+    }
+
+    // Log usage analytics to SATGURU table
     const { error: usageError } = await supabase
-      .from('ai_usage_analytics')
+      .from('satguru_ai_usage_analytics')
       .insert({
         user_id: user.id,
+        organization_id: profile.organization_id,
         feature_type: 'chat',
         tokens_used: data.usage?.total_tokens || 0,
-        cost_estimate: (data.usage?.total_tokens || 0) * 0.0001 // Rough estimate
+        cost_estimate: (data.usage?.total_tokens || 0) * 0.0001, // Rough estimate
+        session_data: {
+          model,
+          context_type: contextType,
+          message_count: messages.length,
+          manufacturing_context_available: Object.keys(manufacturingContext).length > 0
+        }
       });
 
     if (usageError) {
