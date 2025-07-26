@@ -465,6 +465,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_intelligence_snapshots: {
+        Row: {
+          actionable_items: number | null
+          category_analysis: Json
+          created_at: string | null
+          critical_alerts: number | null
+          cross_correlations: Json
+          executive_summary: Json
+          id: string
+          inventory_health_score: number | null
+          material_insights: Json
+          organization_id: string | null
+          outliers_detected: Json
+          overall_intelligence_score: number | null
+          process_efficiency_score: number | null
+          quality_score: number | null
+          snapshot_date: string
+          total_insights: number | null
+          user_id: string | null
+        }
+        Insert: {
+          actionable_items?: number | null
+          category_analysis?: Json
+          created_at?: string | null
+          critical_alerts?: number | null
+          cross_correlations?: Json
+          executive_summary?: Json
+          id?: string
+          inventory_health_score?: number | null
+          material_insights?: Json
+          organization_id?: string | null
+          outliers_detected?: Json
+          overall_intelligence_score?: number | null
+          process_efficiency_score?: number | null
+          quality_score?: number | null
+          snapshot_date?: string
+          total_insights?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          actionable_items?: number | null
+          category_analysis?: Json
+          created_at?: string | null
+          critical_alerts?: number | null
+          cross_correlations?: Json
+          executive_summary?: Json
+          id?: string
+          inventory_health_score?: number | null
+          material_insights?: Json
+          organization_id?: string | null
+          outliers_detected?: Json
+          overall_intelligence_score?: number | null
+          process_efficiency_score?: number | null
+          quality_score?: number | null
+          snapshot_date?: string
+          total_insights?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ai_messages: {
         Row: {
           content: string
@@ -6011,6 +6071,57 @@ export type Database = {
         }
         Relationships: []
       }
+      material_intelligence_rules: {
+        Row: {
+          accuracy_score: number | null
+          actions: Json
+          conditions: Json
+          created_at: string | null
+          created_by: string | null
+          critical_threshold: number | null
+          id: string
+          is_active: boolean | null
+          material_category: string
+          rule_config: Json
+          rule_type: string
+          trigger_count: number | null
+          updated_at: string | null
+          warning_threshold: number | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          actions?: Json
+          conditions?: Json
+          created_at?: string | null
+          created_by?: string | null
+          critical_threshold?: number | null
+          id?: string
+          is_active?: boolean | null
+          material_category: string
+          rule_config?: Json
+          rule_type: string
+          trigger_count?: number | null
+          updated_at?: string | null
+          warning_threshold?: number | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          actions?: Json
+          conditions?: Json
+          created_at?: string | null
+          created_by?: string | null
+          critical_threshold?: number | null
+          id?: string
+          is_active?: boolean | null
+          material_category?: string
+          rule_config?: Json
+          rule_type?: string
+          trigger_count?: number | null
+          updated_at?: string | null
+          warning_threshold?: number | null
+        }
+        Relationships: []
+      }
       material_selection: {
         Row: {
           alternative_materials: Json | null
@@ -6825,6 +6936,69 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      outlier_detection_log: {
+        Row: {
+          created_at: string | null
+          current_value: number | null
+          detection_date: string
+          deviation_percentage: number | null
+          expected_value: number | null
+          id: string
+          impact_assessment: string | null
+          item_code: string
+          material_category: string
+          outlier_description: string | null
+          outlier_type: string
+          recommended_action: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string | null
+          z_score: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_value?: number | null
+          detection_date?: string
+          deviation_percentage?: number | null
+          expected_value?: number | null
+          id?: string
+          impact_assessment?: string | null
+          item_code: string
+          material_category: string
+          outlier_description?: string | null
+          outlier_type: string
+          recommended_action?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string | null
+          z_score?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          current_value?: number | null
+          detection_date?: string
+          deviation_percentage?: number | null
+          expected_value?: number | null
+          id?: string
+          impact_assessment?: string | null
+          item_code?: string
+          material_category?: string
+          outlier_description?: string | null
+          outlier_type?: string
+          recommended_action?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string | null
+          z_score?: number | null
         }
         Relationships: []
       }
@@ -9263,40 +9437,55 @@ export type Database = {
       satguru_ai_intelligence_queries: {
         Row: {
           analysis_results: Json | null
+          category_focus: string | null
           confidence_score: number | null
+          correlations_found: Json | null
           created_at: string | null
           execution_time_ms: number | null
           id: string
           insights: Json | null
+          material_specific_insights: Json | null
           organization_id: string | null
+          outliers_count: number | null
           query_parameters: Json | null
           query_type: string
+          session_id: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
           analysis_results?: Json | null
+          category_focus?: string | null
           confidence_score?: number | null
+          correlations_found?: Json | null
           created_at?: string | null
           execution_time_ms?: number | null
           id?: string
           insights?: Json | null
+          material_specific_insights?: Json | null
           organization_id?: string | null
+          outliers_count?: number | null
           query_parameters?: Json | null
           query_type: string
+          session_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
           analysis_results?: Json | null
+          category_focus?: string | null
           confidence_score?: number | null
+          correlations_found?: Json | null
           created_at?: string | null
           execution_time_ms?: number | null
           id?: string
           insights?: Json | null
+          material_specific_insights?: Json | null
           organization_id?: string | null
+          outliers_count?: number | null
           query_parameters?: Json | null
           query_type?: string
+          session_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -10916,6 +11105,54 @@ export type Database = {
         }
         Relationships: []
       }
+      user_intelligence_sessions: {
+        Row: {
+          bookmarked_items: string[] | null
+          created_at: string | null
+          custom_thresholds: Json
+          feedback_data: Json
+          id: string
+          interaction_history: Json
+          last_active: string | null
+          notification_preferences: Json
+          organization_id: string | null
+          preferred_categories: string[] | null
+          updated_at: string | null
+          user_id: string
+          viewed_insights: string[] | null
+        }
+        Insert: {
+          bookmarked_items?: string[] | null
+          created_at?: string | null
+          custom_thresholds?: Json
+          feedback_data?: Json
+          id?: string
+          interaction_history?: Json
+          last_active?: string | null
+          notification_preferences?: Json
+          organization_id?: string | null
+          preferred_categories?: string[] | null
+          updated_at?: string | null
+          user_id: string
+          viewed_insights?: string[] | null
+        }
+        Update: {
+          bookmarked_items?: string[] | null
+          created_at?: string | null
+          custom_thresholds?: Json
+          feedback_data?: Json
+          id?: string
+          interaction_history?: Json
+          last_active?: string | null
+          notification_preferences?: Json
+          organization_id?: string | null
+          preferred_categories?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+          viewed_insights?: string[] | null
+        }
+        Relationships: []
+      }
       user_jobs: {
         Row: {
           created_at: string | null
@@ -11958,6 +12195,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      create_daily_intelligence_snapshot: {
+        Args: {
+          p_user_id: string
+          p_organization_id: string
+          p_category_analysis?: Json
+          p_material_insights?: Json
+          p_outliers?: Json
+          p_correlations?: Json
+          p_summary?: Json
+        }
+        Returns: string
+      }
       create_manufacturing_order_with_artwork: {
         Args: { p_order_data: Json; p_selected_items: Json }
         Returns: Json
@@ -11992,6 +12241,10 @@ export type Database = {
           deviation_factor: number
           anomaly_type: string
         }[]
+      }
+      detect_material_outliers: {
+        Args: { p_material_category: string; p_lookback_days?: number }
+        Returns: Json
       }
       enhanced_employee_lookup: {
         Args: { p_employee_identifier: string }
