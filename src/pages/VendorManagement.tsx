@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { VendorCreationForm } from "@/components/procurement/VendorCreationForm";
 import { SupplierBulkUpload } from "@/components/procurement/SupplierBulkUpload";
+import { VendorDetailDialog } from "@/components/procurement/VendorDetailDialog";
 
 const VendorManagement = () => {
   const { suppliers, loading } = usePurchaseOrders();
@@ -33,6 +34,8 @@ const VendorManagement = () => {
   const [showCreateVendor, setShowCreateVendor] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [showVendorDetail, setShowVendorDetail] = useState(false);
+  const [showEditVendor, setShowEditVendor] = useState(false);
 
   const filteredSuppliers = suppliers.filter(supplier => {
     const matchesSearch = supplier.supplier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -78,6 +81,22 @@ const VendorManagement = () => {
   const handleVendorCreated = () => {
     setShowCreateVendor(false);
     // The form will handle query invalidation
+  };
+
+  const handleVendorUpdated = () => {
+    setShowEditVendor(false);
+    setSelectedVendor(null);
+    // The form will handle query invalidation
+  };
+
+  const handleViewVendor = (vendor: any) => {
+    setSelectedVendor(vendor);
+    setShowVendorDetail(true);
+  };
+
+  const handleEditVendor = (vendor: any) => {
+    setSelectedVendor(vendor);
+    setShowEditVendor(true);
   };
 
   if (loading) {
@@ -308,10 +327,18 @@ const VendorManagement = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleViewVendor(supplier)}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditVendor(supplier)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
                       </div>
@@ -328,6 +355,28 @@ const VendorManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Vendor Detail Dialog */}
+      <VendorDetailDialog
+        open={showVendorDetail}
+        onOpenChange={setShowVendorDetail}
+        vendor={selectedVendor}
+      />
+
+      {/* Edit Vendor Dialog */}
+      <Dialog open={showEditVendor} onOpenChange={setShowEditVendor}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Vendor</DialogTitle>
+          </DialogHeader>
+          <VendorCreationForm 
+            mode="edit"
+            initialData={selectedVendor}
+            onSuccess={handleVendorUpdated}
+            onCancel={() => setShowEditVendor(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Upload Dialog */}
       <SupplierBulkUpload 

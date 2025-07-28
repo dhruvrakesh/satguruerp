@@ -16,6 +16,7 @@ import { Building2, MapPin, Phone, Mail, CreditCard, Star, Package } from "lucid
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useVendorMutations } from "@/hooks/useVendorMutations";
 
 const vendorSchema = z.object({
   supplier_name: z.string().min(2, "Supplier name must be at least 2 characters"),
@@ -45,6 +46,8 @@ type VendorFormData = z.infer<typeof vendorSchema>;
 interface VendorCreationFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  initialData?: any;
+  mode?: 'create' | 'edit';
 }
 
 const SUPPLIER_TYPES = [
@@ -82,10 +85,29 @@ const QUALITY_CERTIFICATIONS = [
   "Other",
 ];
 
-export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormProps) {
-  const [selectedMaterialCategories, setSelectedMaterialCategories] = useState<string[]>([]);
-  const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'create' }: VendorCreationFormProps) {
+  const [selectedMaterialCategories, setSelectedMaterialCategories] = useState<string[]>(
+    initialData?.material_categories || []
+  );
+  const [selectedCertifications, setSelectedCertifications] = useState<string[]>(
+    initialData?.certifications || []
+  );
   const queryClient = useQueryClient();
+  const { updateVendor } = useVendorMutations();
+
+  // Parse address from initialData if it exists
+  const parseInitialAddress = (address: any) => {
+    if (typeof address === 'string') return { address };
+    if (address && typeof address === 'object') {
+      return {
+        address: address.street || '',
+        city: address.city || '',
+        state: address.state || '',
+        pincode: address.postal_code || '',
+      };
+    }
+    return {};
+  };
 
   const {
     register,
@@ -96,10 +118,22 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
   } = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
     defaultValues: {
-      performance_rating: 75,
-      lead_time_days: 7,
-      material_categories: [],
-      certifications: [],
+      supplier_name: initialData?.supplier_name || '',
+      supplier_type: initialData?.supplier_type || undefined,
+      category: initialData?.category || undefined,
+      contact_person: initialData?.contact_person || '',
+      email: initialData?.email || '',
+      phone: initialData?.phone || '',
+      ...parseInitialAddress(initialData?.address),
+      gstin: initialData?.tax_details?.gst_number || '',
+      pan: initialData?.tax_details?.pan_number || '',
+      payment_terms: initialData?.payment_terms || '',
+      credit_limit: initialData?.credit_limit || undefined,
+      lead_time_days: initialData?.lead_time_days || 7,
+      material_categories: initialData?.material_categories || [],
+      certifications: initialData?.certifications || [],
+      performance_rating: initialData?.performance_rating || 75,
+      notes: initialData?.notes || '',
     },
   });
 
@@ -159,7 +193,18 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
   });
 
   const onSubmit = (data: VendorFormData) => {
-    createVendorMutation.mutate(data);
+    if (mode === 'edit' && initialData?.id) {
+      updateVendor.mutate({ 
+        vendorId: initialData.id, 
+        data: { ...data, material_categories: selectedMaterialCategories, certifications: selectedCertifications }
+      }, {
+        onSuccess: () => {
+          onSuccess?.();
+        }
+      });
+    } else {
+      createVendorMutation.mutate(data);
+    }
   };
 
   const handleMaterialCategoryToggle = (category: string) => {
@@ -211,18 +256,23 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
               <Label htmlFor="supplier_code">Supplier Code</Label>
               <Input
                 id="supplier_code"
-                placeholder="Auto-generated on save"
+                value={initialData?.supplier_code || "Auto-generated on save"}
                 disabled
                 className="bg-muted"
               />
-              <p className="text-xs text-muted-foreground mt-1">Code will be generated automatically</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {mode === 'edit' ? 'Supplier code cannot be changed' : 'Code will be generated automatically'}
+              </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="supplier_type">Supplier Type *</Label>
-              <Select onValueChange={(value) => setValue("supplier_type", value as any)}>
+              <Select 
+                value={initialData?.supplier_type || watch('supplier_type')} 
+                onValueChange={(value) => setValue("supplier_type", value as any)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select supplier type" />
                 </SelectTrigger>
@@ -241,7 +291,10 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
 
             <div>
               <Label htmlFor="category">Category *</Label>
-              <Select onValueChange={(value) => setValue("category", value as any)}>
+              <Select 
+                value={initialData?.category || watch('category')} 
+                onValueChange={(value) => setValue("category", value as any)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -506,14 +559,20 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
         <Button 
           type="submit" 
-          disabled={createVendorMutation.isPending}
+          disabled={mode === 'edit' ? updateVendor.isPending : createVendorMutation.isPending}
+          className="min-w-[120px]"
         >
-          {createVendorMutation.isPending ? "Creating..." : "Create Vendor"}
+          {mode === 'edit' 
+            ? (updateVendor.isPending ? "Updating..." : "Update Vendor")
+            : (createVendorMutation.isPending ? "Creating..." : "Create Vendor")
+          }
         </Button>
       </div>
     </form>
