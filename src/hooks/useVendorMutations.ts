@@ -7,41 +7,65 @@ export const useVendorMutations = () => {
 
   const updateVendor = useMutation({
     mutationFn: async ({ vendorId, data }: { vendorId: string; data: any }) => {
+      // Properly format address as JSONB
+      const addressData = typeof data.address === 'string' ? {
+        street: data.address,
+        city: data.city || '',
+        state: data.state || '',
+        postal_code: data.pincode || '',
+        country: 'India'
+      } : {
+        street: data.address?.street || '',
+        city: data.address?.city || data.city || '',
+        state: data.address?.state || data.state || '',
+        postal_code: data.address?.postal_code || data.pincode || '',
+        country: data.address?.country || 'India'
+      };
+
+      // Ensure material_categories is an array
+      const materialCategories = Array.isArray(data.material_categories) 
+        ? data.material_categories 
+        : [];
+
+      // Ensure certifications is an array
+      const certifications = Array.isArray(data.certifications) 
+        ? data.certifications 
+        : [];
+
+      const updateData = {
+        supplier_name: data.supplier_name,
+        supplier_type: data.supplier_type,
+        category: data.category,
+        contact_person: data.contact_person,
+        email: data.email,
+        phone: data.phone,
+        address: addressData,
+        tax_details: {
+          gst_number: data.gstin || data.gst_number || '',
+          pan_number: data.pan || data.pan_number || '',
+          registration_type: 'Regular'
+        },
+        payment_terms: data.payment_terms,
+        credit_limit: data.credit_limit ? Number(data.credit_limit) : null,
+        lead_time_days: data.lead_time_days ? Number(data.lead_time_days) : null,
+        material_categories: materialCategories,
+        certifications: certifications,
+        performance_rating: data.performance_rating ? Number(data.performance_rating) : null,
+        notes: data.notes,
+        updated_at: new Date().toISOString(),
+      };
+
       const { data: result, error } = await supabase
         .from('suppliers')
-        .update({
-          supplier_name: data.supplier_name,
-          supplier_type: data.supplier_type,
-          category: data.category,
-          contact_person: data.contact_person,
-          email: data.email,
-          phone: data.phone,
-          address: typeof data.address === 'string' ? data.address : JSON.stringify({
-            street: data.address || '',
-            city: data.city || '',
-            state: data.state || '',
-            postal_code: data.pincode || '',
-            country: 'India'
-          }),
-          tax_details: {
-            gst_number: data.gstin || '',
-            pan_number: data.pan || '',
-            registration_type: 'Regular'
-          },
-          payment_terms: data.payment_terms,
-          credit_limit: data.credit_limit,
-          lead_time_days: data.lead_time_days,
-          material_categories: data.material_categories,
-          certifications: data.certifications,
-          performance_rating: data.performance_rating,
-          notes: data.notes,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', vendorId)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
       return result;
     },
     onSuccess: () => {
