@@ -168,7 +168,7 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
       : [...selectedMaterialCategories, category];
     
     setSelectedMaterialCategories(newCategories);
-    setValue('material_categories', newCategories);
+    setValue('material_categories', newCategories, { shouldValidate: true });
   };
 
   const handleCertificationToggle = (certification: string) => {
@@ -177,7 +177,7 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
       : [...selectedCertifications, certification];
     
     setSelectedCertifications(newCertifications);
-    setValue('certifications', newCertifications);
+    setValue('certifications', newCertifications, { shouldValidate: true });
   };
 
   return (
