@@ -163,21 +163,21 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
   };
 
   const handleMaterialCategoryToggle = (category: string) => {
-    setSelectedMaterialCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
-    setValue('material_categories', selectedMaterialCategories);
+    const newCategories = selectedMaterialCategories.includes(category)
+      ? selectedMaterialCategories.filter(c => c !== category)
+      : [...selectedMaterialCategories, category];
+    
+    setSelectedMaterialCategories(newCategories);
+    setValue('material_categories', newCategories);
   };
 
   const handleCertificationToggle = (certification: string) => {
-    setSelectedCertifications(prev => 
-      prev.includes(certification) 
-        ? prev.filter(c => c !== certification)
-        : [...prev, certification]
-    );
-    setValue('certifications', selectedCertifications);
+    const newCertifications = selectedCertifications.includes(certification)
+      ? selectedCertifications.filter(c => c !== certification)
+      : [...selectedCertifications, certification];
+    
+    setSelectedCertifications(newCertifications);
+    setValue('certifications', newCertifications);
   };
 
   return (
