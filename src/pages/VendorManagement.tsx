@@ -18,7 +18,7 @@ import {
   Package,
   Download
 } from "lucide-react";
-import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { useSuppliers } from "@/hooks/useSuppliers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,7 +28,7 @@ import { SupplierBulkUpload } from "@/components/procurement/SupplierBulkUpload"
 import { VendorDetailDialog } from "@/components/procurement/VendorDetailDialog";
 
 const VendorManagement = () => {
-  const { suppliers, loading } = usePurchaseOrders();
+  const { data: suppliers = [], isLoading: loading } = useSuppliers();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showCreateVendor, setShowCreateVendor] = useState(false);
