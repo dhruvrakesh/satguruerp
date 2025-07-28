@@ -36,9 +36,7 @@ const vendorSchema = z.object({
   credit_limit: z.number().optional(),
   lead_time_days: z.number().min(0, "Lead time must be positive"),
   material_categories: z.array(z.string()).min(1, "Select at least one material category"),
-  certifications: z.array(z.string()).optional(),
   performance_rating: z.number().min(0).max(100).default(75),
-  notes: z.string().optional(),
 });
 
 type VendorFormData = z.infer<typeof vendorSchema>;
@@ -74,23 +72,10 @@ const MATERIAL_CATEGORIES = [
   "Equipment",
 ];
 
-const QUALITY_CERTIFICATIONS = [
-  "ISO 9001",
-  "ISO 14001",
-  "OHSAS 18001",
-  "BRC",
-  "HACCP",
-  "FDA Approved",
-  "CE Certified",
-  "Other",
-];
 
 export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'create' }: VendorCreationFormProps) {
   const [selectedMaterialCategories, setSelectedMaterialCategories] = useState<string[]>(
     initialData?.material_categories || []
-  );
-  const [selectedCertifications, setSelectedCertifications] = useState<string[]>(
-    initialData?.certifications || []
   );
   const queryClient = useQueryClient();
   const { updateVendor } = useVendorMutations();
@@ -131,9 +116,7 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
       credit_limit: initialData?.credit_limit || undefined,
       lead_time_days: initialData?.lead_time_days || 7,
       material_categories: initialData?.material_categories || [],
-      certifications: initialData?.certifications || [],
       performance_rating: initialData?.performance_rating || 75,
-      notes: initialData?.notes || '',
     },
   });
 
@@ -171,9 +154,7 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
           credit_limit: data.credit_limit,
           lead_time_days: data.lead_time_days,
           material_categories: selectedMaterialCategories,
-          certifications: selectedCertifications,
           performance_rating: data.performance_rating,
-          notes: data.notes,
           is_active: true,
         })
         .select()
@@ -196,7 +177,7 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
     if (mode === 'edit' && initialData?.id) {
       updateVendor.mutate({ 
         vendorId: initialData.id, 
-        data: { ...data, material_categories: selectedMaterialCategories, certifications: selectedCertifications }
+        data: { ...data, material_categories: selectedMaterialCategories }
       }, {
         onSuccess: () => {
           onSuccess?.();
@@ -216,14 +197,6 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
     setValue('material_categories', newCategories, { shouldValidate: true });
   };
 
-  const handleCertificationToggle = (certification: string) => {
-    const newCertifications = selectedCertifications.includes(certification)
-      ? selectedCertifications.filter(c => c !== certification)
-      : [...selectedCertifications, certification];
-    
-    setSelectedCertifications(newCertifications);
-    setValue('certifications', newCertifications, { shouldValidate: true });
-  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -500,36 +473,15 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
         </CardContent>
       </Card>
 
-      {/* Quality & Performance */}
+      {/* Performance */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Star className="h-5 w-5" />
-            Quality & Performance
+            Performance Rating
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label>Quality Certifications</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-              {QUALITY_CERTIFICATIONS.map((cert) => (
-                <div key={cert} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={cert}
-                    checked={selectedCertifications.includes(cert)}
-                    onCheckedChange={() => handleCertificationToggle(cert)}
-                  />
-                  <Label
-                    htmlFor={cert}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {cert}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
+        <CardContent>
           <div>
             <Label htmlFor="performance_rating">
               Performance Rating: {watch('performance_rating') || 75}%
@@ -542,16 +494,6 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
               step="5"
               {...register("performance_rating", { valueAsNumber: true })}
               className="mt-2"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              {...register("notes")}
-              placeholder="Additional notes about the vendor..."
-              rows={3}
             />
           </div>
         </CardContent>

@@ -247,18 +247,6 @@ export function VendorDetailDialog({ open, onOpenChange, vendor }: VendorDetailD
                   <Progress value={vendor.performance_rating} className="w-full" />
                 </div>
 
-                {vendor.certifications && vendor.certifications.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Certifications</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {vendor.certifications.map((cert: string, idx: number) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {cert}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -291,17 +279,6 @@ export function VendorDetailDialog({ open, onOpenChange, vendor }: VendorDetailD
             </Card>
           </div>
 
-          {/* Notes */}
-          {vendor.notes && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{vendor.notes}</p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </DialogContent>
     </Dialog>

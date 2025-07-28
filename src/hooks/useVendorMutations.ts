@@ -27,11 +27,6 @@ export const useVendorMutations = () => {
         ? data.material_categories 
         : [];
 
-      // Ensure certifications is an array
-      const certifications = Array.isArray(data.certifications) 
-        ? data.certifications 
-        : [];
-
       const updateData = {
         supplier_name: data.supplier_name,
         supplier_type: data.supplier_type,
@@ -49,9 +44,7 @@ export const useVendorMutations = () => {
         credit_limit: data.credit_limit ? Number(data.credit_limit) : null,
         lead_time_days: data.lead_time_days ? Number(data.lead_time_days) : null,
         material_categories: materialCategories,
-        certifications: certifications,
         performance_rating: data.performance_rating ? Number(data.performance_rating) : null,
-        notes: data.notes,
         updated_at: new Date().toISOString(),
       };
 
