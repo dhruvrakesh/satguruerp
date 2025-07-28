@@ -20,7 +20,7 @@ import { useVendorMutations } from "@/hooks/useVendorMutations";
 
 const vendorSchema = z.object({
   supplier_name: z.string().min(2, "Supplier name must be at least 2 characters"),
-  supplier_code: z.string().optional(), // Remove required validation since it's auto-generated
+  supplier_code: z.string().optional(),
   supplier_type: z.enum(["MANUFACTURER", "DISTRIBUTOR", "VENDOR", "AGENT"]),
   category: z.enum(["PREMIUM", "STANDARD", "BACKUP"]),
   contact_person: z.string().optional(),
@@ -30,8 +30,8 @@ const vendorSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z.string().optional(),
-  gstin: z.string().optional(),
-  pan: z.string().optional(),
+  gst_number: z.string().optional(),
+  pan_number: z.string().optional(),
   payment_terms: z.string().optional(),
   credit_limit: z.number().optional(),
   lead_time_days: z.number().min(0, "Lead time must be positive"),
@@ -110,8 +110,8 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
       email: initialData?.email || '',
       phone: initialData?.phone || '',
       ...parseInitialAddress(initialData?.address),
-      gstin: initialData?.tax_details?.gst_number || '',
-      pan: initialData?.tax_details?.pan_number || '',
+      gst_number: initialData?.tax_details?.gst_number || '',
+      pan_number: initialData?.tax_details?.pan_number || '',
       payment_terms: initialData?.payment_terms || '',
       credit_limit: initialData?.credit_limit || undefined,
       lead_time_days: initialData?.lead_time_days || 7,
@@ -148,8 +148,8 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
           city: data.city,
           state: data.state,
           pincode: data.pincode,
-          gstin: data.gstin,
-          pan: data.pan,
+          gst_number: data.gst_number,
+          pan_number: data.pan_number,
           payment_terms: data.payment_terms,
           credit_limit: data.credit_limit,
           lead_time_days: data.lead_time_days,
@@ -173,18 +173,30 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
     },
   });
 
-  const onSubmit = (data: VendorFormData) => {
-    if (mode === 'edit' && initialData?.id) {
-      updateVendor.mutate({ 
-        vendorId: initialData.id, 
-        data: { ...data, material_categories: selectedMaterialCategories }
-      }, {
-        onSuccess: () => {
-          onSuccess?.();
-        }
-      });
-    } else {
-      createVendorMutation.mutate(data);
+  const onSubmit = async (data: VendorFormData) => {
+    try {
+      console.log('Form submission data:', data);
+      console.log('Selected material categories:', selectedMaterialCategories);
+      
+      const submitData = {
+        ...data,
+        material_categories: selectedMaterialCategories
+      };
+      
+      if (mode === 'edit' && initialData?.id) {
+        console.log('Updating vendor:', initialData.id);
+        await updateVendor.mutateAsync({ 
+          vendorId: initialData.id, 
+          data: submitData
+        });
+        onSuccess?.();
+      } else {
+        console.log('Creating new vendor');
+        await createVendorMutation.mutateAsync(submitData);
+      }
+    } catch (error) {
+      console.error('Form submission error:', error);
+      toast.error(`Failed to ${mode === 'edit' ? 'update' : 'create'} vendor: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -384,19 +396,19 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="gstin">GSTIN</Label>
+              <Label htmlFor="gst_number">GSTIN</Label>
               <Input
-                id="gstin"
-                {...register("gstin")}
+                id="gst_number"
+                {...register("gst_number")}
                 placeholder="27AAACH7409R1ZZ"
               />
             </div>
             
             <div>
-              <Label htmlFor="pan">PAN</Label>
+              <Label htmlFor="pan_number">PAN</Label>
               <Input
-                id="pan"
-                {...register("pan")}
+                id="pan_number"
+                {...register("pan_number")}
                 placeholder="AAACH7409R"
               />
             </div>

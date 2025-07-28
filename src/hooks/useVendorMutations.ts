@@ -7,24 +7,20 @@ export const useVendorMutations = () => {
 
   const updateVendor = useMutation({
     mutationFn: async ({ vendorId, data }: { vendorId: string; data: any }) => {
-      // Properly format address as JSONB
-      const addressData = typeof data.address === 'string' ? {
-        street: data.address,
+      console.log('Updating vendor with data:', data);
+      
+      // Properly format address as JSONB from form fields
+      const addressData = {
+        street: data.address || '',
         city: data.city || '',
         state: data.state || '',
         postal_code: data.pincode || '',
         country: 'India'
-      } : {
-        street: data.address?.street || '',
-        city: data.address?.city || data.city || '',
-        state: data.address?.state || data.state || '',
-        postal_code: data.address?.postal_code || data.pincode || '',
-        country: data.address?.country || 'India'
       };
 
-      // Ensure material_categories is an array
+      // Ensure material_categories is an array of strings
       const materialCategories = Array.isArray(data.material_categories) 
-        ? data.material_categories 
+        ? data.material_categories.filter(cat => cat && cat.trim())
         : [];
 
       const updateData = {
@@ -36,8 +32,8 @@ export const useVendorMutations = () => {
         phone: data.phone,
         address: addressData,
         tax_details: {
-          gst_number: data.gstin || data.gst_number || '',
-          pan_number: data.pan || data.pan_number || '',
+          gst_number: data.gst_number || data.gstin || '',
+          pan_number: data.pan_number || data.pan || '',
           registration_type: 'Regular'
         },
         payment_terms: data.payment_terms,
@@ -48,6 +44,8 @@ export const useVendorMutations = () => {
         updated_at: new Date().toISOString(),
       };
 
+      console.log('Final update data:', updateData);
+
       const { data: result, error } = await supabase
         .from('suppliers')
         .update(updateData)
@@ -56,9 +54,12 @@ export const useVendorMutations = () => {
         .single();
 
       if (error) {
-        console.error('Update error:', error);
-        throw error;
+        console.error('Vendor update error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        throw new Error(`Failed to update vendor: ${error.message}`);
       }
+      
+      console.log('Vendor updated successfully:', result);
       return result;
     },
     onSuccess: () => {
