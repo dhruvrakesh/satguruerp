@@ -2161,6 +2161,53 @@ export type Database = {
           },
         ]
       }
+      comments: {
+        Row: {
+          author_email: string
+          author_name: string
+          content: string
+          content_id: string
+          content_type: string
+          created_at: string
+          id: string
+          is_approved: boolean | null
+          parent_comment_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_email: string
+          author_name: string
+          content: string
+          content_id: string
+          content_type: string
+          created_at?: string
+          id?: string
+          is_approved?: boolean | null
+          parent_comment_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_email?: string
+          author_name?: string
+          content?: string
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          is_approved?: boolean | null
+          parent_comment_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           created_at: string
@@ -10682,6 +10729,113 @@ export type Database = {
           },
         ]
       }
+      stories: {
+        Row: {
+          author: string
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          genre: string | null
+          id: string
+          is_featured: boolean | null
+          publication_date: string | null
+          reading_time_estimate: number | null
+          slug: string
+          status: string
+          tags: string[] | null
+          title: string
+          total_episodes: number | null
+          updated_at: string
+        }
+        Insert: {
+          author?: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          genre?: string | null
+          id?: string
+          is_featured?: boolean | null
+          publication_date?: string | null
+          reading_time_estimate?: number | null
+          slug: string
+          status?: string
+          tags?: string[] | null
+          title: string
+          total_episodes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          genre?: string | null
+          id?: string
+          is_featured?: boolean | null
+          publication_date?: string | null
+          reading_time_estimate?: number | null
+          slug?: string
+          status?: string
+          tags?: string[] | null
+          title?: string
+          total_episodes?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      story_episodes: {
+        Row: {
+          content: string
+          created_at: string
+          episode_number: number
+          id: string
+          image_urls: string[] | null
+          is_published: boolean | null
+          publication_date: string | null
+          reading_time: number | null
+          slug: string
+          story_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          episode_number: number
+          id?: string
+          image_urls?: string[] | null
+          is_published?: boolean | null
+          publication_date?: string | null
+          reading_time?: number | null
+          slug: string
+          story_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          episode_number?: number
+          id?: string
+          image_urls?: string[] | null
+          is_published?: boolean | null
+          publication_date?: string | null
+          reading_time?: number | null
+          slug?: string
+          story_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_episodes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       substrate_catalog: {
         Row: {
           color: string | null
@@ -10808,6 +10962,27 @@ export type Database = {
           Micron?: number | null
           Substrate?: string | null
           Substrate_Name?: string | null
+        }
+        Relationships: []
+      }
+      supplier_code_sequences: {
+        Row: {
+          created_at: string | null
+          id: number
+          last_sequence: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          last_sequence?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          last_sequence?: number
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -12349,6 +12524,10 @@ export type Database = {
           confidence_score: number
           metadata: Json
         }[]
+      }
+      generate_supplier_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       generate_valuation_item_code: {
         Args: {

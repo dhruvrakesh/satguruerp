@@ -19,7 +19,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const vendorSchema = z.object({
   supplier_name: z.string().min(2, "Supplier name must be at least 2 characters"),
-  supplier_code: z.string().min(2, "Supplier code is required"),
+  supplier_code: z.string().optional(), // Remove required validation since it's auto-generated
   supplier_type: z.enum(["MANUFACTURER", "DISTRIBUTOR", "VENDOR", "AGENT"]),
   category: z.enum(["PREMIUM", "STANDARD", "BACKUP"]),
   contact_person: z.string().optional(),
@@ -111,12 +111,16 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
 
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
-      const supplierCode = generateSupplierCode(data.supplier_name);
+      // Generate supplier code using database function
+      const { data: generatedCode, error: codeError } = await supabase
+        .rpc('generate_supplier_code');
+      
+      if (codeError) throw new Error(`Failed to generate supplier code: ${codeError.message}`);
       
       const { data: result, error } = await supabase
         .from('suppliers')
         .insert({
-          supplier_code: supplierCode,
+          supplier_code: generatedCode,
           supplier_name: data.supplier_name,
           supplier_type: data.supplier_type,
           category: data.category,
@@ -204,16 +208,14 @@ export function VendorCreationForm({ onSuccess, onCancel }: VendorCreationFormPr
             </div>
             
             <div>
-              <Label htmlFor="supplier_code">Supplier Code *</Label>
+              <Label htmlFor="supplier_code">Supplier Code</Label>
               <Input
                 id="supplier_code"
-                {...register("supplier_code")}
                 placeholder="Auto-generated on save"
                 disabled
+                className="bg-muted"
               />
-              {errors.supplier_code && (
-                <p className="text-sm text-destructive mt-1">{errors.supplier_code.message}</p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">Code will be generated automatically</p>
             </div>
           </div>
 
