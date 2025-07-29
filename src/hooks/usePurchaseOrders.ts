@@ -213,12 +213,30 @@ export const usePurchaseOrders = () => {
 
   const submitForApproval = async (poId: string) => {
     try {
-      const { error } = await supabase
+      // Update PO status
+      const { error: updateError } = await supabase
         .from('purchase_orders')
-        .update({ status: 'SUBMITTED' })
+        .update({ 
+          status: 'SUBMITTED',
+          approval_status: 'PENDING',
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('id', poId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Create approval records
+      const { error: approvalError } = await supabase
+        .from('purchase_order_approvals')
+        .insert({
+          po_id: poId,
+          approval_level: 1,
+          approval_status: 'PENDING',
+          created_at: new Date().toISOString()
+        });
+
+      if (approvalError) throw approvalError;
       
       toast.success('Purchase order submitted for approval');
       await fetchPurchaseOrders();

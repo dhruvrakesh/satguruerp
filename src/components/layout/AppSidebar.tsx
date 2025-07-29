@@ -29,7 +29,8 @@ import {
   MessageSquare,
   Lightbulb,
   Zap,
-  BookOpen
+  BookOpen,
+  CheckCircle
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -63,6 +64,7 @@ const aiAssistantItems = [
 const procurementItems = [
   { title: "Procurement Dashboard", url: "/procurement-dashboard", icon: PieChart },
   { title: "Purchase Orders", url: "/purchase-orders", icon: ShoppingCart },
+  { title: "PO Approvals", url: "/purchase-order-approvals", icon: CheckCircle },
   { title: "Vendor Management", url: "/vendors", icon: Users },
   { title: "Reorder Management", url: "/reorder-management", icon: RefreshCw },
 ];

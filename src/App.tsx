@@ -29,6 +29,7 @@ import SlittingPackaging from "./pages/SlittingPackaging";
 import StockAnalytics from "./pages/StockAnalytics";
 import ProcurementDashboard from "./pages/ProcurementDashboard";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import PurchaseOrderApprovals from "./pages/PurchaseOrderApprovals";
 import VendorManagement from "./pages/VendorManagement";
 import ReorderManagement from "./pages/ReorderManagement";
 import { Navigate } from "react-router-dom";
@@ -118,22 +119,30 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
-                      <Route
-                        path="/purchase-orders"
-                        element={
-                          <ProtectedRoute>
-                            <PurchaseOrders />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/vendors"
-                        element={
-                          <ProtectedRoute>
-                            <VendorManagement />
-                          </ProtectedRoute>
-                        }
-                      />
+                       <Route
+                         path="/purchase-orders"
+                         element={
+                           <ProtectedRoute>
+                             <PurchaseOrders />
+                           </ProtectedRoute>
+                         }
+                       />
+                       <Route
+                         path="/purchase-order-approvals"
+                         element={
+                           <ProtectedRoute>
+                             <PurchaseOrderApprovals />
+                           </ProtectedRoute>
+                         }
+                       />
+                       <Route
+                         path="/vendors"
+                         element={
+                           <ProtectedRoute>
+                             <VendorManagement />
+                           </ProtectedRoute>
+                         }
+                       />
                       <Route
                         path="/reorder-management"
                         element={
