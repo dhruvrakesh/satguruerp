@@ -49,35 +49,45 @@ export const usePOApprovals = () => {
   };
 
   const fetchPendingApprovals = async () => {
-    if (!userRole || userRole !== 'general_manager') return;
+    if (!userRole || (userRole !== 'general_manager' && userRole !== 'admin')) return;
     
     setIsLoading(true);
     try {
-      // Get approval records with PO details and supplier info
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return;
+
+      // Use the new database function for better role-based filtering
       const { data: approvalData, error: approvalError } = await supabase
-        .from('purchase_order_approvals')
-        .select(`
-          *,
-          purchase_order:purchase_orders!po_id(
-            id,
-            po_number,
-            total_amount,
-            delivery_date,
-            status,
-            approval_status,
-            created_at,
-            supplier:suppliers!supplier_id(
-              supplier_name,
-              supplier_code
-            )
-          )
-        `)
-        .eq('approval_status', 'PENDING')
-        .order('created_at', { ascending: false });
+        .rpc('get_user_pending_approvals', { user_id: user.user.id });
 
       if (approvalError) throw approvalError;
 
-      setApprovals((approvalData as any) || []);
+      // Transform the data to match expected format
+      const formattedApprovals = (approvalData || []).map((item: any) => ({
+        id: item.id,
+        po_id: item.po_id,
+        approval_level: item.approval_level,
+        approval_status: item.approval_status,
+        approver_id: item.approver_id,
+        approved_at: item.approved_at,
+        comments: item.comments,
+        created_at: item.created_at,
+        purchase_order: {
+          id: item.po_id,
+          po_number: item.po_number,
+          total_amount: item.total_amount,
+          delivery_date: item.delivery_date,
+          status: item.po_status,
+          approval_status: item.po_approval_status,
+          created_at: item.po_created_at,
+          supplier: {
+            supplier_name: item.supplier_name,
+            supplier_code: item.supplier_code
+          }
+        }
+      }));
+
+      setApprovals(formattedApprovals);
     } catch (error) {
       console.error('Error fetching pending approvals:', error);
       toast({
