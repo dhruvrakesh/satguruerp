@@ -18,7 +18,9 @@ import {
 } from "lucide-react";
 import { PurchaseOrderCreation } from "@/components/procurement/PurchaseOrderCreation";
 import { PurchaseOrderBulkUpload } from "@/components/procurement/PurchaseOrderBulkUpload";
+import { PurchaseOrderDetailModal } from "@/components/procurement/PurchaseOrderDetailModal";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,11 +28,13 @@ import { toast } from "sonner";
 
 const PurchaseOrders = () => {
   const { purchaseOrders, loading, submitForApproval, updatePurchaseOrder } = usePurchaseOrders();
+  const { mutate: generatePDF, isPending: generatingPDF } = usePDFReportGeneration();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [showPODetail, setShowPODetail] = useState(false);
 
   const filteredOrders = purchaseOrders.filter(po => {
     const matchesSearch = po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,6 +78,39 @@ const PurchaseOrders = () => {
   const handlePOCreated = () => {
     setShowCreatePO(false);
     toast.success("Purchase order created successfully");
+  };
+
+  const handleViewPO = (po: any) => {
+    setSelectedPO(po);
+    setShowPODetail(true);
+  };
+
+  const handleDownloadPO = (po: any) => {
+    const reportData = {
+      title: `Purchase Order - ${po.po_number}`,
+      dateRange: {
+        from: po.po_date,
+        to: po.delivery_date || po.required_date
+      },
+      summary: {
+        totalItems: po.items?.length || 0,
+        totalValue: po.total_amount,
+        supplier: po.supplier?.supplier_name || 'Unknown',
+        status: po.status,
+        priority: po.priority
+      },
+      data: po.items || []
+    };
+
+    generatePDF(reportData, {
+      onSuccess: (response) => {
+        toast.success(`PDF generated successfully: ${response.fileName}`);
+      },
+      onError: (error) => {
+        console.error('PDF generation error:', error);
+        toast.error('Failed to generate PDF');
+      }
+    });
   };
 
   if (loading) {
@@ -207,24 +244,40 @@ const PurchaseOrders = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleViewPO(po)}
+                          title="View Details"
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
                         {po.status === 'DRAFT' && (
                           <>
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              title="Edit Purchase Order"
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleSubmitForApproval(po.id)}
+                              title="Submit for Approval"
                             >
                               <CheckCircle className="w-4 h-4" />
                             </Button>
                           </>
                         )}
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleDownloadPO(po)}
+                          disabled={generatingPDF}
+                          title="Download PDF"
+                        >
                           <Download className="w-4 h-4" />
                         </Button>
                       </div>
@@ -246,6 +299,13 @@ const PurchaseOrders = () => {
       <PurchaseOrderBulkUpload 
         open={showBulkUpload} 
         onOpenChange={setShowBulkUpload} 
+      />
+
+      {/* Purchase Order Detail Modal */}
+      <PurchaseOrderDetailModal
+        open={showPODetail}
+        onOpenChange={setShowPODetail}
+        purchaseOrder={selectedPO}
       />
     </div>
   );
