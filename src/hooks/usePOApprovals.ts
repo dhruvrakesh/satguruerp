@@ -56,7 +56,7 @@ export const usePOApprovals = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      // Use the new database function for better role-based filtering
+      // Use the fixed database function call
       const { data: approvalData, error: approvalError } = await supabase
         .rpc('get_user_pending_approvals', { p_user_id: user.user.id });
 
