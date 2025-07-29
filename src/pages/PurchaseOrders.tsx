@@ -33,7 +33,7 @@ const PurchaseOrders = () => {
   const { purchaseOrders, loading, submitForApproval, updatePurchaseOrder, refreshData } = usePurchaseOrders();
   const { mutate: generatePDF, isPending: generatingPDF } = usePDFReportGeneration();
   const { canEdit } = usePurchaseOrderEdit();
-  const { user } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
@@ -264,18 +264,18 @@ const PurchaseOrders = () => {
                           variant="ghost" 
                           size="sm"
                           onClick={() => handleViewPO(po)}
-                          title="View Details"
+                          title="View Details & Audit Trail"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        {(po.status === 'DRAFT' || user?.role === 'admin') && (
+                        {(po.status === 'DRAFT' || isAdmin()) && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleEditPO(po)}
-                              disabled={!canEdit(po.status, user?.role)}
-                              title={canEdit(po.status, user?.role) ? "Edit purchase order" : "Cannot edit this order"}
+                              disabled={!canEdit(po.status, profile?.role)}
+                              title={canEdit(po.status, profile?.role) ? "Edit purchase order" : "Cannot edit this order"}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -283,7 +283,7 @@ const PurchaseOrders = () => {
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleSubmitForApproval(po.id)}
-                              disabled={po.status !== 'DRAFT' && user?.role !== 'admin'}
+                              disabled={po.status !== 'DRAFT' && !isAdmin()}
                               title="Submit for Approval"
                             >
                               <CheckCircle className="w-4 h-4" />
