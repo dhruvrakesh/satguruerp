@@ -8378,6 +8378,7 @@ export type Database = {
           issued_at: string | null
           issued_by: string | null
           notes: string | null
+          organization_id: string | null
           parent_po_id: string | null
           po_date: string
           po_number: string
@@ -8420,6 +8421,7 @@ export type Database = {
           issued_at?: string | null
           issued_by?: string | null
           notes?: string | null
+          organization_id?: string | null
           parent_po_id?: string | null
           po_date?: string
           po_number: string
@@ -8462,6 +8464,7 @@ export type Database = {
           issued_at?: string | null
           issued_by?: string | null
           notes?: string | null
+          organization_id?: string | null
           parent_po_id?: string | null
           po_date?: string
           po_number?: string
@@ -8483,6 +8486,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_orders_parent_po_id_fkey"
             columns: ["parent_po_id"]

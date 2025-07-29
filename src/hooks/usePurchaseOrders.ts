@@ -112,6 +112,23 @@ export const usePurchaseOrders = () => {
 
   const createPurchaseOrder = async (orderData: any) => {
     try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get user's organization
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError || !profile?.organization_id) {
+        throw new Error('User organization not found');
+      }
+
       const poNumber = await generatePONumber();
       
       const { data, error } = await supabase
@@ -128,6 +145,8 @@ export const usePurchaseOrders = () => {
           total_amount: orderData.total_amount || 0,
           notes: orderData.notes,
           department: orderData.department,
+          created_by: user.id,
+          organization_id: profile.organization_id,
         })
         .select()
         .single();
