@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePurchaseOrderEdit } from "@/hooks/usePurchaseOrderEdit";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PurchaseOrder {
   id: string;
@@ -61,6 +62,7 @@ export function PurchaseOrderEditDialog({
   onEditSuccess,
 }: PurchaseOrderEditDialogProps) {
   const { updatePurchaseOrder, canEdit, isLoading } = usePurchaseOrderEdit();
+  const { profile } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -86,7 +88,7 @@ export function PurchaseOrderEditDialog({
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!purchaseOrder) return;
 
-    if (!canEdit(purchaseOrder.status)) {
+    if (!canEdit(purchaseOrder.status, profile?.role)) {
       return;
     }
 
@@ -100,7 +102,7 @@ export function PurchaseOrderEditDialog({
 
   if (!purchaseOrder) return null;
 
-  const isEditable = canEdit(purchaseOrder.status);
+  const isEditable = purchaseOrder ? canEdit(purchaseOrder.status, profile?.role) : false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,8 +120,10 @@ export function PurchaseOrderEditDialog({
         {!isEditable ? (
           <div className="text-center py-8">
             <div className="text-muted-foreground">
-              This purchase order cannot be edited because it has been submitted for approval.
-              Only DRAFT purchase orders can be modified.
+              {profile?.role === 'admin' 
+                ? 'Admin access: You can edit purchase orders in any status.'
+                : 'This purchase order cannot be edited because it has been submitted for approval. Only DRAFT purchase orders can be modified.'
+              }
             </div>
           </div>
         ) : (

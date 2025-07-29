@@ -268,27 +268,25 @@ const PurchaseOrders = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        {(po.status === 'DRAFT' || isAdmin()) && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleEditPO(po)}
-                              disabled={!canEdit(po.status, profile?.role)}
-                              title={canEdit(po.status, profile?.role) ? "Edit purchase order" : "Cannot edit this order"}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleSubmitForApproval(po.id)}
-                              disabled={po.status !== 'DRAFT' && !isAdmin()}
-                              title="Submit for Approval"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                          </>
+                        {canEdit(po.status, profile?.role) && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditPO(po)}
+                            title="Edit purchase order"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {po.status === 'DRAFT' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleSubmitForApproval(po.id)}
+                            title="Submit for Approval"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
                         )}
                         <Button 
                           variant="ghost" 
