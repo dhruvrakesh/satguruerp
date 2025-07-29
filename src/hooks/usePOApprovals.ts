@@ -58,7 +58,7 @@ export const usePOApprovals = () => {
 
       // Use the new database function for better role-based filtering
       const { data: approvalData, error: approvalError } = await supabase
-        .rpc('get_user_pending_approvals', { user_id: user.user.id });
+        .rpc('get_user_pending_approvals', { p_user_id: user.user.id });
 
       if (approvalError) throw approvalError;
 

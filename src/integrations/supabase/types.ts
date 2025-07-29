@@ -12813,24 +12813,23 @@ export type Database = {
         }[]
       }
       get_user_pending_approvals: {
-        Args: { user_id: string }
+        Args: { p_user_id: string }
         Returns: {
           id: string
           po_id: string
           approval_level: number
           approval_status: string
           approver_id: string
-          approved_at: string
-          comments: string
+          approver_role: string
+          remarks: string
           created_at: string
+          submitted_at: string
           po_number: string
+          supplier_name: string
           total_amount: number
           delivery_date: string
+          priority: string
           po_status: string
-          po_approval_status: string
-          po_created_at: string
-          supplier_name: string
-          supplier_code: string
         }[]
       }
       get_user_practice_id: {

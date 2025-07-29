@@ -12,8 +12,9 @@ export interface EditablePOData {
 export const usePurchaseOrderEdit = () => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const canEdit = (status: string) => {
-    return status === 'DRAFT';
+  const canEdit = (status: string, userRole?: string) => {
+    // Admin can edit any status, others can only edit DRAFT
+    return userRole === 'admin' || status === 'DRAFT';
   };
 
   const updatePurchaseOrder = async (poId: string, updates: EditablePOData) => {

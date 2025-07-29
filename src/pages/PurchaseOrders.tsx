@@ -23,6 +23,7 @@ import { PurchaseOrderEditDialog } from "@/components/procurement/PurchaseOrderE
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
 import { usePurchaseOrderEdit } from "@/hooks/usePurchaseOrderEdit";
+import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,6 +33,7 @@ const PurchaseOrders = () => {
   const { purchaseOrders, loading, submitForApproval, updatePurchaseOrder, refreshData } = usePurchaseOrders();
   const { mutate: generatePDF, isPending: generatingPDF } = usePDFReportGeneration();
   const { canEdit } = usePurchaseOrderEdit();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
@@ -266,14 +268,14 @@ const PurchaseOrders = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        {po.status === 'DRAFT' && (
+                        {(po.status === 'DRAFT' || user?.role === 'admin') && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleEditPO(po)}
-                              disabled={!canEdit(po.status)}
-                              title={canEdit(po.status) ? "Edit purchase order" : "Can only edit DRAFT orders"}
+                              disabled={!canEdit(po.status, user?.role)}
+                              title={canEdit(po.status, user?.role) ? "Edit purchase order" : "Cannot edit this order"}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -281,6 +283,7 @@ const PurchaseOrders = () => {
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleSubmitForApproval(po.id)}
+                              disabled={po.status !== 'DRAFT' && user?.role !== 'admin'}
                               title="Submit for Approval"
                             >
                               <CheckCircle className="w-4 h-4" />
