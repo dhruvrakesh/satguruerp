@@ -30,11 +30,13 @@ import {
 } from "@/components/ui/select";
 import { usePurchaseOrderEdit } from "@/hooks/usePurchaseOrderEdit";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSuppliers } from "@/hooks/useSuppliers";
 
 interface PurchaseOrder {
   id: string;
   po_number: string;
-  supplier_name: string;
+  supplier_id: string;
+  supplier_name?: string;
   delivery_date: string;
   priority: string;
   remarks?: string;
@@ -49,9 +51,9 @@ interface PurchaseOrderEditDialogProps {
 }
 
 const formSchema = z.object({
-  supplier_name: z.string().min(1, "Supplier name is required"),
+  supplier_id: z.string().min(1, "Supplier is required"),
   delivery_date: z.string().min(1, "Delivery date is required"),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT", "EMERGENCY"]),
   remarks: z.string().optional(),
 });
 
@@ -63,11 +65,12 @@ export function PurchaseOrderEditDialog({
 }: PurchaseOrderEditDialogProps) {
   const { updatePurchaseOrder, canEdit, isLoading } = usePurchaseOrderEdit();
   const { profile } = useAuth();
+  const { data: suppliers = [] } = useSuppliers();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      supplier_name: "",
+      supplier_id: "",
       delivery_date: "",
       priority: "MEDIUM",
       remarks: "",
@@ -77,7 +80,7 @@ export function PurchaseOrderEditDialog({
   React.useEffect(() => {
     if (purchaseOrder && open) {
       form.reset({
-        supplier_name: purchaseOrder.supplier_name || "",
+        supplier_id: purchaseOrder.supplier_id || "",
         delivery_date: purchaseOrder.delivery_date?.split('T')[0] || "",
         priority: purchaseOrder.priority as any || "MEDIUM",
         remarks: purchaseOrder.remarks || "",
@@ -129,19 +132,30 @@ export function PurchaseOrderEditDialog({
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="supplier_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Supplier Name</FormLabel>
+            <FormField
+              control={form.control}
+              name="supplier_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Supplier</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <Input placeholder="Enter supplier name" {...field} />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a supplier" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    <SelectContent>
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.supplier_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
               <FormField
                 control={form.control}

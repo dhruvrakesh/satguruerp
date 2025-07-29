@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 export interface EditablePOData {
-  supplier_name?: string;
+  supplier_id?: string;
   delivery_date?: string;
   priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | "EMERGENCY";
   remarks?: string;
