@@ -249,5 +249,6 @@ export const usePurchaseOrders = () => {
     addPOItems,
     submitForApproval,
     refreshData: () => Promise.all([fetchPurchaseOrders(), fetchSuppliers()]),
+    refetch: () => Promise.all([fetchPurchaseOrders(), fetchSuppliers()]),
   };
 };

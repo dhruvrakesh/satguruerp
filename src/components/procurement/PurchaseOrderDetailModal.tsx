@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarDays, Building2, Phone, Mail, CreditCard, Package, FileText, Clock } from "lucide-react";
 import { PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { usePurchaseOrderAudit } from "@/hooks/usePurchaseOrderAudit";
 
 interface PurchaseOrderDetailModalProps {
   open: boolean;
@@ -13,6 +14,8 @@ interface PurchaseOrderDetailModalProps {
 }
 
 export function PurchaseOrderDetailModal({ open, onOpenChange, purchaseOrder }: PurchaseOrderDetailModalProps) {
+  const { auditLogs, isLoading: auditLoading, formatAuditMessage } = usePurchaseOrderAudit(purchaseOrder?.id);
+  
   if (!purchaseOrder) return null;
 
   const getStatusColor = (status: string) => {
@@ -149,9 +152,16 @@ export function PurchaseOrderDetailModal({ open, onOpenChange, purchaseOrder }: 
                   </div>
                   <div className="bg-orange-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-orange-600">
-                      {purchaseOrder.approval_status}
+                      {purchaseOrder.status === 'SUBMITTED' && purchaseOrder.approval_status === 'PENDING' 
+                        ? 'Awaiting Approval' 
+                        : purchaseOrder.approval_status}
                     </div>
                     <div className="text-sm text-orange-600">Approval Status</div>
+                    {purchaseOrder.status === 'SUBMITTED' && purchaseOrder.approval_status === 'PENDING' && (
+                      <div className="text-xs text-orange-500 mt-1">
+                        PO submitted for management review
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -215,51 +225,34 @@ export function PurchaseOrderDetailModal({ open, onOpenChange, purchaseOrder }: 
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <div className="font-medium">Purchase Order Created</div>
-                      <div className="text-sm text-gray-600">
-                        {new Date(purchaseOrder.created_at).toLocaleString()}
-                      </div>
-                    </div>
+                {auditLoading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    Loading audit trail...
                   </div>
-                  
-                  {purchaseOrder.status !== 'DRAFT' && (
-                    <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="font-medium">Status Updated to {purchaseOrder.status}</div>
-                        <div className="text-sm text-gray-600">Current status</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {purchaseOrder.required_date && (
-                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="font-medium">Required By</div>
-                        <div className="text-sm text-gray-600">
-                          {new Date(purchaseOrder.required_date).toLocaleString()}
+                ) : auditLogs.length > 0 ? (
+                  <div className="space-y-3">
+                    {auditLogs.map((entry) => (
+                      <div key={entry.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mt-1"></div>
+                        <div className="flex-1">
+                          <div className="font-medium">{formatAuditMessage(entry)}</div>
+                          <div className="text-sm text-gray-600">
+                            {new Date(entry.changed_at).toLocaleString()}
+                          </div>
+                          {entry.reason && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Reason: {entry.reason}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {purchaseOrder.delivery_date && (
-                    <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="font-medium">Expected Delivery</div>
-                        <div className="text-sm text-gray-600">
-                          {new Date(purchaseOrder.delivery_date).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No audit trail available for this purchase order.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

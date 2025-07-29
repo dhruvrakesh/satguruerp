@@ -19,22 +19,26 @@ import {
 import { PurchaseOrderCreation } from "@/components/procurement/PurchaseOrderCreation";
 import { PurchaseOrderBulkUpload } from "@/components/procurement/PurchaseOrderBulkUpload";
 import { PurchaseOrderDetailModal } from "@/components/procurement/PurchaseOrderDetailModal";
+import { PurchaseOrderEditDialog } from "@/components/procurement/PurchaseOrderEditDialog";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { usePDFReportGeneration } from "@/hooks/usePDFReportGeneration";
+import { usePurchaseOrderEdit } from "@/hooks/usePurchaseOrderEdit";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
 const PurchaseOrders = () => {
-  const { purchaseOrders, loading, submitForApproval, updatePurchaseOrder } = usePurchaseOrders();
+  const { purchaseOrders, loading, submitForApproval, updatePurchaseOrder, refreshData } = usePurchaseOrders();
   const { mutate: generatePDF, isPending: generatingPDF } = usePDFReportGeneration();
+  const { canEdit } = usePurchaseOrderEdit();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [showPODetail, setShowPODetail] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const filteredOrders = purchaseOrders.filter(po => {
     const matchesSearch = po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -77,7 +81,17 @@ const PurchaseOrders = () => {
 
   const handlePOCreated = () => {
     setShowCreatePO(false);
+    refreshData();
     toast.success("Purchase order created successfully");
+  };
+
+  const handleEditPO = (po: any) => {
+    setSelectedPO(po);
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = () => {
+    refreshData();
   };
 
   const handleViewPO = (po: any) => {
@@ -257,7 +271,9 @@ const PurchaseOrders = () => {
                             <Button 
                               variant="ghost" 
                               size="sm"
-                              title="Edit Purchase Order"
+                              onClick={() => handleEditPO(po)}
+                              disabled={!canEdit(po.status)}
+                              title={canEdit(po.status) ? "Edit purchase order" : "Can only edit DRAFT orders"}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -306,6 +322,14 @@ const PurchaseOrders = () => {
         open={showPODetail}
         onOpenChange={setShowPODetail}
         purchaseOrder={selectedPO}
+      />
+
+      {/* Purchase Order Edit Modal */}
+      <PurchaseOrderEditDialog
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        purchaseOrder={selectedPO}
+        onEditSuccess={handleEditSuccess}
       />
     </div>
   );

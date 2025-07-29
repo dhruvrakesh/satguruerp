@@ -8253,6 +8253,45 @@ export type Database = {
           },
         ]
       }
+      purchase_order_audit_log: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          field_changed: string | null
+          id: string
+          metadata: Json | null
+          new_value: Json | null
+          old_value: Json | null
+          purchase_order_id: string
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          field_changed?: string | null
+          id?: string
+          metadata?: Json | null
+          new_value?: Json | null
+          old_value?: Json | null
+          purchase_order_id: string
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          field_changed?: string | null
+          id?: string
+          metadata?: Json | null
+          new_value?: Json | null
+          old_value?: Json | null
+          purchase_order_id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       purchase_order_items: {
         Row: {
           created_at: string | null
@@ -8377,6 +8416,8 @@ export type Database = {
           id: string
           issued_at: string | null
           issued_by: string | null
+          last_modified_at: string | null
+          last_modified_by: string | null
           notes: string | null
           organization_id: string | null
           parent_po_id: string | null
@@ -8420,6 +8461,8 @@ export type Database = {
           id?: string
           issued_at?: string | null
           issued_by?: string | null
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           notes?: string | null
           organization_id?: string | null
           parent_po_id?: string | null
@@ -8463,6 +8506,8 @@ export type Database = {
           id?: string
           issued_at?: string | null
           issued_by?: string | null
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           notes?: string | null
           organization_id?: string | null
           parent_po_id?: string | null
