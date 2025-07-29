@@ -128,39 +128,65 @@ export function VendorCreationForm({ onSuccess, onCancel, initialData, mode = 'c
 
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
+      console.log('Creating vendor with data:', data);
+      
       // Generate supplier code using database function
       const { data: generatedCode, error: codeError } = await supabase
         .rpc('generate_supplier_code');
       
       if (codeError) throw new Error(`Failed to generate supplier code: ${codeError.message}`);
       
+      // Properly format address as JSONB
+      const addressData = {
+        street: data.address || '',
+        city: data.city || '',
+        state: data.state || '',
+        postal_code: data.pincode || '',
+        country: 'India'
+      };
+
+      // Ensure material_categories is an array of strings
+      const materialCategories = Array.isArray(selectedMaterialCategories) 
+        ? selectedMaterialCategories.filter(cat => cat && cat.trim())
+        : [];
+
+      const insertData = {
+        supplier_code: generatedCode,
+        supplier_name: data.supplier_name,
+        supplier_type: data.supplier_type,
+        category: data.category,
+        contact_person: data.contact_person,
+        email: data.email,
+        phone: data.phone,
+        address: addressData,
+        tax_details: {
+          gst_number: data.gst_number || '',
+          pan_number: data.pan_number || '',
+          registration_type: 'Regular'
+        },
+        payment_terms: data.payment_terms,
+        credit_limit: data.credit_limit ? Number(data.credit_limit) : null,
+        lead_time_days: data.lead_time_days ? Number(data.lead_time_days) : 7,
+        material_categories: materialCategories,
+        performance_rating: data.performance_rating ? Number(data.performance_rating) : 75,
+        is_active: true,
+      };
+
+      console.log('Final insert data:', insertData);
+
       const { data: result, error } = await supabase
         .from('suppliers')
-        .insert({
-          supplier_code: generatedCode,
-          supplier_name: data.supplier_name,
-          supplier_type: data.supplier_type,
-          category: data.category,
-          contact_person: data.contact_person,
-          email: data.email,
-          phone: data.phone,
-          address: data.address,
-          city: data.city,
-          state: data.state,
-          pincode: data.pincode,
-          gst_number: data.gst_number,
-          pan_number: data.pan_number,
-          payment_terms: data.payment_terms,
-          credit_limit: data.credit_limit,
-          lead_time_days: data.lead_time_days,
-          material_categories: selectedMaterialCategories,
-          performance_rating: data.performance_rating,
-          is_active: true,
-        })
+        .insert(insertData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Vendor creation error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        throw new Error(`Failed to create vendor: ${error.message}`);
+      }
+      
+      console.log('Vendor created successfully:', result);
       return result;
     },
     onSuccess: () => {
