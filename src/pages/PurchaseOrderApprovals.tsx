@@ -40,7 +40,7 @@ const PurchaseOrderApprovals = () => {
     }
   };
 
-  if (userRole !== 'general_manager') {
+  if (userRole !== 'general_manager' && userRole !== 'admin') {
     return (
       <div className="p-6">
         <Card>

@@ -8199,6 +8199,7 @@ export type Database = {
           approval_status: Database["public"]["Enums"]["approval_status"] | null
           approved_at: string | null
           approver_id: string | null
+          approver_role: string | null
           comments: string | null
           created_at: string | null
           delegation_from: string | null
@@ -8216,6 +8217,7 @@ export type Database = {
             | null
           approved_at?: string | null
           approver_id?: string | null
+          approver_role?: string | null
           comments?: string | null
           created_at?: string | null
           delegation_from?: string | null
@@ -8233,6 +8235,7 @@ export type Database = {
             | null
           approved_at?: string | null
           approver_id?: string | null
+          approver_role?: string | null
           comments?: string | null
           created_at?: string | null
           delegation_from?: string | null
@@ -8428,10 +8431,12 @@ export type Database = {
             | null
           project_code: string | null
           reference_number: string | null
+          remarks: string | null
           required_date: string | null
           revision_number: number | null
           shipping_address: Json | null
           status: Database["public"]["Enums"]["purchase_order_status"] | null
+          submitted_at: string | null
           subtotal: number | null
           supplier_id: string
           tax_amount: number | null
@@ -8473,10 +8478,12 @@ export type Database = {
             | null
           project_code?: string | null
           reference_number?: string | null
+          remarks?: string | null
           required_date?: string | null
           revision_number?: number | null
           shipping_address?: Json | null
           status?: Database["public"]["Enums"]["purchase_order_status"] | null
+          submitted_at?: string | null
           subtotal?: number | null
           supplier_id: string
           tax_amount?: number | null
@@ -8518,10 +8525,12 @@ export type Database = {
             | null
           project_code?: string | null
           reference_number?: string | null
+          remarks?: string | null
           required_date?: string | null
           revision_number?: number | null
           shipping_address?: Json | null
           status?: Database["public"]["Enums"]["purchase_order_status"] | null
+          submitted_at?: string | null
           subtotal?: number | null
           supplier_id?: string
           tax_amount?: number | null
@@ -12273,6 +12282,10 @@ export type Database = {
       assess_process_readiness: {
         Args: { p_uiorn: string; p_target_process: string }
         Returns: Json
+      }
+      auto_create_po_approvals: {
+        Args: { po_id: string; po_amount: number }
+        Returns: undefined
       }
       bulk_create_employees_from_csv: {
         Args: { rows: Json }
